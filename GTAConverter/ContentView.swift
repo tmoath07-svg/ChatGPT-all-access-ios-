@@ -404,49 +404,140 @@ struct ContentView: View {
         guard let sourceURL else { return }
         Task {
             isBusy = true
-            progressText = "نسخ وفك الملفات بأمان..."
+            progressText = "فك الملفات على دفعات..."
             defer { isBusy = false }
+
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("GTA-Prepared-\(UUID().uuidString)", isDirectory: true)
+
             do {
-                let root = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("GTA-Prepared-\(UUID().uuidString)", isDirectory: true)
                 try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
                 var isDirectory: ObjCBool = false
-                FileManager.default.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory)
+                guard FileManager.default.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory) else {
+                    throw ImportError.folderRead
+                }
+
                 if isDirectory.boolValue {
                     try Self.copyFolderSafely(from: sourceURL, to: root)
                 } else {
                     let reader = try await ArchiveReader(reading: .fileURL(sourceURL))
-                    var totalBytes: Int64 = 0
-                    var count = 0
-                    for try await item in reader {
-                        let raw = item.entry.path
-                        let relative = try Self.safeRelativePath(raw)
-                        let destination = root.appendingPathComponent(relative)
-                        if raw.hasSuffix("/") {
-                            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-                            continue
+                    do {
+                        var totalBytes: Int64 = 0
+                        var count = 0
+
+                        while let entry = try await reader.nextEntry() {
+                            count += 1
+                            guard count <= 20_000 else { throw ImportError.archiveTooLarge }
+
+                            let relative = try Self.safeRelativePath(entry.path)
+                            let destination = root.appendingPathComponent(relative)
+
+                            switch entry.fileType {
+                            case .directory:
+                                try FileManager.default.createDirectory(at: destination,
+                                                                        withIntermediateDirectories: true)
+                            case .regular:
+                                guard entry.hardlinkTarget == nil else {
+                                    try await reader.skipData()
+                                    continue
+                                }
+                                try FileManager.default.createDirectory(
+                                    at: destination.deletingLastPathComponent(),
+                                    withIntermediateDirectories: true
+                                )
+                                if FileManager.default.fileExists(atPath: destination.path) {
+                                    try FileManager.default.removeItem(at: destination)
+                                }
+                                guard FileManager.default.createFile(atPath: destination.path, contents: nil) else {
+                                    throw ImportError.fileWrite(destination.lastPathComponent)
+                                }
+
+                                let handle = try FileHandle(forWritingTo: destination)
+                                do {
+                                    while true {
+                                        let chunk = try await reader.readData(maxLength: 1_048_576)
+                                        if chunk.isEmpty { break }
+                                        totalBytes += Int64(chunk.count)
+                                        guard totalBytes <= 1_500_000_000 else {
+                                            throw ImportError.archiveTooLarge
+                                        }
+                                        try handle.write(contentsOf: Data(chunk))
+                                    }
+                                    try handle.close()
+                                } catch {
+                                    try? handle.close()
+                                    throw error
+                                }
+                            case .symlink, .fifo, .socket, .character, .block:
+                                try await reader.skipData()
+                            }
                         }
-                        let data = Data(item.bytes)
-                        totalBytes += Int64(data.count)
-                        count += 1
-                        guard totalBytes <= 1_500_000_000, count <= 20_000 else {
-                            throw ImportError.archiveTooLarge
-                        }
-                        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(),
-                                                                withIntermediateDirectories: true)
-                        try data.write(to: destination, options: .atomic)
+
+                        await reader.close()
+                        guard count > 0 else { throw ImportError.emptyArchive }
+                    } catch {
+                        await reader.close()
+                        throw error
                     }
-                    await reader.close()
-                    guard count > 0 else { throw ImportError.emptyArchive }
                 }
+
                 outputFolder = root
-                status = "اكتمل فك الملفات. تم الاحتفاظ بالأصل وإنشاء نسخة عمل مستقلة."
+                if let report = Self.fiveMResourceSummary(in: root) {
+                    status = "تم فك مورد FiveM. \(report) الملفات جاهزة للفحص، لكن هذا لا يعني أن تحويل PS4 اكتمل."
+                } else {
+                    status = "اكتمل فك الملفات. تم الاحتفاظ بالأصل وإنشاء نسخة عمل مستقلة."
+                }
                 isError = false
             } catch {
-                fail("تعذر تجهيز الأرشيف: \(error.localizedDescription)")
+                try? FileManager.default.removeItem(at: root)
+                fail("تعذر تجهيز الأرشيف: \(Self.archiveErrorDescription(error))")
             }
         }
+    }
+
+    private static func archiveErrorDescription(_ error: Error) -> String {
+        if let archiveError = error as? ArchiveError {
+            return archiveError.description
+        }
+        return error.localizedDescription
+    }
+
+    private static func fiveMResourceSummary(in root: URL) -> String? {
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return nil }
+
+        var hasManifest = false
+        var yftCount = 0
+        var ytdCount = 0
+        var metaFiles = Set<String>()
+        var visited = 0
+
+        for case let file as URL in enumerator {
+            visited += 1
+            if visited > 20_000 { break }
+            let name = file.lastPathComponent.lowercased()
+            let ext = file.pathExtension.lowercased()
+
+            if name == "fxmanifest.lua" || name == "__resource.lua" {
+                hasManifest = true
+            }
+            if ext == "yft" { yftCount += 1 }
+            if ext == "ytd" { ytdCount += 1 }
+            if ["vehicles.meta", "handling.meta", "carcols.meta",
+                "carvariations.meta", "vehiclelayouts.meta"].contains(name) {
+                metaFiles.insert(name)
+            }
+        }
+
+        guard hasManifest || (yftCount > 0 && ytdCount > 0 && !metaFiles.isEmpty) else {
+            return nil
+        }
+
+        return "تم العثور على \(yftCount) ملف YFT و\(ytdCount) ملف YTD و\(metaFiles.count) ملفات META."
     }
 
     private static func safeRelativePath(_ raw: String) throws -> String {
@@ -509,7 +600,7 @@ struct ContentView: View {
     }
 
     private enum ImportError: LocalizedError {
-        case http(Int), unsupported, archiveTooLarge, emptyArchive, unsafePath, folderRead
+        case http(Int), unsupported, archiveTooLarge, emptyArchive, unsafePath, folderRead, fileWrite(String)
         var errorDescription: String? {
             switch self {
             case .http(let code): return "استجابة الموقع: HTTP \(code)"
@@ -518,6 +609,7 @@ struct ContentView: View {
             case .emptyArchive: return "الأرشيف فارغ أو تنسيقه غير مدعوم."
             case .unsafePath: return "الأرشيف يحتوي مسار ملفات غير آمن وتم إيقاف الفك."
             case .folderRead: return "تعذرت قراءة محتويات المجلد."
+            case .fileWrite(let name): return "تعذر إنشاء الملف المستخرج: \(name)"
             }
         }
     }
