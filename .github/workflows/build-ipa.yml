@@ -24,13 +24,16 @@ jobs:
       - name: Resolve packages and patch SwiftArchive language mode
         run: |
           set -euo pipefail
-          xcodebuild -resolvePackageDependencies -project GTAConverter.xcodeproj -scheme GTAConverter
-          PACKAGE_MANIFEST="$(find "$HOME/Library/Developer/Xcode/DerivedData" build/DerivedData -path '*/SourcePackages/checkouts/libarchive-for-swift/Package.swift' -print -quit 2>/dev/null || true)"
-          if [ -z "$PACKAGE_MANIFEST" ]; then
-            echo "SwiftArchive Package.swift was not found after dependency resolution."
+          xcodebuild -resolvePackageDependencies \
+            -project GTAConverter.xcodeproj \
+            -scheme GTAConverter \
+            -derivedDataPath build/DerivedData
+          PACKAGE_MANIFEST="build/DerivedData/SourcePackages/checkouts/libarchive-for-swift/Package.swift"
+          if [ ! -f "$PACKAGE_MANIFEST" ]; then
+            echo "SwiftArchive Package.swift was not found in the build's DerivedData checkout."
             exit 1
           fi
-          echo "Patching SwiftArchive manifest: $PACKAGE_MANIFEST"
+          echo "Patching SwiftArchive manifest used by the build: $PACKAGE_MANIFEST"
           python3 - "$PACKAGE_MANIFEST" <<'PY'
           from pathlib import Path
           import sys
@@ -41,7 +44,7 @@ jobs:
           if "swiftLanguageModes: [.v6]" not in source:
               raise SystemExit("Expected SwiftArchive Swift 6 language mode was not found; refusing an unsafe blind patch.")
           path.write_text(source.replace("swiftLanguageModes: [.v6]", "swiftLanguageModes: [.v5]", 1))
-          print("SwiftArchive language mode changed to Swift 5.")
+          print("SwiftArchive language mode changed to Swift 5 in the exact checkout used by xcodebuild.")
           PY
 
       - name: Build unsigned app
