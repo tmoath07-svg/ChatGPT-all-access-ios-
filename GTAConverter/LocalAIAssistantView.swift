@@ -16,7 +16,11 @@ struct LocalAIAssistantView: View {
 
     private var title: String { featureTitle(featureID) }
     private var modelURL: URL? {
-        Bundle.main.url(forResource: "qwen2.5-1.5b-instruct-q4_k_m", withExtension: "gguf")
+        let name = "qwen2.5-1.5b-instruct-q4_k_m"
+        return Bundle.main.url(forResource: name, withExtension: "gguf", subdirectory: "Resources")
+            ?? Bundle.main.url(forResource: name, withExtension: "gguf")
+            ?? Bundle.main.resourceURL?.appendingPathComponent("Resources", isDirectory: true)
+                .appendingPathComponent(name + ".gguf")
     }
 
     var body: some View {

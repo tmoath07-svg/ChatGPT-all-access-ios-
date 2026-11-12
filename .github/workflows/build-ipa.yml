@@ -35,7 +35,7 @@ jobs:
             curl --fail --location --retry 4 --retry-delay 5 "$MODEL_URL" --output "$MODEL"
           fi
           echo "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e  $MODEL" | shasum -a 256 --check
-          LICENSE_URL="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/dd26da440ef0330c47919d1ecae0966d24022222/LICENSE"
+          LICENSE_URL="https://www.apache.org/licenses/LICENSE-2.0.txt"
           curl --fail --location --retry 3 "$LICENSE_URL" --output GTAConverter/Resources/Qwen-LICENSE.txt
           test -s GTAConverter/Resources/Qwen-LICENSE.txt
           echo "Bundled Qwen2.5 1.5B Q4_K_M verified by SHA-256; inference runs in-process on device."
