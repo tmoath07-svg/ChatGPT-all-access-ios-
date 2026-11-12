@@ -14,11 +14,13 @@ struct LocalEngineView: View {
     @State private var showingRPFPicker = false
     @State private var showingRPFExtractPicker = false
     @State private var showingResourcePicker = false
+    @State private var showingFolderConvertPicker = false
     @State private var showingYTDPicker = false
     @State private var extractedTextureFolder: URL?
     @State private var convertedResourceURL: URL?
     @State private var builtYtdURL: URL?
     @State private var extractedRpfFolder: URL?
+    @State private var convertedFolderURL: URL?
 
     init(initialFolder: URL? = nil) {
         self.initialFolder = initialFolder
@@ -101,6 +103,14 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
+                    Button { showingFolderConvertPicker = true } label: {
+                        Label("تحويل مجلد موارد كامل دفعة واحدة", systemImage: "folder.badge.gearshape")
+                            .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
+                            .background(.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain).disabled(isBusy)
+
                     Button { showingYTDPicker = true } label: {
                         Label("استخراج خامات YTD إلى DDS", systemImage: "photo.stack")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
@@ -124,6 +134,22 @@ struct LocalEngineView: View {
                             Text(outputFile.lastPathComponent).font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7))
                             ShareLink(item: outputFile) {
                                 Label("مشاركة أرشيف RPF7", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity).padding(13)
+                                    .background(.white.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                            }
+                        }
+                        .padding(15).localEnginePanel()
+                    }
+
+                    if let convertedFolderURL {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("اكتمل تحويل مجلد الموارد", systemImage: "checkmark.seal.fill")
+                                .font(.headline).foregroundStyle(.green)
+                            Text(convertedFolderURL.lastPathComponent)
+                                .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7))
+                            ShareLink(item: convertedFolderURL) {
+                                Label("مشاركة مجلد الموارد المحوّل", systemImage: "square.and.arrow.up")
                                     .frame(maxWidth: .infinity).padding(13)
                                     .background(.white.opacity(0.1))
                                     .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
@@ -212,7 +238,7 @@ struct LocalEngineView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Label("حدود المرحلة الحالية", systemImage: "info.circle.fill")
                             .font(.subheadline.bold()).foregroundStyle(.orange)
-                        Text("استخراج RPF متاح للأرشيفات غير المشفرة، مع فحص وبناء RPF7 عام. تحويل الموارد واستخراج YTD إلى DDS متاحان. بناء OTD بصيغة Orbis وتجميع DLC متوافق مع PS4 ما زالا قيد النقل والاختبار. حد المعالجة 512MB.")
+                        Text("استخراج RPF متاح للأرشيفات غير المشفرة، مع فحص وبناء RPF7 عام. تحويل مورد منفرد أو مجلد كامل واستخراج YTD إلى DDS متاحان. بناء OTD بصيغة Orbis وتجميع DLC متوافق مع PS4 ما زالا قيد النقل والاختبار. حد المعالجة 512MB.")
                             .font(.caption).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(14).background(.orange.opacity(0.07))
@@ -269,6 +295,16 @@ struct LocalEngineView: View {
             case .success(let urls):
                 guard let url = urls.first else { return }
                 convertResource(url)
+            case .failure(let error): errorText = error.localizedDescription
+            }
+        }
+        .fileImporter(isPresented: $showingFolderConvertPicker,
+                      allowedContentTypes: [.folder],
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                convertFolder(url)
             case .failure(let error): errorText = error.localizedDescription
             }
         }
@@ -352,6 +388,42 @@ struct LocalEngineView: View {
                 }
             }
             if access { file.stopAccessingSecurityScopedResource() }
+        }
+    }
+
+    private func convertFolder(_ folder: URL) {
+        let access = folder.startAccessingSecurityScopedResource()
+        isBusy = true
+        errorText = ""
+        convertedFolderURL = nil
+        report = "يتم تحويل موارد المجلد ونسخ ملفات البيانات..."
+        Task.detached(priority: .userInitiated) {
+            do {
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                                                            appropriateFor: nil, create: true)
+                let base = documents.appendingPathComponent("GTA Converter/Local Engine/Batch Converted", isDirectory: true)
+                let safeName = folder.lastPathComponent.replacingOccurrences(of: "/", with: "_")
+                let output = base.appendingPathComponent("\(safeName)-PS4", isDirectory: true)
+                let result = try LocalEngineBridge.convertFolder(at: folder, to: output)
+                await MainActor.run {
+                    convertedFolderURL = output
+                    report = """
+                    الموارد المحوّلة: \(result["converted_resources"] as? Int ?? 0)
+                    الملفات المنسوخة: \(result["copied_files"] as? Int ?? 0)
+                    علامات المنصة المعدّلة: \(result["patched_markers"] as? Int ?? 0)
+                    الحجم الأصلي: \(ByteCountFormatter.string(fromByteCount: Int64(result["input_bytes"] as? Int64 ?? 0), countStyle: .file))
+                    حجم الناتج: \(ByteCountFormatter.string(fromByteCount: Int64(result["output_bytes"] as? Int64 ?? 0), countStyle: .file))
+                    \(result["warning"] as? String ?? "")
+                    """
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorText = error.localizedDescription
+                    isBusy = false
+                }
+            }
+            if access { folder.stopAccessingSecurityScopedResource() }
         }
     }
 
