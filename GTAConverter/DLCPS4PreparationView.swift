@@ -200,6 +200,7 @@ struct DLCPS4PreparationView: View {
                 let copiedCount = copied.count
                 await MainActor.run {
                     packageURL = output
+                    GTATransferHistoryStore.record(title: "تجهيز حزم Orbx", detail: "\(copiedCount) حزمة وملف dlclist.xml")
                     status = "اكتمل تجهيز \(copiedCount) حزم وملف dlclist.xml. لم يتم تحويل محتوى RPF."
                     isBusy = false
                     isError = false
