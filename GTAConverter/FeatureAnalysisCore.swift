@@ -33,23 +33,42 @@ enum INRPFFileComparison {
             throw NSError(domain: "INRPF.Compare", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "يجب اختيار مجلد صالح للمقارنة."])
         }
-        guard let enumerator = FileManager.default.enumerator(
-            at: root, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey],
-            options: [.skipsHiddenFiles]) else {
-            throw NSError(domain: "INRPF.Compare", code: 2,
-                          userInfo: [NSLocalizedDescriptionKey: "تعذر قراءة ملفات المجلد."])
-        }
+        let fileManager = FileManager.default
+        var pendingDirectories = [root]
         var result: [String: (bytes: Int64, hash: String)] = [:]
-        for case let file as URL in enumerator {
-            let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
-            if values.isSymbolicLink == true || values.isRegularFile != true { continue }
-            let relative = String(file.path.dropFirst(root.path.count))
-                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            guard !relative.isEmpty,
-                  !relative.split(separator: "/").contains("..") else { continue }
-            let data = try Data(contentsOf: file, options: [.mappedIfSafe])
-            let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-            result[relative] = (Int64(values.fileSize ?? data.count), hash)
+
+        while let directory = pendingDirectories.popLast() {
+            let children: [URL]
+            do {
+                children = try fileManager.contentsOfDirectory(
+                    at: directory,
+                    includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey],
+                    options: [.skipsHiddenFiles]
+                )
+            } catch {
+                throw NSError(domain: "INRPF.Compare", code: 2,
+                              userInfo: [NSLocalizedDescriptionKey: "تعذر قراءة المجلد \(directory.lastPathComponent): \(error.localizedDescription)"])
+            }
+
+            for file in children {
+                let values = try file.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+                if values.isSymbolicLink == true { continue }
+                if values.isDirectory == true {
+                    pendingDirectories.append(file)
+                    continue
+                }
+                guard values.isRegularFile == true else { continue }
+
+                let prefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
+                guard file.path.hasPrefix(prefix) else { continue }
+                let relative = String(file.path.dropFirst(prefix.count))
+                guard !relative.isEmpty,
+                      !relative.split(separator: "/").contains("..") else { continue }
+
+                let data = try Data(contentsOf: file, options: [.mappedIfSafe])
+                let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+                result[relative] = (Int64(values.fileSize ?? data.count), hash)
+            }
         }
         return result
     }
