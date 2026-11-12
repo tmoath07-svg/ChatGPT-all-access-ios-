@@ -326,13 +326,18 @@ struct ContentView: View {
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
+        let supportedTypes = [UTType.fileURL.identifier, UTType.item.identifier, UTType.content.identifier]
+        guard let provider = providers.first(where: { item in
+            supportedTypes.contains(where: { item.hasItemConformingToTypeIdentifier($0) })
+        }), let dropType = supportedTypes.first(where: { providerType in
+            provider.hasItemConformingToTypeIdentifier(providerType)
+        }) else {
             fail("المصدر هذا ما يرسل رابط ملف قابل للاستيراد.")
             return false
         }
         isBusy = true
         progressText = "جاري استيراد الملف المسحوب..."
-        provider.loadFileRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { url, error in
+        provider.loadFileRepresentation(forTypeIdentifier: dropType) { url, error in
             guard let url = url, error == nil else {
                 DispatchQueue.main.async { fail("ما قدرت أقرأ الملف المسحوب. جرّب اختيار الملف من الزر."); isBusy = false }
                 return
