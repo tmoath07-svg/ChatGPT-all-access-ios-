@@ -760,11 +760,16 @@ struct FileHashInspectorView: View {
         guard !urls.isEmpty else { return }
         isBusy = true
         report = "تم اختيار \(urls.count) ملف. يتم استيرادها بأمان ثم حساب البصمات..."
+        let scopedURLs = urls.map { ($0, $0.startAccessingSecurityScopedResource()) }
         Task.detached(priority: .userInitiated) {
+            defer {
+                for (url, started) in scopedURLs where started { url.stopAccessingSecurityScopedResource() }
+            }
             var lines: [String] = []
-            for url in urls {
+            for (url, _) in scopedURLs {
                 do {
-                    let localURL = try FileImportService.importItem(from: url, category: "Imports")
+                    let localURL = try FileImportService.importItem(from: url, category: "Imports",
+                                                                    securityScopeAlreadyStarted: true)
                     let handle = try FileHandle(forReadingFrom: localURL)
                     defer { try? handle.close() }
                     var hasher = SHA256()
