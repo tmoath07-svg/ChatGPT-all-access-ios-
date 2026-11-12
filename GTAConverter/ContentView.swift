@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import SwiftArchive
+import UIKit
 
 struct ContentView: View {
     @State private var showingImporter = false
@@ -61,10 +62,18 @@ struct ContentView: View {
             .toolbarBackground(background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .fileImporter(isPresented: $showingImporter,
-                          allowedContentTypes: importKind == .folder ? [.folder] : [.item],
-                          allowsMultipleSelection: false,
-                          onCompletion: handleImport)
+            .toolbar {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    NavigationLink(destination: AppFilesView()) { Image(systemName: "folder.fill").foregroundStyle(purple) }
+                    NavigationLink(destination: AppSettingsView()) { Image(systemName: "gearshape.fill").foregroundStyle(purple) }
+                }
+            }
+            .sheet(isPresented: $showingImporter) {
+                DocumentPickerBridge(contentTypes: importKind == .folder ? [.folder] : [.item]) { result in
+                    handleImport(result)
+                }
+                .ignoresSafeArea()
+            }
             .disabled(isBusy)
             .overlay {
                 if isBusy {
@@ -294,10 +303,7 @@ struct ContentView: View {
     private func handleImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
-            guard let pickedURL = urls.first else {
-                fail("ما تم اختيار أي ملف.")
-                return
-            }
+            guard let pickedURL = urls.first else { return }
             isBusy = true
             progressText = "جاري استيراد الملف إلى التطبيق..."
             Task {
@@ -346,6 +352,14 @@ struct ContentView: View {
         }
         return true
     }
+    private static func appManagedFolder(_ name: String) throws -> URL {
+        let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let root = documents.appendingPathComponent("GTA Converter", isDirectory: true)
+        let folder = root.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
     private static func copyPickedItemIntoAppStorage(_ source: URL) throws -> URL {
         let hasAccess = source.startAccessingSecurityScopedResource()
         defer {
@@ -353,11 +367,9 @@ struct ContentView: View {
         }
 
         let fm = FileManager.default
-        let appSupport = try fm.url(for: .applicationSupportDirectory,
-                                    in: .userDomainMask,
-                                    appropriateFor: nil,
-                                    create: true)
-        let imports = appSupport.appendingPathComponent("GTAConverter/Imports", isDirectory: true)
+        let documents = try fm.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let appRoot = documents.appendingPathComponent("GTA Converter", isDirectory: true)
+        let imports = appRoot.appendingPathComponent("Imports", isDirectory: true)
         try fm.createDirectory(at: imports, withIntermediateDirectories: true)
         let destinationRoot = imports.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try fm.createDirectory(at: destinationRoot, withIntermediateDirectories: true)
@@ -413,7 +425,7 @@ struct ContentView: View {
                 guard ["zip", "rar"].contains(ext.lowercased()) else {
                     throw ImportError.unsupported
                 }
-                let destination = FileManager.default.temporaryDirectory
+                let destination = try Self.appManagedFolder("Imports")
                     .appendingPathComponent("GTA-Download-\(UUID().uuidString).\(ext)")
                 try FileManager.default.moveItem(at: temporary, to: destination)
                 sourceURL = destination
@@ -433,7 +445,7 @@ struct ContentView: View {
             progressText = "نسخ وفك الملفات بأمان..."
             defer { isBusy = false }
             do {
-                let root = FileManager.default.temporaryDirectory
+                let root = try Self.appManagedFolder("Ready")
                     .appendingPathComponent("GTA-Prepared-\(UUID().uuidString)", isDirectory: true)
                 try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
@@ -521,7 +533,7 @@ struct ContentView: View {
         </SMandatoryPacksData>
         """
         do {
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("dlclist.xml")
+            let url = try Self.appManagedFolder("Ready").appendingPathComponent("dlclist.xml")
             try xml.write(to: url, atomically: true, encoding: .utf8)
             generatedURL = url
             status = "تم إنشاء dlclist.xml بعدد \(names.count) حزمة."
