@@ -41,7 +41,7 @@ struct GTAAppBackground: View {
 
 // MARK: - Motion blur entrance
 
-private struct GTAMotionEntrance: ViewModifier {
+struct GTAMotionEntrance: ViewModifier {
     @AppStorage("gta_motion_blur_enabled") private var enabled = true
     @State private var appeared = false
 
@@ -55,7 +55,7 @@ private struct GTAMotionEntrance: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     func gtaMotionEntrance() -> some View { modifier(GTAMotionEntrance()) }
 }
 
