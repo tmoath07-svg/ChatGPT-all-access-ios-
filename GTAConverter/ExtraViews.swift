@@ -427,6 +427,7 @@ struct CloudConversionView: View {
 }
 
 struct CreatorPageView: View {
+    @AppStorage("gta_language") private var appLanguage = "ar"
     private let creatorHandle = "Moa_sa7"
     private let tiktokURL = URL(string: "https://www.tiktok.com/@Moa_sa7")!
 
@@ -484,7 +485,8 @@ struct CreatorPageView: View {
         }
         .navigationTitle("المبدع")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.layoutDirection, Locale.current.language.languageCode?.identifier == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\.locale, Locale(identifier: appLanguage))
     }
 }
 

@@ -889,11 +889,17 @@ private extension View {
         }
     }
 
+    @ViewBuilder
     func panel() -> some View {
-        self.background(.ultraThinMaterial)
-            .background(Color.white.opacity(0.045))
-            .clipShape(RoundedRectangle(cornerRadius: 19))
-            .overlay(RoundedRectangle(cornerRadius: 19).stroke(.white.opacity(0.055)))
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 19, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 19, style: .continuous).stroke(.white.opacity(0.07)))
+        } else {
+            self.background(.ultraThinMaterial)
+                .background(Color.white.opacity(0.045))
+                .clipShape(RoundedRectangle(cornerRadius: 19))
+                .overlay(RoundedRectangle(cornerRadius: 19).stroke(.white.opacity(0.055)))
+        }
     }
 }
 
