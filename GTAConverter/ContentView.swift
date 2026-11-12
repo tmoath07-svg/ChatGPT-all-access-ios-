@@ -171,6 +171,7 @@ struct ContentView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 9) {
                 menuLink("المحرك المحلي", icon: "cpu.fill", destination: LocalEngineView(initialFolder: outputFolder))
+                menuLink("FTP جهاز PS4", icon: "network", destination: FTPBrowserView())
                 menuLink("محرر RPF", icon: "archivebox.fill", destination: LocalEngineView(initialFolder: outputFolder))
                 menuLink("التحويل السحابي (احتياطي)", icon: "cloud.gear.fill", destination: CloudConversionView())
                 menuLink("متصفح المودات", icon: "globe", destination: GTAModBrowserView())
