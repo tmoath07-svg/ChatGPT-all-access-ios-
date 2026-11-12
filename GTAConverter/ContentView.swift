@@ -189,6 +189,7 @@ struct ContentView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 9) {
                 menuLink("المحرك المحلي", icon: "cpu.fill", destination: LocalEngineView(initialFolder: outputFolder))
+                menuLink("استوديو FiveM", icon: "car.side.3.fill", destination: FiveMStudioView())
                 menuLink("FTP جهاز PS4", icon: "network", destination: FTPBrowserView())
                 menuLink("إرسال تلقائي للسوني", icon: "gamecontroller.fill", destination: OrbxPS4TransferView())
                 menuLink("محرر RPF", icon: "archivebox.fill", destination: LocalEngineView(initialFolder: outputFolder))
