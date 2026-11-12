@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var importKind = ImportKind.archive
     @State private var isDropTargeted = false
     @State private var lastErrorDetails = ""
+    @State private var modAnalysis: ModAnalysisReport?
 
     private let purple = Color(red: 0.57, green: 0.30, blue: 0.98)
     private let background = Color(red: 0.035, green: 0.025, blue: 0.065)
@@ -46,6 +47,7 @@ struct ContentView: View {
                         packCard
                         actionButtons
                         if let outputFolder { outputCard(outputFolder) }
+                        if let modAnalysis { modAnalysisCard(modAnalysis) }
                         if let generatedURL { xmlShareCard(generatedURL) }
                         statusCard
                         footer
@@ -166,7 +168,7 @@ struct ContentView: View {
                 }
                 Spacer(minLength: 0)
                 if sourceURL != nil {
-                    Button { sourceURL = nil; selectedFileName = "ما تم اختيار ملف"; outputFolder = nil } label: {
+                    Button { sourceURL = nil; selectedFileName = "ما تم اختيار ملف"; outputFolder = nil; modAnalysis = nil } label: {
                         Image(systemName: "xmark.circle.fill").font(.title3).foregroundStyle(.white.opacity(0.55))
                     }.buttonStyle(.plain)
                 }
@@ -273,6 +275,57 @@ struct ContentView: View {
             }
         }
         .padding(16).panel()
+    }
+
+    private func modAnalysisCard(_ report: ModAnalysisReport) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("تحليل بنية المود", icon: "car.side.and.exclamationmark")
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
+                analysisMetric("الملفات", value: "\(report.fileCount)", icon: "doc")
+                analysisMetric("ملفات DLC", value: "\(report.dlcFiles.count)", icon: "shippingbox")
+                analysisMetric("أسماء الحزم", value: "\(report.packNames.count)", icon: "tag")
+                analysisMetric("ملفات Readme", value: "\(report.readmeFiles.count)", icon: "text.book.closed")
+            }
+            Text(report.dlcFiles.isEmpty ? "ما لقينا dlc.rpf. راجع بنية المود قبل التحويل." : "تم العثور على ملفات DLC. تقدر تستخدم أسماءها لإنشاء dlclist.xml.")
+                .font(.caption).foregroundStyle(.white.opacity(0.72))
+            if !report.packNames.isEmpty {
+                Button {
+                    packNames = report.packNames.joined(separator: "\n")
+                    status = "تم نقل \(report.packNames.count) اسم DLC إلى مولّد XML."
+                    isError = false
+                } label: {
+                    Label("استخدام أسماء DLC في مولّد XML", systemImage: "arrow.down.doc.fill")
+                        .font(.subheadline.weight(.bold)).frame(maxWidth: .infinity).padding(12)
+                        .background(purple.opacity(0.25)).clipShape(RoundedRectangle(cornerRadius: 12))
+                        .foregroundStyle(.white)
+                }.buttonStyle(.plain)
+            }
+            if !report.duplicatePackNames.isEmpty {
+                Text("تنبيه: أسماء متكررة: " + report.duplicatePackNames.joined(separator: "، "))
+                    .font(.caption2).foregroundStyle(.orange)
+            }
+            Button {
+                UIPasteboard.general.string = report.reportText
+            } label: {
+                Label("نسخ تقرير تحليل المود", systemImage: "doc.on.doc")
+                    .font(.caption.bold()).frame(maxWidth: .infinity).padding(10)
+                    .background(.white.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 10))
+                    .foregroundStyle(.white)
+            }.buttonStyle(.plain)
+        }
+        .padding(16).panel()
+    }
+
+    private func analysisMetric(_ title: String, value: String, icon: String) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: icon).foregroundStyle(purple).font(.title3)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value).font(.headline.bold()).foregroundStyle(.white)
+                Text(title).font(.caption2).foregroundStyle(.white.opacity(0.55))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(11).background(.black.opacity(0.2)).clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func xmlShareCard(_ url: URL) -> some View {
@@ -497,8 +550,12 @@ struct ContentView: View {
                     await reader.close()
                     guard count > 0 else { throw ImportError.emptyArchive }
                 }
+                let analysis = try await Task.detached(priority: .utility) {
+                    try ModAnalyzer.analyze(at: root)
+                }.value
                 outputFolder = root
-                status = "اكتمل فك الملفات. تم الاحتفاظ بالأصل وإنشاء نسخة عمل مستقلة."
+                modAnalysis = analysis
+                status = "اكتمل فك الملفات وتحليل بنية المود. تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf."
                 isError = false
             } catch {
                 fail("تعذر تجهيز الأرشيف: \(error.localizedDescription)", underlyingError: error)
