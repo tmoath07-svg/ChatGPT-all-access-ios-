@@ -19,6 +19,15 @@ enum LocalEngineBridge {
         return try decode(pointer)
     }
 
+    static func convertResource(at file: URL, to outputDirectory: URL) throws -> [String: Any] {
+        let pointer = file.path.withCString { input in
+            outputDirectory.path.withCString { output in
+                gta_engine_convert_resource(input, output)
+            }
+        }
+        return try decode(pointer)
+    }
+
     private static func decode(_ pointer: UnsafeMutablePointer<CChar>?) throws -> [String: Any] {
         guard let pointer else {
             throw NSError(domain: "GTALocalEngine", code: 1,
