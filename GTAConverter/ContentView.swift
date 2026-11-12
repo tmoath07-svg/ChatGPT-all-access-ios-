@@ -1070,76 +1070,118 @@ private struct AppFilesView: View {
 
 private struct AppSettingsView: View {
     @AppStorage("gta_show_hidden_files") private var showHiddenFiles = false
+    @AppStorage("gta_language") private var language = "ar"
+    @AppStorage("gta_accent_color") private var accent = "purple"
+    @AppStorage("gta_background_color") private var background = "midnight"
+    @AppStorage("gta_welcome_message") private var welcome = "حيّاك في GTA Converter"
+    @AppStorage("gta_motion_enabled") private var motionEnabled = true
+    @AppStorage("gta_home_density") private var homeDensity = "comfortable"
+    @AppStorage("gta_onboarding_complete") private var onboardingComplete = false
     @State private var cacheMessage = ""
+
+    private var tint: Color {
+        switch accent { case "blue": return .blue; case "green": return .green; case "orange": return .orange; case "red": return .red; default: return .purple }
+    }
 
     var body: some View {
         ZStack {
-            GTAAppBackground()
+            GTASetupBackground(style: background).ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 14) {
                     HStack(spacing: 12) {
-                        Image(systemName: "gearshape.2.fill").font(.system(size: 30)).foregroundStyle(Color.purple)
+                        Image(systemName: "gearshape.2.fill").font(.system(size: 30)).foregroundStyle(tint)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("إعدادات التطبيق").font(.title3.bold()).foregroundStyle(.white)
-                            Text("التخزين وطريقة عرض الملفات").font(.caption).foregroundStyle(.white.opacity(0.55))
+                            Text(language == "ar" ? "إعدادات التطبيق" : "App Settings").font(.title3.bold()).foregroundStyle(.white)
+                            Text(language == "ar" ? "غيّر خياراتك بأي وقت" : "Change your preferences anytime").font(.caption).foregroundStyle(.white.opacity(0.55))
                         }
                         Spacer()
-                    }.padding(18).background(LinearGradient(colors: [Color.purple.opacity(0.3), .white.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    }.padding(18).background(LinearGradient(colors: [tint.opacity(0.3), .white.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .clipShape(RoundedRectangle(cornerRadius: 20))
-
-                    group("عام", icon: "slider.horizontal.3") {
-                        Toggle(isOn: $showHiddenFiles) {
-                            Label("إظهار الملفات المخفية", systemImage: "eye").foregroundStyle(.white)
-                        }.tint(.purple)
+                    group(language == "ar" ? "اللغة" : "Language", icon: "globe") {
+                        Picker(language == "ar" ? "لغة التطبيق" : "App language", selection: $language) {
+                            Text("العربية").tag("ar")
+                            Text("English").tag("en")
+                        }.pickerStyle(.segmented)
                     }
-
-                    group("التخزين", icon: "internaldrive") {
-                        Label("مجلد التطبيق", systemImage: "folder.fill").foregroundStyle(.white)
-                        Text("تخزين داخلي خاص بالتطبيق، غير ظاهر في تطبيق الملفات")
+                    group(language == "ar" ? "التصميم" : "Appearance", icon: "paintpalette.fill") {
+                        Text(language == "ar" ? "لون الواجهة" : "Accent color").font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
+                        Picker(language == "ar" ? "اللون" : "Color", selection: $accent) {
+                            Text(language == "ar" ? "بنفسجي" : "Purple").tag("purple")
+                            Text(language == "ar" ? "أزرق" : "Blue").tag("blue")
+                            Text(language == "ar" ? "أخضر" : "Green").tag("green")
+                            Text(language == "ar" ? "برتقالي" : "Orange").tag("orange")
+                            Text(language == "ar" ? "أحمر" : "Red").tag("red")
+                        }.pickerStyle(.menu).tint(tint)
+                        Divider().overlay(.white.opacity(0.1))
+                        Text(language == "ar" ? "خلفية التطبيق" : "App background").font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
+                        Picker(language == "ar" ? "الخلفية" : "Background", selection: $background) {
+                            Text(language == "ar" ? "ليلي" : "Midnight").tag("midnight")
+                            Text(language == "ar" ? "أسود" : "Black").tag("black")
+                            Text(language == "ar" ? "كحلي" : "Navy").tag("navy")
+                            Text(language == "ar" ? "فحمي" : "Graphite").tag("graphite")
+                        }.pickerStyle(.menu).tint(tint)
+                    }
+                    group(language == "ar" ? "رسالة الترحيب" : "Welcome message", icon: "hand.wave.fill") {
+                        TextField(language == "ar" ? "اكتب رسالة الترحيب" : "Enter your welcome message", text: $welcome, axis: .vertical)
+                            .lineLimit(2...4).padding(12).background(.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                        Text(language == "ar" ? "تقدر تعدّل العبارة هنا بأي وقت." : "You can edit this message here at any time.")
                             .font(.caption).foregroundStyle(.white.opacity(0.55))
+                        Button { onboardingComplete = false } label: {
+                            Label(language == "ar" ? "إعادة عرض شاشة البداية عند التشغيل القادم" : "Show onboarding on next launch", systemImage: "rectangle.on.rectangle")
+                                .font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(12)
+                                .background(tint.opacity(0.22)).clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                        }
+                    }
+                    group(language == "ar" ? "الحركة وطريقة العرض" : "Motion & layout", icon: "sparkles") {
+                        Toggle(language == "ar" ? "تفعيل الانتقالات والحركة" : "Enable transitions and motion", isOn: $motionEnabled).tint(tint).foregroundStyle(.white)
+                        Picker(language == "ar" ? "كثافة الواجهة" : "Home layout density", selection: $homeDensity) {
+                            Text(language == "ar" ? "مريحة" : "Comfortable").tag("comfortable")
+                            Text(language == "ar" ? "مضغوطة" : "Compact").tag("compact")
+                        }.pickerStyle(.segmented)
+                    }
+                    group(language == "ar" ? "عام" : "General", icon: "slider.horizontal.3") {
+                        Toggle(isOn: $showHiddenFiles) {
+                            Label(language == "ar" ? "إظهار الملفات المخفية" : "Show hidden files", systemImage: "eye").foregroundStyle(.white)
+                        }.tint(tint)
+                    }
+                    group(language == "ar" ? "التخزين" : "Storage", icon: "internaldrive") {
+                        Label(language == "ar" ? "مجلد التطبيق" : "App storage", systemImage: "folder.fill").foregroundStyle(.white)
+                        Text(language == "ar" ? "تخزين داخلي خاص بالتطبيق، غير ظاهر في تطبيق الملفات" : "Private app storage, not visible in the Files app").font(.caption).foregroundStyle(.white.opacity(0.55))
                         Button {
                             do {
                                 let temp = FileManager.default.temporaryDirectory
                                 let contents = try FileManager.default.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil)
-                                for item in contents where item.lastPathComponent.hasPrefix("GTA-") {
-                                    try? FileManager.default.removeItem(at: item)
-                                }
-                                cacheMessage = "تم تنظيف الملفات المؤقتة."
+                                for item in contents where item.lastPathComponent.hasPrefix("GTA-") { try? FileManager.default.removeItem(at: item) }
+                                cacheMessage = language == "ar" ? "تم تنظيف الملفات المؤقتة." : "Temporary files cleared."
                             } catch { cacheMessage = error.localizedDescription }
                         } label: {
-                            Label("تنظيف الملفات المؤقتة", systemImage: "trash")
-                                .frame(maxWidth: .infinity).padding(12)
-                                .background(.white.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 12))
-                                .foregroundStyle(.white)
+                            Label(language == "ar" ? "تنظيف الملفات المؤقتة" : "Clear temporary files", systemImage: "trash")
+                                .frame(maxWidth: .infinity).padding(12).background(.white.opacity(0.08))
+                                .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
                         }
                         if !cacheMessage.isEmpty { Text(cacheMessage).font(.caption).foregroundStyle(.white.opacity(0.65)) }
                     }
-
-                    group("حول التطبيق", icon: "info.circle") {
-                        settingRow("اسم التطبيق", "GTA Converter")
-                        settingRow("النظام الأدنى", "iOS 16 أو أحدث")
+                    group(language == "ar" ? "حول التطبيق" : "About", icon: "info.circle") {
+                        settingRow(language == "ar" ? "اسم التطبيق" : "App name", "GTA Converter")
+                        settingRow(language == "ar" ? "النظام الأدنى" : "Minimum iOS", "iOS 16+")
                     }
-
-                    group("الخصوصية", icon: "lock.shield") {
-                        Text("ملفاتك تحفظ محلياً داخل التطبيق ولا يتم رفعها إلى خادم خارجي.")
+                    group(language == "ar" ? "الخصوصية" : "Privacy", icon: "lock.shield") {
+                        Text(language == "ar" ? "ملفاتك تحفظ محلياً داخل التطبيق ولا يتم رفعها إلى خادم خارجي." : "Your files stay locally in the app and are not uploaded to an external server.")
                             .font(.caption).foregroundStyle(.white.opacity(0.62))
                     }
-
                     HStack {
-                        Text("الفيرجن").foregroundStyle(.white.opacity(0.65))
+                        Text(language == "ar" ? "الإصدار" : "Version").foregroundStyle(.white.opacity(0.65))
                         Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.5.1")
-                            .font(.system(.subheadline, design: .rounded).weight(.bold))
-                            .foregroundStyle(.white)
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity)
-                    .background(.white.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 15))
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.80")
+                            .font(.system(.subheadline, design: .rounded).weight(.bold)).foregroundStyle(.white)
+                    }.padding(16).frame(maxWidth: .infinity).background(.white.opacity(0.07)).clipShape(RoundedRectangle(cornerRadius: 15))
                 }.padding(16)
             }
         }
-        .navigationTitle("الإعدادات")
+        .environment(\\.layoutDirection, language == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\\.locale, Locale(identifier: language))
+        .navigationTitle(language == "ar" ? "الإعدادات" : "Settings")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -1150,9 +1192,7 @@ private struct AppSettingsView: View {
         }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
             .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
     }
-
     private func settingRow(_ title: String, _ value: String) -> some View {
-        HStack { Text(title).foregroundStyle(.white.opacity(0.7)); Spacer(); Text(value).foregroundStyle(.white) }
-            .font(.subheadline)
+        HStack { Text(title).foregroundStyle(.white.opacity(0.7)); Spacer(); Text(value).foregroundStyle(.white) }.font(.subheadline)
     }
 }
