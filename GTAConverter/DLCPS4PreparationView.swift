@@ -197,9 +197,10 @@ struct DLCPS4PreparationView: View {
                 try note.write(to: output.appendingPathComponent("INSTALL-PS4.txt"),
                                atomically: true, encoding: .utf8)
 
+                let copiedCount = copied.count
                 await MainActor.run {
                     packageURL = output
-                    status = "اكتمل تجهيز \(copied.count) حزم وملف dlclist.xml. لم يتم تحويل محتوى RPF."
+                    status = "اكتمل تجهيز \(copiedCount) حزم وملف dlclist.xml. لم يتم تحويل محتوى RPF."
                     isBusy = false
                     isError = false
                 }
