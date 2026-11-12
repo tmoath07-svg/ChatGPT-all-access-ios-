@@ -275,6 +275,7 @@ struct FeatureHubView: View {
         case "ytd": YTDTextureLabView()
         case "handling": HandlingAnalyzerView()
         case "compare": ModComparisonView()
+        case "ai": LocalAIAssistantView(featureID: item.id)
         case "cloud": CloudConversionView()
         case "chiaki": ChiakiRemotePlayView()
         case "hash": FileHashInspectorView()
@@ -294,7 +295,7 @@ struct FeatureHubView: View {
     }
 
     private func statusColor(_ status: String) -> Color {
-        if status == "متاح" || status == "تجهيز متاح" { return .green }
+        if status == "متاح" || status == "تجهيز متاح" || status == "محلي" { return .green }
         if status == "فحص متاح" || status == "متاح يدوياً" || status == "جزئي" || status == "تحليل محلي" || status == "دليل وتجهيز" { return .orange }
         return .gray
     }
