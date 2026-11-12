@@ -110,11 +110,12 @@ struct ContentView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingImporter) {
-                DocumentPickerBridge(contentTypes: importKind == .folder ? [.folder] : [.item]) { result in
-                    handleImport(result)
-                }
-                .ignoresSafeArea()
+            .fileImporter(
+                isPresented: $showingImporter,
+                allowedContentTypes: importKind == .folder ? [.folder] : [.item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleImport(result)
             }
             .disabled(isBusy)
             .overlay {
@@ -189,6 +190,7 @@ struct ContentView: View {
             HStack(spacing: 9) {
                 menuLink("المحرك المحلي", icon: "cpu.fill", destination: LocalEngineView(initialFolder: outputFolder))
                 menuLink("FTP جهاز PS4", icon: "network", destination: FTPBrowserView())
+                menuLink("إرسال تلقائي للسوني", icon: "gamecontroller.fill", destination: OrbxPS4TransferView())
                 menuLink("محرر RPF", icon: "archivebox.fill", destination: LocalEngineView(initialFolder: outputFolder))
                 menuLink("التحويل السحابي (احتياطي)", icon: "cloud.gear.fill", destination: CloudConversionView())
                 menuLink("متصفح المودات", icon: "globe", destination: GTAModBrowserView())
