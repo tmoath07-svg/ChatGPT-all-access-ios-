@@ -49,7 +49,7 @@ jobs:
           patterns = {
               "windows_executables": r"(?i)\.exe\b|\.dll\b",
               "wine_or_windows_paths": r"(?i)\bwine\b|[A-Z]:\\|\\\\",
-              "subprocess_calls": r"(?i)subprocess\.|os\.system|Popen\(",
+              "subprocess_calls": r"(?i)subprocess\.|os\.system|Popen",
               "native_library_calls": r"(?i)ctypes|windll|WinDLL|CDLL",
               "archive_tools": r"(?i)7z|rarfile|zipfile|libarchive|RPFBuilder",
           }
