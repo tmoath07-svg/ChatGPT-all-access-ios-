@@ -32,6 +32,7 @@ targets:
         INFOPLIST_KEY_CFBundleVersion: "21"
         INFOPLIST_KEY_CFBundleShortVersionString: "2.00"
         INFOPLIST_KEY_LSRequiresIPhoneOS: YES
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "يحتاج INRPF إلى الوصول للشبكة المحلية للاتصال بجهاز PS4 ونقل ملفات DLC عبر FTP."
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
         INFOPLIST_KEY_UIFileSharingEnabled: NO
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: NO
