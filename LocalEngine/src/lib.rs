@@ -6,7 +6,8 @@ use std::io::Write;
 use std::os::raw::c_char;
 use std::path::{Component, Path, PathBuf};
 
-const MAX_INPUT_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_INPUT_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_RESOURCE_DECOMPRESSED_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_FILES: usize = 20_000;
 const MAX_DEPTH: usize = 64;
 
@@ -57,7 +58,7 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
         Err(error) => return result_error(format!("تعذر قراءة الملف: {error}")),
     };
     if metadata.len() > MAX_INPUT_BYTES {
-        return result_error("حجم RPF أكبر من حد الفحص المحلي (1GB).");
+        return result_error("حجم RPF أكبر من حد الفحص المحلي (512MB).");
     }
 
     let bytes = match fs::read(path) {
@@ -160,7 +161,7 @@ fn collect_files(
         let size = metadata.len();
         *total_bytes = total_bytes.saturating_add(size);
         if *total_bytes > MAX_INPUT_BYTES {
-            return Err("مجموع الملفات تجاوز حد المعالجة المحلي (1GB).".to_string());
+            return Err("مجموع الملفات تجاوز حد المعالجة المحلي (512MB).".to_string());
         }
         files.push((archive_path, path, size));
         if files.len() > MAX_FILES {
@@ -287,19 +288,30 @@ fn read_decompressed_payload(payload: &[u8]) -> Result<Vec<u8>, String> {
     use flate2::read::{DeflateDecoder, GzDecoder, ZlibDecoder};
     use std::io::Read;
 
-    let mut raw = Vec::new();
-    if DeflateDecoder::new(payload).read_to_end(&mut raw).is_ok() && !raw.is_empty() {
+    fn read_limited<R: Read>(reader: R) -> Result<Vec<u8>, String> {
+        let mut limited = reader.take(MAX_RESOURCE_DECOMPRESSED_BYTES + 1);
+        let mut output = Vec::new();
+        limited.read_to_end(&mut output)
+            .map_err(|error| format!("فشل فك ضغط RSC7: {error}"))?;
+        if output.len() as u64 > MAX_RESOURCE_DECOMPRESSED_BYTES {
+            return Err("حجم مورد RSC7 بعد فك الضغط تجاوز 512MB. أُوقف التحويل لحماية ذاكرة الجهاز.".to_string());
+        }
+        if output.is_empty() {
+            return Err("حمولة RSC7 فارغة بعد فك الضغط.".to_string());
+        }
+        Ok(output)
+    }
+
+    if let Ok(raw) = read_limited(DeflateDecoder::new(payload)) {
         return Ok(raw);
     }
-    raw.clear();
-    if ZlibDecoder::new(payload).read_to_end(&mut raw).is_ok() && !raw.is_empty() {
+    if let Ok(raw) = read_limited(ZlibDecoder::new(payload)) {
         return Ok(raw);
     }
-    raw.clear();
-    if GzDecoder::new(payload).read_to_end(&mut raw).is_ok() && !raw.is_empty() {
+    if let Ok(raw) = read_limited(GzDecoder::new(payload)) {
         return Ok(raw);
     }
-    Err("تعذر فك ضغط RSC7 باستخدام صيغ DEFLATE المعروفة. لم يتم تعديل الملف.".to_string())
+    Err("تعذر فك ضغط RSC7 ضمن الصيغ والحدود المدعومة. لم يتم تعديل الملف.".to_string())
 }
 
 fn replace_marker(data: &mut [u8]) -> usize {
@@ -378,7 +390,7 @@ pub unsafe extern "C" fn gta_engine_convert_resource(
         Err(error) => return result_error(format!("تعذرت قراءة المورد: {error}")),
     };
     if source.len() as u64 > MAX_INPUT_BYTES {
-        return result_error("حجم المورد تجاوز حد المعالجة المحلي (1GB).");
+        return result_error("حجم المورد تجاوز حد المعالجة المحلي (512MB).");
     }
     let (new_extension, converted, patched, mode) = match convert_resource_bytes(extension, &source) {
         Ok(value) => value,
@@ -460,6 +472,16 @@ mod tests {
         let decoded = read_decompressed_payload(&output[16..]).unwrap();
         assert!(decoded.windows(8).any(|window| window == ps4));
         assert!(!decoded.windows(8).any(|window| window == pc));
+    }
+
+    #[test]
+    fn copies_extension_only_resource_types_without_modifying_bytes() {
+        let source = b"YM​​AP-TEST-DATA";
+        let (extension, output, patched, mode) = convert_resource_bytes("ymap", source).unwrap();
+        assert_eq!(extension, "omap");
+        assert_eq!(output, source);
+        assert_eq!(patched, 0);
+        assert_eq!(mode, "extension-only");
     }
 
     #[test]
