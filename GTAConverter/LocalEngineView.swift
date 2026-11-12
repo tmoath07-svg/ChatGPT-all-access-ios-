@@ -12,6 +12,8 @@ struct LocalEngineView: View {
     @State private var showingFolderPicker = false
     @State private var showingRPFPicker = false
     @State private var showingResourcePicker = false
+    @State private var showingYTDPicker = false
+    @State private var extractedTextureFolder: URL?
     @State private var convertedResourceURL: URL?
 
     init(initialFolder: URL? = nil) {
@@ -87,6 +89,14 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
+                    Button { showingYTDPicker = true } label: {
+                        Label("استخراج خامات YTD إلى DDS", systemImage: "photo.stack")
+                            .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
+                            .background(.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain).disabled(isBusy)
+
                     if let outputFile {
                         VStack(alignment: .leading, spacing: 10) {
                             Label("تم إنشاء الملف وفحص بنيته", systemImage: "checkmark.seal.fill")
@@ -118,6 +128,22 @@ struct LocalEngineView: View {
                         .padding(15).localEnginePanel()
                     }
 
+                    if let extractedTextureFolder {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("تم استخراج الخامات", systemImage: "checkmark.seal.fill")
+                                .font(.headline).foregroundStyle(.green)
+                            Text(extractedTextureFolder.lastPathComponent)
+                                .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7))
+                            ShareLink(item: extractedTextureFolder) {
+                                Label("مشاركة مجلد DDS", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity).padding(13)
+                                    .background(.white.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                            }
+                        }
+                        .padding(15).localEnginePanel()
+                    }
+
                     if !report.isEmpty {
                         Text(report).font(.caption.monospaced()).foregroundStyle(.white.opacity(0.78))
                             .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
@@ -134,7 +160,7 @@ struct LocalEngineView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Label("حدود المرحلة الحالية", systemImage: "info.circle.fill")
                             .font(.subheadline.bold()).foregroundStyle(.orange)
-                        Text("هذا المحرك ينشئ حاوية RPF7 عامة ويفحص جدولها. التحويل البنيوي لبعض موارد Y* إلى O* متاح، لكن YTD/OTD ومحرك ragebuilder وبناء DLC النهائي لم تكتمل بعد. حد المعالجة 512MB لكل ملف أو عملية. لا تعتبر الناتج حزمة PS4 جاهزة.")
+                        Text("هذا المحرك ينشئ حاوية RPF7 عامة ويفحص جدولها. تحويل الموارد البنيوية واستخراج YTD إلى DDS متاحان. بناء OTD بضغط PS4 ومحرك ragebuilder وتجميع DLC النهائي لم تكتمل بعد. حد المعالجة 512MB. لا تعتبر الناتج حزمة PS4 جاهزة.")
                             .font(.caption).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(14).background(.orange.opacity(0.07))
@@ -171,6 +197,16 @@ struct LocalEngineView: View {
             case .success(let urls):
                 guard let url = urls.first else { return }
                 convertResource(url)
+            case .failure(let error): errorText = error.localizedDescription
+            }
+        }
+        .fileImporter(isPresented: $showingYTDPicker,
+                      allowedContentTypes: [.item],
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                extractYTD(url)
             case .failure(let error): errorText = error.localizedDescription
             }
         }
@@ -234,6 +270,40 @@ struct LocalEngineView: View {
                     طريقة المعالجة: \(result["mode"] as? String ?? "")
                     علامات المنصة المعدّلة: \(result["patched_markers"] as? Int ?? 0)
                     حجم الناتج: \(ByteCountFormatter.string(fromByteCount: Int64(result["output_bytes"] as? Int64 ?? 0), countStyle: .file))
+                    \(result["warning"] as? String ?? "")
+                    """
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorText = error.localizedDescription
+                    isBusy = false
+                }
+            }
+            if access { file.stopAccessingSecurityScopedResource() }
+        }
+    }
+
+    private func extractYTD(_ file: URL) {
+        let access = file.startAccessingSecurityScopedResource()
+        isBusy = true
+        errorText = ""
+        extractedTextureFolder = nil
+        report = "يتم تحليل YTD واستخراج الخامات..."
+        Task.detached(priority: .userInitiated) {
+            do {
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                                                            appropriateFor: nil, create: true)
+                let base = documents.appendingPathComponent("GTA Converter/Local Engine/Textures", isDirectory: true)
+                let folderName = file.deletingPathExtension().lastPathComponent
+                let outputDirectory = base.appendingPathComponent(folderName, isDirectory: true)
+                let result = try LocalEngineBridge.extractYTD(at: file, to: outputDirectory)
+                await MainActor.run {
+                    extractedTextureFolder = outputDirectory
+                    report = """
+                    الخامات المكتشفة: \(result["textures_found"] as? Int ?? 0)
+                    الخامات المستخرجة: \(result["textures_exported"] as? Int ?? 0)
+                    حجم DDS الكلي: \(ByteCountFormatter.string(fromByteCount: Int64(result["output_bytes"] as? Int64 ?? 0), countStyle: .file))
                     \(result["warning"] as? String ?? "")
                     """
                     isBusy = false
