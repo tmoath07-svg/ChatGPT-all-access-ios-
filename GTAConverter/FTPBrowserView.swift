@@ -3,31 +3,10 @@ import UniformTypeIdentifiers
 
 private enum FTPFailure: LocalizedError {
     case response(String)
-    case invalidPassiveResponse
-    case disconnected
-    case stage(String, String)
-
     var errorDescription: String? {
         switch self {
         case .response(let value): return value
-        case .invalidPassiveResponse: return "تعذر قراءة عنوان اتصال FTP السلبي."
-        case .disconnected: return "انقطع اتصال FTP."
-        case .stage(let name, let detail):
-            return "فشل الاتصال في مرحلة: \(name)\nالتفاصيل: \(detail)"
         }
-    }
-}
-
-private final class FTPResumeGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var didResume = false
-
-    func claim() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !didResume else { return false }
-        didResume = true
-        return true
     }
 }
 
