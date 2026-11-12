@@ -560,3 +560,228 @@ private extension View {
 private extension UTType {
     static let rar = UTType(filenameExtension: "rar") ?? .archive
 }
+
+
+private struct DocumentPickerBridge: UIViewControllerRepresentable {
+    let contentTypes: [UTType]
+    let completion: (Result<[URL], Error>) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: true)
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        picker.shouldShowFileExtensions = true
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let completion: (Result<[URL], Error>) -> Void
+        init(completion: @escaping (Result<[URL], Error>) -> Void) { self.completion = completion }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            completion(.success(urls))
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            completion(.success([]))
+        }
+    }
+}
+
+private struct AppFilesView: View {
+    var directory: URL? = nil
+    @AppStorage("gta_show_hidden_files") private var showHiddenFiles = false
+    @State private var items: [URL] = []
+    @State private var search = ""
+    @State private var errorText: String?
+
+    private var root: URL {
+        directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("GTA Converter", isDirectory: true)
+    }
+
+    var body: some View {
+        ZStack {
+            Color(red: 0.035, green: 0.025, blue: 0.065).ignoresSafeArea()
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: "folder.fill").font(.system(size: 30)).foregroundStyle(Color.purple)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(directory?.lastPathComponent ?? "ملفات GTA Converter").font(.headline.bold()).foregroundStyle(.white)
+                        Text("\(items.count) عنصر").font(.caption).foregroundStyle(.white.opacity(0.55))
+                    }
+                    Spacer()
+                    Button(action: loadItems) {
+                        Image(systemName: "arrow.clockwise").foregroundStyle(.white).padding(10)
+                            .background(.white.opacity(0.08)).clipShape(Circle())
+                    }
+                }.padding(.horizontal, 16).padding(.top, 10)
+
+                HStack {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.white.opacity(0.45))
+                    TextField("بحث في الملفات", text: $search).foregroundStyle(.white)
+                }.padding(12).background(.white.opacity(0.07))
+                    .clipShape(RoundedRectangle(cornerRadius: 13)).padding(.horizontal, 16)
+
+                if let errorText {
+                    Text(errorText).foregroundStyle(.red).font(.caption).padding(.horizontal)
+                }
+
+                List {
+                    ForEach(filteredItems, id: \.standardizedFileURL) { url in
+                        fileRow(url)
+                            .listRowBackground(Color.white.opacity(0.045))
+                    }
+                }
+                .scrollContentBackground(.hidden)
+                .listStyle(.plain)
+            }
+        }
+        .navigationTitle("مستكشف الملفات")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear(perform: loadItems)
+    }
+
+    private var filteredItems: [URL] {
+        items.filter { (showHiddenFiles || !$0.lastPathComponent.hasPrefix(".")) &&
+            (search.isEmpty || $0.lastPathComponent.localizedCaseInsensitiveContains(search)) }
+    }
+
+    @ViewBuilder private func fileRow(_ url: URL) -> some View {
+        let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+        HStack(spacing: 11) {
+            Image(systemName: isDirectory ? "folder.fill" : icon(for: url))
+                .font(.title3).foregroundStyle(isDirectory ? Color.purple : .white.opacity(0.75))
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(url.lastPathComponent).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                Text(isDirectory ? "مجلد" : fileSize(url)).font(.caption2).foregroundStyle(.white.opacity(0.45))
+            }
+            Spacer()
+            if isDirectory {
+                NavigationLink(destination: AppFilesView(directory: url)) {
+                    Image(systemName: "chevron.left").font(.caption.bold()).foregroundStyle(.white.opacity(0.5))
+                }
+            } else {
+                ShareLink(item: url) {
+                    Image(systemName: "square.and.arrow.up").foregroundStyle(.white.opacity(0.75)).padding(7)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .contextMenu {
+            ShareLink(item: url) { Label("مشاركة", systemImage: "square.and.arrow.up") }
+            Button(role: .destructive) { remove(url) } label: { Label("حذف", systemImage: "trash") }
+        }
+    }
+
+    private func loadItems() {
+        do {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            items = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey], options: [])
+                .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+            errorText = nil
+        } catch { errorText = error.localizedDescription }
+    }
+
+    private func remove(_ url: URL) {
+        do { try FileManager.default.removeItem(at: url); loadItems() }
+        catch { errorText = "تعذر الحذف: " + error.localizedDescription }
+    }
+
+    private func fileSize(_ url: URL) -> String {
+        let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+    }
+
+    private func icon(for url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "zip", "rar": return "doc.zipper"
+        case "xml", "json", "txt": return "doc.text"
+        case "png", "jpg", "jpeg": return "photo"
+        default: return "doc"
+        }
+    }
+}
+
+private struct AppSettingsView: View {
+    @AppStorage("gta_show_hidden_files") private var showHiddenFiles = false
+    @State private var cacheMessage = ""
+
+    var body: some View {
+        ZStack {
+            Color(red: 0.035, green: 0.025, blue: 0.065).ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 14) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "gearshape.2.fill").font(.system(size: 30)).foregroundStyle(Color.purple)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("إعدادات التطبيق").font(.title3.bold()).foregroundStyle(.white)
+                            Text("التخزين وطريقة عرض الملفات").font(.caption).foregroundStyle(.white.opacity(0.55))
+                        }
+                        Spacer()
+                    }.padding(18).background(LinearGradient(colors: [Color.purple.opacity(0.3), .white.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+
+                    group("عام", icon: "slider.horizontal.3") {
+                        Toggle(isOn: $showHiddenFiles) {
+                            Label("إظهار الملفات المخفية", systemImage: "eye").foregroundStyle(.white)
+                        }.tint(.purple)
+                    }
+
+                    group("التخزين", icon: "internaldrive") {
+                        Label("مجلد التطبيق", systemImage: "folder.fill").foregroundStyle(.white)
+                        Text("Files > On My iPhone/iPad > GTA Converter")
+                            .font(.caption).foregroundStyle(.white.opacity(0.55))
+                        Button {
+                            do {
+                                let temp = FileManager.default.temporaryDirectory
+                                let contents = try FileManager.default.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil)
+                                for item in contents where item.lastPathComponent.hasPrefix("GTA-") {
+                                    try? FileManager.default.removeItem(at: item)
+                                }
+                                cacheMessage = "تم تنظيف الملفات المؤقتة."
+                            } catch { cacheMessage = error.localizedDescription }
+                        } label: {
+                            Label("تنظيف الملفات المؤقتة", systemImage: "trash")
+                                .frame(maxWidth: .infinity).padding(12)
+                                .background(.white.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(.white)
+                        }
+                        if !cacheMessage.isEmpty { Text(cacheMessage).font(.caption).foregroundStyle(.white.opacity(0.65)) }
+                    }
+
+                    group("حول التطبيق", icon: "info.circle") {
+                        settingRow("اسم التطبيق", "GTA Converter")
+                        settingRow("الإصدار", "1.2.0")
+                        settingRow("النظام الأدنى", "iOS 16 أو أحدث")
+                    }
+
+                    group("الخصوصية", icon: "lock.shield") {
+                        Text("ملفاتك تحفظ محلياً داخل التطبيق ولا يتم رفعها إلى خادم خارجي.")
+                            .font(.caption).foregroundStyle(.white.opacity(0.62))
+                    }
+                }.padding(16)
+            }
+        }
+        .navigationTitle("الإعدادات")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func group<Content: View>(_ title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 13) {
+            Label(title, systemImage: icon).font(.headline).foregroundStyle(.white)
+            content()
+        }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func settingRow(_ title: String, _ value: String) -> some View {
+        HStack { Text(title).foregroundStyle(.white.opacity(0.7)); Spacer(); Text(value).foregroundStyle(.white) }
+            .font(.subheadline)
+    }
+}
