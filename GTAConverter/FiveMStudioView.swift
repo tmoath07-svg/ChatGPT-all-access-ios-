@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 /// verified-toolkit workflow and is never presented as a local PS4 conversion.
 struct FiveMStudioView: View {
     @State private var showingFolderPicker = false
-    @State private var importedFolder: URL?
     @State private var report: ModAnalysisReport?
     @State private var status = "اختر مجلد مورد FiveM بعد فك ضغطه."
     @State private var isBusy = false
@@ -15,7 +14,7 @@ struct FiveMStudioView: View {
 
     var body: some View {
         ZStack {
-            extraBackground.ignoresSafeArea()
+            Color(red: 0.035, green: 0.025, blue: 0.065).ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -112,7 +111,6 @@ struct FiveMStudioView: View {
             guard let source = urls.first else { return }
             do {
                 let copy = try FileImportService.importItem(from: source, category: "FiveM")
-                importedFolder = copy
                 analyze(copy)
             } catch {
                 errorText = error.localizedDescription
