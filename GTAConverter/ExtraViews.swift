@@ -476,8 +476,8 @@ struct CreatorPageView: View {
         }
         .navigationTitle(appLanguage == "ar" ? "المبدع" : "Creators")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
-        .environment(\\.locale, Locale(identifier: appLanguage))
+        .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\.locale, Locale(identifier: appLanguage))
     }
 
     private func creatorCard(handle: String, role: String, icon: String, primary: Bool) -> some View {
