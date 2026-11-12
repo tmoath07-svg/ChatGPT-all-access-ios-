@@ -110,6 +110,112 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
 }
 
 
+
+const MAX_PREVIEW_MESHES: usize = 16;
+const MAX_PREVIEW_VERTICES: usize = 40_000;
+const MAX_PREVIEW_INDICES: usize = 120_000;
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_engine_preview_vehicle_model(path: *const c_char) -> *mut c_char {
+    let path = match read_c_path(path) {
+        Ok(value) => Path::new(value),
+        Err(error) => return result_error(error),
+    };
+    let metadata = match fs::metadata(path) {
+        Ok(value) => value,
+        Err(error) => return result_error(format!("تعذر قراءة ملف المركبة: {error}")),
+    };
+    if !metadata.is_file() {
+        return result_error("المصدر المحدد ليس ملفاً عادياً.");
+    }
+    if metadata.len() > MAX_INPUT_BYTES {
+        return result_error("حجم ملف المركبة تجاوز حد التحليل المحلي (512MB).");
+    }
+    let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("");
+    let kind = match rage_formats::DrawableKind::from_extension(extension) {
+        Some(value) => value,
+        None => return result_error("عارض المركبات يدعم YFT وYDR وYDD فقط."),
+    };
+    let bytes = match fs::read(path) {
+        Ok(value) => value,
+        Err(error) => return result_error(format!("تعذرت قراءة ملف المركبة: {error}")),
+    };
+    let entries = match rage_formats::parse_drawables(&bytes, kind) {
+        Ok(value) => value,
+        Err(error) => return result_error(format!("تعذر تحليل نموذج المركبة: {error:#}")),
+    };
+
+    let mut meshes = Vec::new();
+    let mut warnings = Vec::new();
+    for entry in entries {
+        let drawable = entry.drawable;
+        let lod = drawable.lods.iter()
+            .find(|value| value.level == rage_formats::LodLevel::High)
+            .or_else(|| drawable.lods.first());
+        let Some(lod) = lod else {
+            warnings.push(format!("{}: لا توجد مستويات LOD قابلة للعرض.", entry.name));
+            continue;
+        };
+        for (model_index, model) in lod.models.iter().enumerate() {
+            for (geometry_index, geometry) in model.geometries.iter().enumerate() {
+                if meshes.len() >= MAX_PREVIEW_MESHES {
+                    warnings.push(format!("تم إيقاف العرض عند {MAX_PREVIEW_MESHES} أجزاء لتقليل استهلاك الذاكرة."));
+                    break;
+                }
+                let Some(vertex_buffer) = geometry.vertex_buffer.as_ref() else { continue };
+                let vertices = match vertex_buffer.to_unified_vertices() {
+                    Ok(value) => value,
+                    Err(error) => {
+                        warnings.push(format!("تعذر فك رؤوس الهندسة {geometry_index}: {error}"));
+                        continue;
+                    }
+                };
+                if vertices.is_empty() || vertices.len() > MAX_PREVIEW_VERTICES {
+                    warnings.push(format!("تم تجاوز هندسة كبيرة أو فارغة: {} vertices.", vertices.len()));
+                    continue;
+                }
+                let Some(index_buffer) = geometry.index_buffer.as_ref() else { continue };
+                let indices = &index_buffer.indices;
+                if indices.len() < 3 || indices.len() > MAX_PREVIEW_INDICES || indices.len() % 3 != 0 {
+                    warnings.push(format!("فهرس المثلثات غير صالح في الهندسة {geometry_index}."));
+                    continue;
+                }
+                if indices.iter().any(|index| *index as usize >= vertices.len()) {
+                    warnings.push(format!("تم تجاهل هندسة تحتوي مؤشرات خارج نطاق الرؤوس: {geometry_index}."));
+                    continue;
+                }
+                let positions = vertices.iter()
+                    .map(|vertex| [vertex.position.x, vertex.position.y, vertex.position.z])
+                    .collect::<Vec<_>>();
+                meshes.push(json!({
+                    "name": entry.name,
+                    "lod": lod.level.as_str(),
+                    "model": model_index,
+                    "geometry": geometry_index,
+                    "vertices": positions,
+                    "indices": indices,
+                    "vertex_count": vertices.len(),
+                    "triangle_count": indices.len() / 3
+                }));
+            }
+            if meshes.len() >= MAX_PREVIEW_MESHES { break; }
+        }
+    }
+    if meshes.is_empty() {
+        return result_error("تم تحليل الملف لكن لم يتم العثور على هندسة مركبة قابلة للعرض ضمن الصيغ المدعومة.");
+    }
+    result_ok(json!({
+        "ok": true,
+        "format": extension.to_ascii_uppercase(),
+        "meshes": meshes,
+        "mesh_count": meshes.len(),
+        "warning": format!(
+            "معاينة هندسية للـLOD العالي أو أول LOD فقط. الخامات والعظام والتحريك غير معروضة. {}",
+            warnings.join(" | ")
+        )
+    }))
+}
+
 fn collect_rpf_listing(
     archive: &RpfArchive,
     start: u32,

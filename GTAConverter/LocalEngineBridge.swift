@@ -24,6 +24,11 @@ enum LocalEngineBridge {
         return try decode(pointer)
     }
 
+    static func previewVehicleModel(at file: URL) throws -> [String: Any] {
+        let pointer = file.path.withCString { gta_engine_preview_vehicle_model($0) }
+        return try decode(pointer)
+    }
+
     static func extractRPF(at file: URL, to outputDirectory: URL) throws -> [String: Any] {
         let pointer = file.path.withCString { input in
             outputDirectory.path.withCString { output in

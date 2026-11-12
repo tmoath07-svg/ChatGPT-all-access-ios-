@@ -132,7 +132,7 @@ struct FeatureHubView: View {
     private let items: [FeatureCatalogItem] = [
         .init(id:1,title:"محلل المودات الذكي",category:"الملفات",icon:"doc.text.magnifyingglass",status:"متاح",detail:"تحليل الأرشيفات والملفات واكتشاف مكونات المود. افتح شاشة الاستيراد والتحليل من الصفحة الرئيسية.",live:true),
         .init(id:2,title:"مختبر YTD",category:"الملفات",icon:"photo.stack.fill",status:"فحص متاح",detail:"اختيار ملفات YTD وفحص الحجم وترويسة RSC7. استخراج DDS وإعادة بناء YTD والتحويل الفعلي تحتاج محرك معالجة مختبراً.",route:"ytd"),
-        .init(id:3,title:"عارض YDR وYFT",category:"السيارات",icon:"cube.transparent",status:"قيد التطوير",detail:"معاينة المجسمات والخامات تتطلب قارئ صيغ RAGE وتحويلها إلى نموذج قابل للعرض."),
+        .init(id:3,title:"عارض YDR وYFT",category:"السيارات",icon:"cube.transparent",status:"قيد التطوير",detail:"معاينة هندسية محلية لملفات المركبات YFT وYDR وYDD المدعومة. لا تعرض الخامات أو التحريك حالياً."),
         .init(id:4,title:"محرر Hex",category:"الملفات",icon:"chevron.left.forwardslash.chevron.right",status:"متاح",detail:"عرض وتعديل بايتات الملف بصيغة Hex مع حفظ نسخة جديدة دون المساس بالأصل."),
         .init(id:5,title:"كاشف أخطاء المودات",category:"الملفات",icon:"stethoscope",status:"جزئي",detail:"التحليل الحالي يكشف بعض الملفات والمكونات. فحص الاعتماديات والتوافق الشامل يحتاج قواعد إضافية."),
         .init(id:6,title:"منشئ DLC سيارات",category:"السيارات",icon:"car.side.fill",status:"تجهيز متاح",detail:"تجهيز هيكل DLC ومسارات Orbx وملف dlclist. تحويل محتوى PC نفسه يحتاج محرك التحويل السحابي.",route:"dlc"),
@@ -281,6 +281,7 @@ struct FeatureHubView: View {
         case "timeline": LocalTimelineView()
         case "xml": DLClistEditorView()
         case "rpf": LocalEngineView()
+        case "vehicle3d": VehicleModelInspectorView()
         case "cloud": CloudConversionView()
         case "chiaki": ChiakiRemotePlayView()
         case "hash": FileHashInspectorView()
