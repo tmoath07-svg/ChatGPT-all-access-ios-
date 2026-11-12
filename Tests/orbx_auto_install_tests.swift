@@ -15,6 +15,7 @@ struct OrbxAutoInstallTests {
                                                 withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: beta, withIntermediateDirectories: true)
         try Data("fixture-model".utf8).write(to: wrappedAlpha.appendingPathComponent("stream/car.oft"))
+        try Data("fixture-rpf-alpha".utf8).write(to: wrappedAlpha.appendingPathComponent("dlc.rpf"))
         let normalizedAlpha = try INRPFOrbxAutoInstallPlanner.packageContentRoot(for: alpha)
         precondition(normalizedAlpha.lastPathComponent == "alpha_pack", "Same-name wrapper folder was not removed")
         precondition(FileManager.default.fileExists(atPath: normalizedAlpha.appendingPathComponent("stream/car.oft").path),
@@ -22,6 +23,18 @@ struct OrbxAutoInstallTests {
         let normalizedBeta = try INRPFOrbxAutoInstallPlanner.packageContentRoot(for: beta)
         precondition(normalizedBeta == beta, "A valid package folder was incorrectly flattened")
         try Data("fixture-meta".utf8).write(to: beta.appendingPathComponent("vehicles.meta"))
+        try Data("fixture-rpf-beta".utf8).write(to: beta.appendingPathComponent("dlc.rpf"))
+        try INRPFOrbxAutoInstallPlanner.validateDlcRPF(in: alpha)
+        try INRPFOrbxAutoInstallPlanner.validateDlcRPF(in: beta)
+
+        let missingArchive = addon.appendingPathComponent("missing_rpf", isDirectory: true)
+        try FileManager.default.createDirectory(at: missingArchive, withIntermediateDirectories: true)
+        do {
+            try INRPFOrbxAutoInstallPlanner.validateDlcRPF(in: missingArchive)
+            fatalError("Package without dlc.rpf was incorrectly accepted")
+        } catch INRPFOrbxAutoInstallPlanner.PlanError.missingDlcRPF {
+            // Expected: package must contain dlc.rpf at its root.
+        }
 
         let names = try INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)
         precondition(names == ["alpha_pack", "car_2026"], "DLC folder discovery did not return expected names")
@@ -71,7 +84,7 @@ struct OrbxAutoInstallTests {
         print("ORBX AUTO INSTALL TESTS: PASS")
         print("Fixture folder: data/orbx/gta/rpf/dlc_addon/")
         print("Fixture file: ORBX/GTA/dlclist.xml (data/orbx/gta/dlclist.xml)")
-        print("Wrapper normalization: same-name nested folder removed; legitimate subfolders preserved.")
+        print("Package layout: each addon contains dlc.rpf directly; same-name wrappers are normalized.")
         print("Packages: \(names.joined(separator: ", "))")
         print("XML: existing entries preserved, paths merged, duplicate-safe, malformed XML rejected.")
     }
