@@ -303,6 +303,7 @@ private struct FeatureInfoView: View {
 
 struct CloudConversionView: View {
     private let workflowURL = URL(string: "https://github.com/tmoath07-svg/ChatGPT-all-access-ios-/actions/workflows/convert-pc-to-ps4.yml")!
+
     var body: some View {
         ZStack {
             extraBackground.ignoresSafeArea()
@@ -311,32 +312,71 @@ struct CloudConversionView: View {
                     VStack(alignment: .leading, spacing: 9) {
                         Image(systemName: "cloud.gear.fill").font(.system(size: 34)).foregroundStyle(.purple)
                         Text("محرك التحويل السحابي").font(.title2.bold()).foregroundStyle(.white)
-                        Text("يشغّل أدوات Ps4tools الفعلية على خوادم GitHub Actions، لأن أدوات Windows وWine لا تعمل مباشرة داخل iPadOS.")
+                        Text("يشغّل أدوات بناء وتحويل GTA V على خوادم GitHub Actions بدلاً من تحميل المعالجة على الآيباد.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.65))
                     }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
                         .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 20))
 
-                    cloudStep("1", title: "جهّز رابط المود", detail: "ارفع ملف ZIP أو RAR إلى مساحة ملفات تعطيك رابط تنزيل مباشر يمكن للخادم الوصول إليه.")
-                    cloudStep("2", title: "اختر نوع التحويل", detail: "من صفحة GitHub اختر Run workflow، ثم حدد نوع العملية المناسب والصق رابط الملف في خانة URL.")
-                    cloudStep("3", title: "نزّل الناتج", detail: "بعد انتهاء التشغيل افتح Artifacts ونزّل ملف النتيجة. ستجد ملفات PS4 والتقرير إذا نجحت العملية.")
-
-                    Link(destination: workflowURL) {
-                        Label("فتح محرك التحويل على GitHub", systemImage: "arrow.up.right.square")
-                            .font(.headline.bold()).foregroundStyle(.white)
-                            .frame(maxWidth: .infinity).padding(16)
-                            .background(Color.purple.opacity(0.85))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("FiveM إلى PS4 DLC", systemImage: "car.side.fill")
+                            .font(.title3.bold()).foregroundStyle(.white)
+                        Text("مسار مخصص لموارد FiveM التي تحتوي مودات سيارات وملفات META. المحرك يجمع ملفات السيارات وبياناتها ويبني DLC بصيغة RPF، ثم يحوّل الموارد الناتجة إلى بنية PS4.")
+                            .font(.subheadline).foregroundStyle(.white.opacity(0.72))
+                        VStack(alignment: .leading, spacing: 7) {
+                            Label("المجلد المتوقع", systemImage: "folder.fill")
+                                .font(.caption.bold()).foregroundStyle(.purple)
+                            Text("resource/stream/ و resource/data/، مع مجلد مستقل لكل سيارة داخل stream ومجلد META مطابق لها داخل data.")
+                                .font(.caption).foregroundStyle(.white.opacity(0.65))
+                            Label("الملفات المطلوبة لكل سيارة", systemImage: "doc.text.fill")
+                                .font(.caption.bold()).foregroundStyle(.purple)
+                            Text("YFT وملفات META الأساسية: vehicles.meta و handling.meta و carvariations.meta. قد تحتاج ملفات إضافية حسب المود.")
+                                .font(.caption).foregroundStyle(.white.opacity(0.65))
+                        }
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.black.opacity(0.22)).clipShape(RoundedRectangle(cornerRadius: 13))
+                        Link(destination: workflowURL) {
+                            Label("فتح تحويل FiveM إلى DLC", systemImage: "arrow.up.right.square")
+                                .font(.headline.bold()).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(15)
+                                .background(Color.purple.opacity(0.88))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        Text("في GitHub اختر Run workflow ثم: «تحويل مود FiveM متعدد السيارات إلى DLC للسوني». ضع رابط ZIP/RAR مباشر في خانة URL، أو ارفع المورد داخل مجلد input. بعد نجاح التشغيل نزّل Artifact وافحص التقرير قبل تثبيته.")
+                            .font(.caption).foregroundStyle(.white.opacity(0.68))
+                        Text("تنبيه توافق: هذا المسار مخصص لحزم السيارات ذات البنية المذكورة، وليس كل موارد FiveM. سكربتات Lua وواجهات NUI والاعتماديات الخاصة بسيرفر FiveM لا تتحول تلقائياً إلى DLC للعبة PS4.")
+                            .font(.caption.bold()).foregroundStyle(.orange)
+                            .padding(11).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.orange.opacity(0.09)).clipShape(RoundedRectangle(cornerRadius: 12))
                     }
+                    .padding(16).background(.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
 
-                    Text("ملاحظة: هذه أول وصلة تشغيل للمحرك السحابي، وليست إرسالاً تلقائياً للملف المحلي من التطبيق. يلزم رابط تنزيل مباشر وتشغيل الـWorkflow يدوياً. لن نعرض التحويل كأنه مكتمل قبل نجاح تشغيل فعلي وفحص ملف الناتج.")
-                        .font(.caption).foregroundStyle(.orange.opacity(0.9))
-                        .padding(13).background(.orange.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 12))
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("التحويلات الأخرى").font(.headline).foregroundStyle(.white)
+                        cloudStep("1", title: "جهّز رابط المود", detail: "ارفع ZIP أو RAR إلى مساحة ملفات تعطيك رابط تنزيل مباشر يمكن للخادم الوصول إليه.")
+                        cloudStep("2", title: "اختر نوع التحويل", detail: "من صفحة GitHub اختر Run workflow، ثم حدد العملية المناسبة والصق رابط الملف في خانة URL.")
+                        cloudStep("3", title: "نزّل الناتج", detail: "بعد انتهاء التشغيل افتح Artifacts ونزّل ملف النتيجة والتقرير.")
+                        Link(destination: workflowURL) {
+                            Label("فتح جميع خيارات محرك التحويل", systemImage: "arrow.up.right.square")
+                                .font(.headline.bold()).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(16)
+                                .background(Color.white.opacity(0.10))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                    }
+                    .padding(16).background(.white.opacity(0.055))
+                    .clipShape(RoundedRectangle(cornerRadius: 17))
+
+                    Text("ملاحظة: التشغيل السحابي الحالي يبدأ من GitHub Actions يدوياً، ولا يرفع الملف المحلي من التطبيق تلقائياً. لا تعتبر النتيجة جاهزة إلا إذا انتهى التشغيل بنجاح وظهر Artifact صالح.")
+                        .font(.caption).foregroundStyle(.white.opacity(0.52))
+                        .padding(13).background(.black.opacity(0.18))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }.padding(16)
             }
         }
         .navigationTitle("التحويل السحابي")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\\.layoutDirection, .rightToLeft)
     }
 
     private func cloudStep(_ number: String, title: String, detail: String) -> some View {
@@ -351,7 +391,6 @@ struct CloudConversionView: View {
         }.padding(14).background(.white.opacity(0.055)).clipShape(RoundedRectangle(cornerRadius: 15))
     }
 }
-
 
 struct CreatorPageView: View {
     private let creatorHandle = "Moa_sa7"
