@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn copies_extension_only_resource_types_without_modifying_bytes() {
-        let source = b"YM​​AP-TEST-DATA";
+        let source = b"YMAP-TEST-DATA";
         let (extension, output, patched, mode) = convert_resource_bytes("ymap", source).unwrap();
         assert_eq!(extension, "omap");
         assert_eq!(output, source);
