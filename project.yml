@@ -1,0 +1,21 @@
+name: GTAConverter
+options:
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+targets:
+  GTAConverter:
+    type: application
+    platform: iOS
+    sources:
+      - GTAConverter
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tmoath07.gta-converter
+        PRODUCT_NAME: GTA Converter
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "GTA Converter"
+        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
