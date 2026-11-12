@@ -1,6 +1,7 @@
 import SwiftUI
 import CryptoKit
 import UIKit
+import PhotosUI
 
 private let extraBackground = Color(red: 0.035, green: 0.025, blue: 0.065)
 
@@ -429,6 +430,8 @@ struct CloudConversionView: View {
 struct CreatorPageView: View {
     @AppStorage("gta_language") private var appLanguage = "ar"
     @State private var showAssistantProfile = false
+    @State private var assistantPhotoItem: PhotosPickerItem?
+    @State private var assistantPhoto: UIImage?
 
     private let creatorHandle = "Moa_sa7"
     private let assistantName = "q.wq9"
@@ -500,9 +503,16 @@ struct CreatorPageView: View {
                                 Circle()
                                     .fill(LinearGradient(colors: [.blue, Color(red: 0.08, green: 0.18, blue: 0.42)], startPoint: .topLeading, endPoint: .bottomTrailing))
                                     .frame(width: 112, height: 112)
-                                Text("q")
-                                    .font(.system(size: 54, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white)
+                                if let assistantPhoto {
+                                    Image(uiImage: assistantPhoto)
+                                        .resizable().scaledToFill()
+                                        .frame(width: 112, height: 112)
+                                        .clipShape(Circle())
+                                } else {
+                                    Text("q")
+                                        .font(.system(size: 54, weight: .bold, design: .rounded))
+                                        .foregroundStyle(.white)
+                                }
                             }
                             .padding(.top, 22)
 
@@ -522,6 +532,23 @@ struct CreatorPageView: View {
                             .background(.white.opacity(0.07))
                             .clipShape(RoundedRectangle(cornerRadius: 18))
 
+                            PhotosPicker(selection: $assistantPhotoItem, matching: .images) {
+                                Label(appLanguage == "ar" ? "اختيار صورة الحساب" : "Choose profile photo", systemImage: "photo")
+                                    .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity).padding(13)
+                                    .background(.white.opacity(0.09))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                            }
+                            .onChange(of: assistantPhotoItem) { newItem in
+                                guard let newItem else { return }
+                                Task {
+                                    if let data = try? await newItem.loadTransferable(type: Data.self),
+                                       let image = UIImage(data: data) {
+                                        assistantPhoto = image
+                                    }
+                                }
+                            }
+
                             Link(destination: assistantURL) {
                                 Label(appLanguage == "ar" ? "فتح حساب TikTok" : "Open TikTok profile", systemImage: "arrow.up.right")
                                     .font(.headline).foregroundStyle(.white)
@@ -530,7 +557,7 @@ struct CreatorPageView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 14))
                             }
 
-                            Text(appLanguage == "ar" ? "صورة الحساب ستظهر هنا عند إضافة ملف الصورة الأصلي." : "The account photo can be added here when its original image file is available.")
+                            Text(appLanguage == "ar" ? "تقدر تختار صورة الحساب من ألبوم الصور." : "Choose the account photo from your photo library.")
                                 .font(.caption).foregroundStyle(.white.opacity(0.5))
                                 .multilineTextAlignment(.center)
                         }
