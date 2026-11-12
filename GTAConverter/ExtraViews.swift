@@ -128,7 +128,7 @@ struct FeatureHubView: View {
     @State private var searchText = ""
     @State private var selectedCategory = "الكل"
 
-    private let categories = ["الكل", "الملفات", "السيارات", "PS4", "PlayStation", "الذكاء الاصطناعي", "الإدارة"]
+    private let categories = ["الكل", "FiveM", "الملفات", "السيارات", "PS4", "PlayStation", "الذكاء الاصطناعي", "الإدارة"]
     private let items: [FeatureCatalogItem] = [
         .init(id:1,title:"محلل المودات الذكي",category:"الملفات",icon:"doc.text.magnifyingglass",status:"متاح",detail:"تحليل الأرشيفات والملفات واكتشاف مكونات المود. افتح شاشة الاستيراد والتحليل من الصفحة الرئيسية.",live:true),
         .init(id:2,title:"مختبر YTD",category:"الملفات",icon:"photo.stack.fill",status:"فحص متاح",detail:"اختيار ملفات YTD وفحص الحجم وترويسة RSC7. استخراج DDS وإعادة بناء YTD والتحويل الفعلي تحتاج محرك معالجة مختبراً.",route:"ytd"),
@@ -172,7 +172,8 @@ struct FeatureHubView: View {
         .init(id:40,title:"Mod Installer Guide",category:"PS4",icon:"book.closed.fill",status:"مخطط",detail:"دليل تركيب مرتب يوضح المسارات والمتطلبات وخطوات التحقق."),
         .init(id:41,title:"Chiaki Remote Play",category:"PlayStation",icon:"gamecontroller.fill",status:"دليل وتجهيز",detail:"مركز Chiaki لمشروع Remote Play ومعلومات دعم iOS وروابط المشروع الرسمية.",route:"chiaki"),
         .init(id:42,title:"File Hash Inspector",category:"الملفات",icon:"number.square",status:"متاح",detail:"حساب بصمة SHA-256 للملفات محلياً على الآيباد للتحقق من تطابق النسخ وسلامة النقل.",route:"hash"),
-        .init(id:43,title:"Orbx DLC Validator",category:"PS4",icon:"checkmark.seal.fill",status:"متاح",detail:"فحص أسماء حزم DLC وكشف التكرار والأسماء غير الصالحة وإنشاء مسارات Orbx بصيغة PS4 المطلقة.",route:"dlcvalidator")
+        .init(id:43,title:"Orbx DLC Validator",category:"PS4",icon:"checkmark.seal.fill",status:"متاح",detail:"فحص أسماء حزم DLC وكشف التكرار والأسماء غير الصالحة وإنشاء مسارات Orbx بصيغة PS4 المطلقة.",route:"dlcvalidator"),
+        .init(id:44,title:"FiveM Resource Studio",category:"FiveM",icon:"car.side.3.fill",status:"تحليل محلي",detail:"استيراد مجلد مورد FiveM، فحص fxmanifest وstream وdata وملفات YFT/YTD/META، ثم فتح مسار التحويل السحابي للموارد المدعومة.",route:"fivem")
     ]
 
     private var filteredItems: [FeatureCatalogItem] {
@@ -192,17 +193,17 @@ struct FeatureHubView: View {
                             Image(systemName: "square.grid.3x3.fill").font(.title2).foregroundStyle(.purple)
                             Text("مركز الميزات").font(.title2.bold()).foregroundStyle(.white)
                             Spacer()
-                            Text("40 أداة").font(.caption.bold()).foregroundStyle(.purple)
+                            Text("40 ميزة + FiveM").font(.caption.bold()).foregroundStyle(.purple)
                         }
-                        Text("كل أفكار الاستوديو في مكان واحد. الحالة توضّح الموجود فعلياً والمخطط له.")
+                        Text("40 ميزة أساسية مع استوديو FiveM. الحالة توضّح ما يعمل فعلياً وما لا يزال مخططاً.")
                             .font(.caption).foregroundStyle(.white.opacity(0.62))
                     }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                         .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
 
                     HStack(spacing: 8) {
-                        catalogStat("جاهز", value: "5", color: .green)
-                        catalogStat("جزئي / تجريبي", value: "8", color: .orange)
-                        catalogStat("مخطط", value: "27", color: .gray)
+                        catalogStat("جاهز", value: "\(items.filter { $0.status == \"متاح\" || $0.status == \"تجهيز متاح\" }.count)", color: .green)
+                        catalogStat("جزئي / تجريبي", value: "\(items.filter { [\"فحص متاح\", \"متاح يدوياً\", \"جزئي\", \"دليل وتجهيز\", \"تحليل محلي\"].contains($0.status) }.count)", color: .orange)
+                        catalogStat("مخطط", value: "\(items.filter { $0.status == \"مخطط\" }.count)", color: .gray)
                     }
 
                     HStack(spacing: 9) {
@@ -263,6 +264,7 @@ struct FeatureHubView: View {
         case "chiaki": ChiakiRemotePlayView()
         case "hash": FileHashInspectorView()
         case "dlcvalidator": OrbxDLCValidatorView()
+        case "fivem": FiveMStudioView()
         case "dlc": FeatureInfoView(item: item)
         default: FeatureInfoView(item: item)
         }
