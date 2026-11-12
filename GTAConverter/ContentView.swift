@@ -82,6 +82,9 @@ struct ContentView: View {
             Text("استيراد الملفات وإنشاء dlclist.xml")
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.5))
+            Text("الإصدار 1.0.0 • ملف البناء يحتاج توقيعاً قبل التثبيت")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.42))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
