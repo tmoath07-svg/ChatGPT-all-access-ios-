@@ -74,8 +74,8 @@ enum INRPFOrbxAutoInstallPlanner {
         guard parsed.hasPaths else { throw PlanError.missingPathsElement }
         var existingItems = Set(parsed.items.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
         let additions = names.compactMap { name -> String? in
-            let entry = "<Item>\(remoteAddon)/\(name)/</Item>"
-            return existingItems.insert(entry.lowercased()).inserted ? entry : nil
+            let path = "\(remoteAddon)/\(name)/"
+            return existingItems.insert(path.lowercased()).inserted ? "<Item>\(path)</Item>" : nil
         }
 
         guard !additions.isEmpty else { return source }
