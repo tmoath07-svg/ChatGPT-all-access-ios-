@@ -7,6 +7,8 @@ private let extraBackground = Color(red: 0.035, green: 0.025, blue: 0.065)
 struct AppearanceSettingsView: View {
     @AppStorage("gta_cover_style") private var coverStyle = "neon"
     @AppStorage("gta_accent_color") private var accentColor = "purple"
+    @AppStorage("gta_home_density") private var homeDensity = "comfortable"
+    @AppStorage("gta_motion_enabled") private var motionEnabled = true
 
     private var selectedColor: Color {
         switch accentColor {
@@ -37,10 +39,23 @@ struct AppearanceSettingsView: View {
                         colorChoice("أحمر", value: "red", color: .red)
                     }
 
-                    settingsGroup("الغلاف الداخلي", icon: "rectangle.portrait.fill") {
-                        coverChoice("نيون", value: "neon", detail: "تدرج لوني واضح")
-                        coverChoice("داكن", value: "dark", detail: "أسود مع لمسة من اللون المختار")
-                        coverChoice("بسيط", value: "minimal", detail: "خلفية هادئة")
+                    settingsGroup("الشاشة الرئيسية", icon: "rectangle.3.group.fill") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("كثافة ترتيب العناصر").font(.subheadline.bold()).foregroundStyle(.white)
+                            Picker("كثافة ترتيب العناصر", selection: $homeDensity) {
+                                Text("مريحة").tag("comfortable")
+                                Text("مضغوطة").tag("compact")
+                            }
+                            .pickerStyle(.segmented)
+                            .tint(selectedColor)
+                        }
+                        Toggle(isOn: $motionEnabled) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("موشن وانتقالات قوية").foregroundStyle(.white)
+                                Text("حركة Spring ناعمة عند تحديث الشاشة والتنقل").font(.caption2).foregroundStyle(.white.opacity(0.55))
+                            }
+                        }
+                        .tint(selectedColor)
                     }
 
                     Text("هذا يغيّر غلاف الصفحة الرئيسية داخل التطبيق. تغيير أيقونة التطبيق الفعلية من شاشة iPad يحتاج إعداد أيقونات بديلة داخل مشروع iOS، وليس مجرد تغيير لون من الإعدادات.")
@@ -78,7 +93,9 @@ struct AppearanceSettingsView: View {
             Label(title, systemImage: icon).font(.headline).foregroundStyle(.white)
             content()
         }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
+            .background(.ultraThinMaterial)
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.14)))
+            .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private func colorChoice(_ title: String, value: String, color: Color) -> some View {
