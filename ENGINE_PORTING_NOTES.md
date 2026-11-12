@@ -10,7 +10,9 @@ The reference engine is in `tmoath07-svg/Ps4tools`, inside `ZokiiStudio-Toolkit-
 2. `core_converter.py` handles the structural Y* to O* resource pass. For supported RSC7 files it preserves the 16-byte header, decompresses the payload, patches the PC/PS4 platform marker table, raw-DEFLATE recompresses the payload, and writes the new extension.
 3. YTD processing is a separate pipeline: decode RSC7, parse texture dictionary entries, extract DDS data, enforce a texture-size policy, then invoke `ragebuilder.exe` with `texture_builder.lua` to compile an OTD.
 4. `RPFBuilder/extract_rpf.py` is primarily Python/struct/zlib plus PyCryptodome AES. `extract_ytd.py` is primarily Python/struct/zlib.
-5. `RPFBuilder/build_rpf.py` and `build_otd.py` are wrappers around `ragebuilder.exe`; the toolkit includes Windows DLLs such as `xg.dll`, `zlib.dll`, `libScePsr.dll`, `oo2tex.dll`, and related runtime components.
+5. `RPFBuilder/build_otd.py` invokes a Lua script that calls `set_platform("orbis")`, `load_textures(...)`, and `save_texture_dictionary(...)`. This is the platform-specific PS4 texture build step, not a file-extension rename.
+6. `RPFBuilder/build_rpf.py` generates Lua that starts an uncompressed pack, recursively adds files with relative archive paths, and saves `Archive.rpf` through `ragebuilder.exe`.
+7. Both builders wrap the Windows executable. The toolkit includes Windows DLLs such as `xg.dll`, `zlib.dll`, `libScePsr.dll`, `oo2tex.dll`, and related runtime components. These PE binaries cannot be executed as native iOS ARM64 code.
 
 ### Extension mapping found in the original structural converter
 
