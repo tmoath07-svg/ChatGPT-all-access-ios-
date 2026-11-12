@@ -207,8 +207,15 @@ struct GTAModBrowserView: View {
 
     private var validURL: URL? {
         guard let url = URL(string: address.trimmingCharacters(in: .whitespacesAndNewlines)),
-              ["https", "http"].contains(url.scheme?.lowercased() ?? ""), url.host != nil else { return nil }
-        return url
+              ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host?.lowercased() else { return nil }
+        let isModCategory = (host == "www.gta5-mods.com" || host == "gta5-mods.com") &&
+            ["/vehicles", "/maps", "/player"].contains(where: { url.path.hasPrefix($0) })
+        let isScopedSearch = host == "www.google.com" && url.path == "/search" &&
+            (url.query?.contains("site%3Agta5-mods.com") == true)
+        let isArchive = ["zip", "rar"].contains(url.pathExtension.lowercased()) &&
+            (host == "www.gta5-mods.com" || host == "gta5-mods.com")
+        return (isModCategory || isScopedSearch || isArchive) ? url : nil
     }
 
     private var isArchiveLink: Bool {
@@ -380,12 +387,18 @@ private struct BrowserWebView: UIViewRepresentable {
                 return
             }
             let ext = url.pathExtension.lowercased()
-            if ["zip", "rar"].contains(ext) {
+            if ["zip", "rar"].contains(ext),
+               webView.url?.host?.lowercased().contains("gta5-mods.com") == true {
                 manager.startDownload(url)
                 decisionHandler(.cancel)
-            } else {
-                decisionHandler(.allow)
+                return
             }
+            let host = url.host?.lowercased() ?? ""
+            let allowedCategory = (host == "www.gta5-mods.com" || host == "gta5-mods.com") &&
+                ["/vehicles", "/maps", "/player"].contains(where: { url.path.hasPrefix($0) })
+            let allowedSearch = host == "www.google.com" && url.path == "/search" &&
+                (url.query?.contains("site%3Agta5-mods.com") == true)
+            decisionHandler((allowedCategory || allowedSearch) ? .allow : .cancel)
         }
     }
 }
