@@ -232,10 +232,10 @@ fn extract_rpf_entries(
                             .map_err(|error| format!("تعذر إنشاء مجلد الأرشيف الداخلي: {error}"))?;
                         let root = nested.entries.first()
                             .ok_or_else(|| format!("الأرشيف الداخلي {} فارغ أو غير صالح.", entry.name))?;
-                        match root.kind {
+                        match &root.kind {
                             RpfEntryKind::Directory { entries_index, entries_count } => {
                                 extract_rpf_entries(
-                                    &nested, &bytes, entries_index, entries_count, &destination,
+                                    &nested, &bytes, *entries_index, *entries_count, &destination,
                                     depth + 1, files_written, total_bytes,
                                 )?;
                             }
@@ -282,8 +282,8 @@ fn extract_rpf_to_directory(input: &Path, output: &Path) -> Result<(usize, u64, 
     }
     let root = archive.entries.first()
         .ok_or_else(|| "جدول RPF فارغ.".to_string())?;
-    let (start, count) = match root.kind {
-        RpfEntryKind::Directory { entries_index, entries_count } => (entries_index, entries_count),
+    let (start, count) = match &root.kind {
+        RpfEntryKind::Directory { entries_index, entries_count } => (*entries_index, *entries_count),
         _ => return Err("مدخل الجذر في RPF7 ليس مجلداً.".to_string()),
     };
     fs::create_dir_all(output)
