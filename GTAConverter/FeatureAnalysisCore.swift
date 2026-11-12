@@ -33,41 +33,44 @@ enum INRPFFileComparison {
             throw NSError(domain: "INRPF.Compare", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "يجب اختيار مجلد صالح للمقارنة."])
         }
+
         let fileManager = FileManager.default
-        var pendingDirectories = [root]
+        var pendingDirectories: [(url: URL, relative: String)] = [(root, "")]
         var result: [String: (bytes: Int64, hash: String)] = [:]
 
-        while let directory = pendingDirectories.popLast() {
+        while let current = pendingDirectories.popLast() {
             let children: [URL]
             do {
                 children = try fileManager.contentsOfDirectory(
-                    at: directory,
-                    includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey],
+                    at: current.url,
+                    includingPropertiesForKeys: nil,
                     options: [.skipsHiddenFiles]
                 )
             } catch {
                 throw NSError(domain: "INRPF.Compare", code: 2,
-                              userInfo: [NSLocalizedDescriptionKey: "تعذر قراءة المجلد \(directory.lastPathComponent): \(error.localizedDescription)"])
+                              userInfo: [NSLocalizedDescriptionKey: "تعذر قراءة المجلد \(current.url.lastPathComponent): \(error.localizedDescription)"])
             }
 
             for file in children {
-                let values = try file.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
-                if values.isSymbolicLink == true { continue }
-                if values.isDirectory == true {
-                    pendingDirectories.append(file)
-                    continue
-                }
-                guard values.isRegularFile == true else { continue }
-
-                let prefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
-                guard file.path.hasPrefix(prefix) else { continue }
-                let relative = String(file.path.dropFirst(prefix.count))
+                let relative = current.relative.isEmpty
+                    ? file.lastPathComponent
+                    : current.relative + "/" + file.lastPathComponent
                 guard !relative.isEmpty,
                       !relative.split(separator: "/").contains("..") else { continue }
 
+                let attributes = try fileManager.attributesOfItem(atPath: file.path)
+                let type = attributes[.type] as? FileAttributeType
+                if type == .typeSymbolicLink { continue }
+                if type == .typeDirectory {
+                    pendingDirectories.append((file, relative))
+                    continue
+                }
+                guard type == .typeRegular else { continue }
+
                 let data = try Data(contentsOf: file, options: [.mappedIfSafe])
                 let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-                result[relative] = (Int64(values.fileSize ?? data.count), hash)
+                let size = (attributes[.size] as? NSNumber)?.int64Value ?? Int64(data.count)
+                result[relative] = (size, hash)
             }
         }
         return result
