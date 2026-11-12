@@ -154,8 +154,9 @@ final class GTADownloadManager: NSObject, ObservableObject, URLSessionDownloadDe
             items[index].localPath = destination.path
             items[index].progress = 1
             items[index].status = "اكتمل وحُفظ في مكتبة المودات"
-            if items[index].expectedBytes <= 0 {
-                items[index].expectedBytes = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
+            if items[index].expectedBytes <= 0,
+               let savedSize = (try? destination.resourceValues(forKeys: [.fileSizeKey]))?.fileSize {
+                items[index].expectedBytes = Int64(savedSize)
             }
         } catch {
             items[index].status = "فشل حفظ الملف: " + error.localizedDescription
@@ -229,7 +230,8 @@ struct GTAModBrowserView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(shortcuts, id: \.0) { item in
+                    ForEach(Array(shortcuts.enumerated()), id: \.offset) { entry in
+                        let item = entry.element
                         Button {
                             address = item.2
                             browserID = UUID()
@@ -471,7 +473,8 @@ struct GTATransferHistoryView: View {
         ZStack {
             GTAAppBackground()
             List {
-                ForEach(Array(records.enumerated()), id: \.offset) { _, record in
+                ForEach(Array(records.enumerated()), id: \.offset) { entry in
+                    let record = entry.element
                     VStack(alignment: .leading, spacing: 5) {
                         Text(record.0).font(.subheadline.bold()).foregroundStyle(.white)
                         Text(record.1).font(.caption).foregroundStyle(.white.opacity(0.6))
@@ -538,7 +541,8 @@ struct GTAAppearanceSettingsView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     section("لون الواجهة", icon: "paintpalette.fill") {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
-                            ForEach(accents, id: \.0) { option in
+                            ForEach(Array(accents.enumerated()), id: \.offset) { entry in
+                                let option = entry.element
                                 Button { accent = option.0 } label: {
                                     HStack {
                                         Circle().fill(color(option.0)).frame(width: 15, height: 15)
@@ -554,7 +558,8 @@ struct GTAAppearanceSettingsView: View {
                     }
 
                     section("خلفية التطبيق", icon: "photo.fill") {
-                        ForEach(backgrounds, id: \.0) { option in
+                        ForEach(Array(backgrounds.enumerated()), id: \.offset) { entry in
+                            let option = entry.element
                             Button { background = option.0; customPath = "" } label: {
                                 HStack {
                                     Text(option.1).foregroundStyle(.white)
