@@ -10,18 +10,25 @@ struct OrbxAutoInstallTests {
         let addon = root.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
         let alpha = addon.appendingPathComponent("alpha_pack", isDirectory: true)
         let beta = addon.appendingPathComponent("car_2026", isDirectory: true)
-        try FileManager.default.createDirectory(at: alpha.appendingPathComponent("stream", isDirectory: true),
+        let wrappedAlpha = alpha.appendingPathComponent("alpha_pack", isDirectory: true)
+        try FileManager.default.createDirectory(at: wrappedAlpha.appendingPathComponent("stream", isDirectory: true),
                                                 withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: beta, withIntermediateDirectories: true)
-        try Data("fixture-model".utf8).write(to: alpha.appendingPathComponent("stream/car.oft"))
+        try Data("fixture-model".utf8).write(to: wrappedAlpha.appendingPathComponent("stream/car.oft"))
+        let normalizedAlpha = try INRPFOrbxAutoInstallPlanner.packageContentRoot(for: alpha)
+        precondition(normalizedAlpha.lastPathComponent == "alpha_pack", "Same-name wrapper folder was not removed")
+        precondition(FileManager.default.fileExists(atPath: normalizedAlpha.appendingPathComponent("stream/car.oft").path),
+                     "Normalized package root does not expose DLC files directly")
+        let normalizedBeta = try INRPFOrbxAutoInstallPlanner.packageContentRoot(for: beta)
+        precondition(normalizedBeta == beta, "A valid package folder was incorrectly flattened")
         try Data("fixture-meta".utf8).write(to: beta.appendingPathComponent("vehicles.meta"))
 
         let names = try INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)
         precondition(names == ["alpha_pack", "car_2026"], "DLC folder discovery did not return expected names")
 
-        let rpfRoot = root.appendingPathComponent("data/orbx/gta/rpf", isDirectory: true)
-        try FileManager.default.createDirectory(at: rpfRoot, withIntermediateDirectories: true)
-        let dlclistFile = rpfRoot.appendingPathComponent("dlclist.xml")
+        let gtaRoot = root.appendingPathComponent("data/orbx/gta", isDirectory: true)
+        try FileManager.default.createDirectory(at: gtaRoot, withIntermediateDirectories: true)
+        let dlclistFile = gtaRoot.appendingPathComponent("dlclist.xml")
         let original = """
         <?xml version="1.0" encoding="UTF-8"?>
         <SMandatoryPacksData>
@@ -63,7 +70,8 @@ struct OrbxAutoInstallTests {
 
         print("ORBX AUTO INSTALL TESTS: PASS")
         print("Fixture folder: data/orbx/gta/rpf/dlc_addon/")
-        print("Fixture file: data/orbx/gta/rpf/dlclist.xml")
+        print("Fixture file: ORBX/GTA/dlclist.xml (data/orbx/gta/dlclist.xml)")
+        print("Wrapper normalization: same-name nested folder removed; legitimate subfolders preserved.")
         print("Packages: \(names.joined(separator: ", "))")
         print("XML: existing entries preserved, paths merged, duplicate-safe, malformed XML rejected.")
     }
