@@ -431,7 +431,7 @@ mod tests {
         assert_eq!(parsed.encryption, RpfEncryption::Open);
         let meta = parsed.entries.iter().find(|entry| entry.name_lower == "vehicles.meta").expect("metadata entry");
         let extracted = parsed.extract_entry(&bytes, meta, None).expect("extract metadata");
-        assert_eq!(extracted, expected);
+        assert_eq!(extracted.as_slice(), expected);
     }
 
     #[test]
