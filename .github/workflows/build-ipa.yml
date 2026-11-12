@@ -122,6 +122,7 @@ jobs:
           test -x "Payload/GTA Converter.app/$EXECUTABLE"
           nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_build_rpf7"
           nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_extract_rpf"
+          nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_convert_folder"
           nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_extract_ytd"
           nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_build_ytd"
 
