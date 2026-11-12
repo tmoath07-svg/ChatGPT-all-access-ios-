@@ -59,7 +59,7 @@ env:
 jobs:
   run-toolkit:
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    timeout-minutes: 360
 
     steps:
       - name: Checkout GTA Converter repository
@@ -125,7 +125,7 @@ jobs:
 
       - name: Install archive and Windows runtime
         if: ${{ inputs.mode != 'فحص الأدوات' }}
-        timeout-minutes: 30
+        timeout-minutes: 60
         shell: bash
         run: |
           set -euo pipefail
