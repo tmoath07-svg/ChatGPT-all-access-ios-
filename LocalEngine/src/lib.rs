@@ -426,6 +426,125 @@ pub unsafe extern "C" fn gta_engine_convert_resource(
     }))
 }
 
+
+fn safe_texture_filename(name: &str, index: usize, hash: u32) -> String {
+    let mut cleaned: String = name.chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' { ch } else { '_' })
+        .collect();
+    while cleaned.contains("__") {
+        cleaned = cleaned.replace("__", "_");
+    }
+    cleaned = cleaned.trim_matches('_').to_string();
+    if cleaned.is_empty() {
+        cleaned = format!("texture_{index}_{hash:08x}");
+    }
+    if cleaned.len() > 80 {
+        cleaned.truncate(80);
+    }
+    if !cleaned.to_ascii_lowercase().ends_with(".dds") {
+        cleaned.push_str(".dds");
+    }
+    cleaned
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_engine_extract_ytd(
+    input_path: *const c_char,
+    output_directory: *const c_char,
+) -> *mut c_char {
+    let input = match read_c_path(input_path) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    let output_dir = match read_c_path(output_directory) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    if !input.is_file() {
+        return result_error("ملف YTD المحدد غير موجود.");
+    }
+    let metadata = match fs::metadata(&input) {
+        Ok(value) => value,
+        Err(error) => return result_error(format!("تعذر قراءة بيانات YTD: {error}")),
+    };
+    if metadata.len() > MAX_INPUT_BYTES {
+        return result_error("حجم YTD تجاوز حد المعالجة المحلي (512MB).");
+    }
+    let bytes = match fs::read(&input) {
+        Ok(value) => value,
+        Err(error) => return result_error(format!("تعذرت قراءة YTD: {error}")),
+    };
+    let textures = match rage_formats::parse_ytd(&bytes) {
+        Ok(value) => value,
+        Err(error) => return result_error(format!("تعذر تحليل قاموس الخامات YTD: {error:#}")),
+    };
+    if textures.is_empty() {
+        return result_error("تم فتح YTD لكن لم يتم العثور على خامات قابلة للاستخراج.");
+    }
+    if let Err(error) = fs::create_dir_all(&output_dir) {
+        return result_error(format!("تعذر إنشاء مجلد الخامات: {error}"));
+    }
+
+    let mut written = 0usize;
+    let mut total_bytes = 0u64;
+    let mut summaries = Vec::new();
+    let mut used_names = std::collections::HashSet::new();
+
+    for (index, texture) in textures.iter().enumerate() {
+        if texture.pixel_data.is_empty() {
+            continue;
+        }
+        let mut name = safe_texture_filename(&texture.name, index, texture.name_hash);
+        if !used_names.insert(name.to_ascii_lowercase()) {
+            let stem = Path::new(&name).file_stem().and_then(|v| v.to_str()).unwrap_or("texture");
+            name = format!("{stem}_{:08x}_{index}.dds", texture.name_hash);
+            used_names.insert(name.to_ascii_lowercase());
+        }
+        let dds = texture.to_dds();
+        if dds.len() < 128 {
+            continue;
+        }
+        let output = output_dir.join(&name);
+        let temp = output_dir.join(format!(".{name}.tmp"));
+        let write_result = (|| -> Result<(), String> {
+            let mut file = fs::File::create(&temp).map_err(|error| format!("تعذر إنشاء DDS: {error}"))?;
+            file.write_all(&dds).map_err(|error| format!("تعذرت كتابة DDS: {error}"))?;
+            file.sync_all().map_err(|error| format!("تعذر حفظ DDS: {error}"))?;
+            fs::rename(&temp, &output).map_err(|error| format!("تعذر اعتماد DDS: {error}"))?;
+            Ok(())
+        })();
+        if let Err(error) = write_result {
+            let _ = fs::remove_file(&temp);
+            return result_error(error);
+        }
+        written += 1;
+        total_bytes = total_bytes.saturating_add(dds.len() as u64);
+        if summaries.len() < 30 {
+            summaries.push(json!({
+                "name": name,
+                "width": texture.width,
+                "height": texture.height,
+                "format": texture.format.to_string(),
+                "mip_levels": texture.levels,
+                "bytes": dds.len()
+            }));
+        }
+    }
+
+    if written == 0 {
+        return result_error("تم تحليل YTD لكن لم تُنتج أي ملفات DDS صالحة.");
+    }
+    result_ok(json!({
+        "ok": true,
+        "textures_found": textures.len(),
+        "textures_exported": written,
+        "output_bytes": total_bytes,
+        "output_directory": output_dir.to_string_lossy(),
+        "items_preview": summaries,
+        "warning": "تم استخراج الخامات إلى DDS فقط. لم يتم إنشاء OTD أو تحويل ضغط الخامات إلى صيغة PS4."
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -482,6 +601,24 @@ mod tests {
         assert_eq!(output, source);
         assert_eq!(patched, 0);
         assert_eq!(mode, "extension-only");
+    }
+
+    #[test]
+    fn builds_dds_header_from_parsed_texture_data() {
+        let texture = rage_formats::YtdTexture {
+            name: "test_texture".to_string(),
+            name_hash: 1,
+            width: 4,
+            height: 4,
+            depth: 1,
+            format: rage_formats::TextureFormat::DXT1,
+            levels: 1,
+            stride: 8,
+            pixel_data: vec![0u8; 8],
+        };
+        let dds = texture.to_dds();
+        assert_eq!(&dds[..4], b"DDS ");
+        assert_eq!(dds.len(), 128 + 8);
     }
 
     #[test]
