@@ -262,6 +262,11 @@ struct LocalUtilityFeatureView: View {
                     let output = try await Task.detached(priority: .userInitiated) {
                         let access = url.startAccessingSecurityScopedResource()
                         defer { if access { url.stopAccessingSecurityScopedResource() } }
+                        let vehicleReport = try ModAnalyzer.analyze(at: url)
+                        guard !vehicleReport.vehicleMetaFiles.isEmpty else {
+                            throw NSError(domain: "INRPF.Sort", code: 4,
+                                userInfo: [NSLocalizedDescriptionKey: "Smart Folder مخصص لمجلدات مودات المركبات."])
+                        }
                         return try INRPFLocalUtilities.createSortedCopy(of: url)
                     }.value
                     shareURL = output.url

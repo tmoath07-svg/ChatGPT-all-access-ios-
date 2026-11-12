@@ -66,6 +66,13 @@ enum INRPFLocalUtilityCore {
         guard !manifests.isEmpty else {
             return "لم يتم العثور على fxmanifest.lua أو __resource.lua. لا يمكن استنتاج اعتماديات FiveM من المجلد وحده."
         }
+        let vehicleMetadataNames: Set<String> = ["vehicles.meta", "handling.meta", "carcols.meta", "carvariations.meta", "vehiclelayouts.meta"]
+        let hasVehicleMetadata = fm.enumerator(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])?.allObjects
+            .compactMap { $0 as? URL }
+            .contains { vehicleMetadataNames.contains($0.lastPathComponent.lowercased()) } ?? false
+        guard hasVehicleMetadata else {
+            return "Dependency Checker مخصص لموارد المركبات التي تحتوي بيانات مركبة."
+        }
         var dependencies = Set<String>()
         var localReferences = Set<String>()
         for manifest in manifests {

@@ -193,6 +193,18 @@ struct OrbxPS4TransferView: View {
                     password: pass, path: remoteListDirectory, name: "dlclist.xml", destination: listTemp)
                 let originalXML = try String(contentsOf: listTemp, encoding: .utf8)
 
+                // Validate all local DLC archives as vehicle packages before any FTP upload.
+                for name in names {
+                    let packageFolder = addon.appendingPathComponent(name, isDirectory: true)
+                    let localPack = try INRPFOrbxAutoInstallPlanner.packageContentRoot(for: packageFolder)
+                    let localDLC = localPack.appendingPathComponent("dlc.rpf")
+                    guard fm.fileExists(atPath: localDLC.path) else {
+                        throw NSError(domain: "INRPF.Transfer", code: 8,
+                            userInfo: [NSLocalizedDescriptionKey: "حزمة المركبة لا تحتوي dlc.rpf في المسار المتوقع: \(name)"])
+                    }
+                    _ = try LocalEngineBridge.listRPF(at: localDLC)
+                }
+
                 // Validate and merge before uploading any DLC files.
                 let merged = try INRPFOrbxAutoInstallPlanner.mergedDLClist(existing: originalXML, packageNames: names)
                 if hasExistingList {

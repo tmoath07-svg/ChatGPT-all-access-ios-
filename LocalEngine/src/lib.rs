@@ -12,6 +12,56 @@ const MAX_RESOURCE_DECOMPRESSED_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_FILES: usize = 20_000;
 const MAX_DEPTH: usize = 64;
 
+const VEHICLE_METADATA_NAMES: [&str; 5] = [
+    "vehicles.meta",
+    "handling.meta",
+    "carcols.meta",
+    "carvariations.meta",
+    "vehiclelayouts.meta",
+];
+
+fn is_vehicle_metadata_name(name: &str) -> bool {
+    let basename = name.rsplit('/').next().unwrap_or(name).to_ascii_lowercase();
+    VEHICLE_METADATA_NAMES.contains(&basename.as_str())
+}
+
+fn archive_has_vehicle_metadata(archive: &RpfArchive) -> bool {
+    archive.entries.iter().any(|entry| is_vehicle_metadata_name(&entry.name_lower))
+}
+
+fn contains_vehicle_metadata(root: &Path, max_depth: usize) -> bool {
+    if !root.is_dir() { return false; }
+    let mut pending = vec![(root.to_path_buf(), 0usize)];
+    let mut visited = 0usize;
+    while let Some((directory, depth)) = pending.pop() {
+        let Ok(entries) = fs::read_dir(&directory) else { continue };
+        for item in entries.flatten() {
+            visited += 1;
+            if visited > MAX_FILES * 2 { return false; }
+            let Ok(kind) = item.file_type() else { continue };
+            if kind.is_symlink() { continue; }
+            let name = item.file_name().to_string_lossy().to_ascii_lowercase();
+            if kind.is_file() && VEHICLE_METADATA_NAMES.contains(&name.as_str()) {
+                return true;
+            }
+            if kind.is_dir() && depth < max_depth {
+                pending.push((item.path(), depth + 1));
+            }
+        }
+    }
+    false
+}
+
+fn has_vehicle_metadata_near(path: &Path) -> bool {
+    let mut current = if path.is_dir() { Some(path) } else { path.parent() };
+    for _ in 0..5 {
+        let Some(directory) = current else { break };
+        if contains_vehicle_metadata(directory, 4) { return true; }
+        current = directory.parent();
+    }
+    false
+}
+
 fn c_string(value: String) -> *mut c_char {
     CString::new(value.replace('\0', "�"))
         .unwrap_or_else(|_| CString::new("{\"ok\":false,\"error\":\"invalid response\"}").unwrap())
@@ -71,6 +121,9 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
         Ok(value) => value,
         Err(error) => return result_error(format!("تعذر تحليل RPF: {error:#}")),
     };
+    if !archive_has_vehicle_metadata(&archive) {
+        return result_error("أداة INRPF مخصصة لأرشيفات مركبات GTA التي تحتوي بيانات المركبات.");
+    }
 
     let mut directories = 0usize;
     let mut binary_files = 0usize;
@@ -130,6 +183,9 @@ pub unsafe extern "C" fn gta_engine_preview_vehicle_model(path: *const c_char) -
     }
     if metadata.len() > MAX_INPUT_BYTES {
         return result_error("حجم ملف المركبة تجاوز حد التحليل المحلي (512MB).");
+    }
+    if !has_vehicle_metadata_near(path) {
+        return result_error("اختر نموذجاً من مجلد يحتوي بيانات مركبة مدعومة.");
     }
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("");
     let kind = match rage_formats::DrawableKind::from_extension(extension) {
@@ -294,6 +350,9 @@ pub unsafe extern "C" fn gta_engine_list_rpf(path: *const c_char) -> *mut c_char
         Ok(value) => value,
         Err(error) => return result_error(format!("تعذر تحليل RPF: {error:#}")),
     };
+    if !archive_has_vehicle_metadata(&archive) {
+        return result_error("استعراض RPF متاح لحزم المركبات المدعومة فقط.");
+    }
     let root = match archive.entries.first() {
         Some(value) => value,
         None => return result_error("جدول RPF فارغ."),
@@ -494,6 +553,9 @@ fn extract_rpf_to_directory(input: &Path, output: &Path) -> Result<(usize, u64, 
     let name = input.file_name().and_then(|v| v.to_str()).unwrap_or("archive.rpf");
     let archive = RpfArchive::parse(&bytes, name, None)
         .map_err(|error| format!("تعذر تحليل RPF: {error:#}"))?;
+    if !archive_has_vehicle_metadata(&archive) {
+        return Err("استخراج RPF متاح لحزم المركبات المدعومة فقط.".to_string());
+    }
     if archive.version != rpf_archive::RpfVersion::V7 {
         return Err("الاستخراج المتداخل المحلي في هذه المرحلة يدعم RPF7 فقط.".to_string());
     }
@@ -561,6 +623,9 @@ pub unsafe extern "C" fn gta_engine_build_rpf7(
 
     if !input.is_dir() {
         return result_error("المصدر المحدد ليس مجلداً.");
+    }
+    if !contains_vehicle_metadata(&input, 6) {
+        return result_error("بناء RPF في INRPF مخصص لمجلدات حزم المركبات.");
     }
     if output.starts_with(&input) {
         return result_error("يجب حفظ ملف RPF خارج مجلد المصدر.");
@@ -756,6 +821,9 @@ pub unsafe extern "C" fn gta_engine_convert_resource(
     if !input.is_file() {
         return result_error("ملف المورد المحدد غير موجود.");
     }
+    if !has_vehicle_metadata_near(&input) {
+        return result_error("اختر مورداً من مجلد مركبة يحتوي بيانات المركبة.");
+    }
     let extension = match input.extension().and_then(|v| v.to_str()) {
         Some(value) => value,
         None => return result_error("ملف المورد لا يحتوي امتداداً معروفاً."),
@@ -919,6 +987,9 @@ pub unsafe extern "C" fn gta_engine_convert_folder(
         Ok(value) => PathBuf::from(value),
         Err(error) => return result_error(error),
     };
+    if !has_vehicle_metadata_near(&input) {
+        return result_error("اختر مجلد مورد مركبة يحتوي بيانات المركبة.");
+    }
     match convert_resource_folder(&input, &output) {
         Ok((converted, copied, markers, input_bytes, output_bytes)) => result_ok(json!({
             "ok": true,
@@ -949,6 +1020,9 @@ pub unsafe extern "C" fn gta_engine_extract_ytd(
     };
     if !input.is_file() {
         return result_error("ملف YTD المحدد غير موجود.");
+    }
+    if !has_vehicle_metadata_near(&input) {
+        return result_error("استخراج YTD متاح لخامات حزم المركبات فقط.");
     }
     let metadata = match fs::metadata(&input) {
         Ok(value) => value,
@@ -1134,6 +1208,9 @@ pub unsafe extern "C" fn gta_engine_build_ytd(
         Ok(value) => PathBuf::from(value),
         Err(error) => return result_error(error),
     };
+    if !has_vehicle_metadata_near(&input) {
+        return result_error("بناء YTD متاح لمجلدات خامات المركبات فقط.");
+    }
     if output.starts_with(&input) {
         return result_error("احفظ قاموس YTD خارج مجلد الخامات المصدرية.");
     }
