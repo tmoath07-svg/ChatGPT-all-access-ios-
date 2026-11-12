@@ -169,7 +169,7 @@ struct YTDTextureLabView: View {
         }
     }
 
-    private func appSupportFolder(_ components: String...) throws -> URL {
+    nonisolated private static func appSupportFolder(_ components: String...) throws -> URL {
         let root = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let folder = components.reduce(root) { $0.appendingPathComponent($1, isDirectory: true) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -190,7 +190,7 @@ struct YTDTextureLabView: View {
         Task.detached(priority: .userInitiated) {
             defer { if access { file.stopAccessingSecurityScopedResource() } }
             do {
-                let base = try appSupportFolder("GTA Converter", "YTD Editor", "Extracted")
+                let base = try Self.appSupportFolder("GTA Converter", "YTD Editor", "Extracted")
                 let output = base.appendingPathComponent(file.deletingPathExtension().lastPathComponent, isDirectory: true)
                 let result = try LocalEngineBridge.extractYTD(at: file, to: output)
                 await MainActor.run {
@@ -218,7 +218,7 @@ struct YTDTextureLabView: View {
         Task.detached(priority: .userInitiated) {
             defer { if access { folder.stopAccessingSecurityScopedResource() } }
             do {
-                let base = try appSupportFolder("GTA Converter", "YTD Editor", "Built")
+                let base = try Self.appSupportFolder("GTA Converter", "YTD Editor", "Built")
                 let safeName = folder.lastPathComponent.replacingOccurrences(of: "/", with: "_")
                 let output = base.appendingPathComponent("\(safeName).ytd")
                 let result = try LocalEngineBridge.buildYTD(from: folder, to: output)
