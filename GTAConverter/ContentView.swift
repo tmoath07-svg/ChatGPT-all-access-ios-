@@ -621,52 +621,62 @@ struct ContentView: View {
                     let reader = try await ArchiveReader(reading: .fileURL(sourceURL))
                     var totalBytes: Int64 = 0
                     var count = 0
-                    for try await item in reader {
-                        let raw = item.entry.path
-                        currentArchivePath = raw
-                        let relative = try Self.safeRelativePath(raw)
-                        let destination = root.appendingPathComponent(relative, isDirectory: item.entry.fileType == .directory)
+                    do {
+                        while let entry = try await reader.nextEntry() {
+                            let raw = entry.path
+                            currentArchivePath = raw
+                            let relative = try Self.safeRelativePath(raw)
+                            let destination = root.appendingPathComponent(relative, isDirectory: entry.fileType == .directory)
 
-                        // Do not infer directory status from a trailing slash. RAR archives
-                        // commonly store directory entries without one.
-                        switch item.entry.fileType {
-                        case .directory:
-                            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-                            continue
+                            // Stream each file in bounded chunks instead of buffering a whole YFT/YTD in RAM.
+                            switch entry.fileType {
+                            case .directory:
+                                try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
 
-                        case .regular:
-                            // Hardlinks carry no payload. Skip them rather than writing an empty
-                            // file that could collide with a real directory or file.
-                            if item.entry.hardlinkTarget != nil { continue }
+                            case .regular:
+                                if entry.hardlinkTarget != nil { continue }
+                                try FileManager.default.createDirectory(
+                                    at: destination.deletingLastPathComponent(),
+                                    withIntermediateDirectories: true
+                                )
+                                var existingIsDirectory: ObjCBool = false
+                                if FileManager.default.fileExists(atPath: destination.path, isDirectory: &existingIsDirectory),
+                                   existingIsDirectory.boolValue {
+                                    throw ImportError.archivePathConflict(relative)
+                                }
+                                guard FileManager.default.createFile(atPath: destination.path, contents: nil) else {
+                                    throw ImportError.fileWrite(relative)
+                                }
+                                let output = try FileHandle(forWritingTo: destination)
+                                do {
+                                    while true {
+                                        let chunk = try await reader.readData(maxLength: 1024 * 1024)
+                                        if chunk.isEmpty { break }
+                                        totalBytes += Int64(chunk.count)
+                                        guard totalBytes <= 1_500_000_000, count < 20_000 else {
+                                            throw ImportError.archiveTooLarge
+                                        }
+                                        try output.write(contentsOf: Data(chunk))
+                                    }
+                                    try output.close()
+                                } catch {
+                                    try? output.close()
+                                    throw error
+                                }
+                                count += 1
 
-                            try FileManager.default.createDirectory(
-                                at: destination.deletingLastPathComponent(),
-                                withIntermediateDirectories: true
-                            )
-                            var existingIsDirectory: ObjCBool = false
-                            if FileManager.default.fileExists(atPath: destination.path, isDirectory: &existingIsDirectory),
-                               existingIsDirectory.boolValue {
-                                throw ImportError.archivePathConflict(relative)
+                            case .symlink:
+                                try await reader.skipData()
+
+                            default:
+                                try await reader.skipData()
                             }
-
-                            let data = Data(item.bytes)
-                            totalBytes += Int64(data.count)
-                            count += 1
-                            guard totalBytes <= 1_500_000_000, count <= 20_000 else {
-                                throw ImportError.archiveTooLarge
-                            }
-                            try data.write(to: destination, options: .atomic)
-
-                        case .symlink:
-                            // Never create links from untrusted archives on the app filesystem.
-                            continue
-
-                        default:
-                            // Ignore sockets, devices, FIFOs and other non-regular entries.
-                            continue
                         }
+                        await reader.close()
+                    } catch {
+                        await reader.close()
+                        throw error
                     }
-                    await reader.close()
                     guard count > 0 else { throw ImportError.emptyArchive }
                 }
                 let analysis = try await Task.detached(priority: .utility) {
@@ -754,9 +764,15 @@ struct ContentView: View {
 
     private func fail(_ message: String, underlyingError: Error? = nil) {
         status = message
+        let archiveError = underlyingError as? ArchiveError
         let nsError = underlyingError.map { $0 as NSError } ?? NSError(domain: "GTAConverter", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
-        let reason = nsError.localizedFailureReason ?? "لم يوفّر النظام سبباً إضافياً."
-        let suggestion = nsError.localizedRecoverySuggestion ?? "انسخ التقرير وأرسله كما هو لتحديد موضع المشكلة."
+        let reason = archiveError?.message.isEmpty == false
+            ? archiveError!.message
+            : (nsError.localizedFailureReason ?? "لم يوفّر النظام سبباً إضافياً.")
+        let technicalStage = archiveError.map { "مرحلة libarchive: \\(String(describing: $0.stage))، الحالة: \\(String(describing: $0.status))" }
+        let suggestion = technicalStage ?? (nsError.localizedRecoverySuggestion ?? "انسخ التقرير وأرسله كما هو لتحديد موضع المشكلة.")
+        let reportedCode = archiveError.map { Int($0.code) } ?? nsError.code
+        let reportedDomain = archiveError == nil ? nsError.domain : "SwiftArchive.ArchiveError"
         lastErrorDetails = """
         GTA Converter - Error Report
         الوقت: \(ISO8601DateFormatter().string(from: Date()))
