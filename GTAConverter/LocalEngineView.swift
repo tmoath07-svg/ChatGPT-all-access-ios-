@@ -49,7 +49,7 @@ struct LocalEngineView: View {
                         Text("محرر ومحرك الملفات المحلي").font(.title2.bold()).foregroundStyle(.white)
                         Text(LocalEngineBridge.version)
                             .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.55))
-                        Text("افتح أرشيف RPF7 واستخرج محتوياته، عدّل الملفات في مجلد العمل، ثم أعد بناء الأرشيف محلياً. يدعم أيضاً فحص الموارد واستخراج وبناء YTD بصيغته المدعومة.")
+                        Text("افتح أرشيف حزمة مركبات مدعومة، استعرض بنيته أو استخرج ملفاته، ثم أعد بناء RPF7 محلياً. يدعم أيضاً فحص موارد المركبات واستخراج وبناء YTD ضمن الصيغ المدعومة.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.72))
                     }
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
@@ -76,7 +76,7 @@ struct LocalEngineView: View {
                     Button(action: buildRPF) {
                         HStack {
                             if isBusy { ProgressView().tint(.white) }
-                            Label(isBusy ? "جاري بناء RPF7..." : "بناء أرشيف RPF7 محلي", systemImage: "shippingbox.fill")
+                            Label(isBusy ? "جاري بناء RPF7..." : "بناء RPF7 لحزمة مركبات", systemImage: "shippingbox.fill")
                         }
                         .font(.headline.bold()).frame(maxWidth: .infinity).padding(15)
                         .background(LinearGradient(colors: [purple, purple.opacity(0.65)],
@@ -88,7 +88,7 @@ struct LocalEngineView: View {
                     .opacity(sourceFolder == nil || isBusy ? 0.45 : 1)
 
                     Button { openPicker(.inspectRPF) } label: {
-                        Label("فحص ملف RPF موجود", systemImage: "doc.text.magnifyingglass")
+                        Label("فحص أرشيف مركبات RPF", systemImage: "doc.text.magnifyingglass")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
                             .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
@@ -96,7 +96,7 @@ struct LocalEngineView: View {
                     .buttonStyle(.plain).disabled(isBusy)
 
                     Button { openPicker(.listRPF) } label: {
-                        Label("استعراض شجرة ملفات RPF", systemImage: "list.bullet.indent")
+                        Label("استعراض شجرة أرشيف المركبات", systemImage: "list.bullet.indent")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
                             .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
@@ -104,7 +104,7 @@ struct LocalEngineView: View {
                     .buttonStyle(.plain).disabled(isBusy)
 
                     Button { openPicker(.extractRPF) } label: {
-                        Label("استخراج ملفات RPF محلياً", systemImage: "archivebox")
+                        Label("استخراج أرشيف المركبات محلياً", systemImage: "archivebox")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
                             .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
@@ -254,7 +254,7 @@ struct LocalEngineView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Label("حدود المرحلة الحالية", systemImage: "info.circle.fill")
                             .font(.subheadline.bold()).foregroundStyle(.orange)
-                        Text("استخراج RPF متاح للأرشيفات غير المشفرة، مع فحص وبناء RPF7 عام. تحويل مورد منفرد أو مجلد كامل واستخراج YTD إلى DDS متاحان. بناء OTD بصيغة Orbis وتجميع DLC متوافق مع PS4 ما زالا قيد النقل والاختبار. حد المعالجة 512MB.")
+                        Text("فحص واستعراض واستخراج RPF محصور بحزم المركبات التي تحتوي بيانات المركبة المعروفة. تحويل الموارد واستخراج YTD يعملان ضمن الصيغ المدعومة فقط. بناء OTD بصيغة Orbis وتجميع DLC متوافق بالكامل مع PS4 ما زالا قيد النقل والاختبار. حد المعالجة 512MB.")
                             .font(.caption).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(14).background(.orange.opacity(0.07))
