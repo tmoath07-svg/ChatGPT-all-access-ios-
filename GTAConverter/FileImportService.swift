@@ -15,9 +15,10 @@ enum FileImportService {
         }
     }
 
-    static func importItem(from source: URL, category: String = "Imports") throws -> URL {
+    static func importItem(from source: URL, category: String = "Imports",
+                           securityScopeAlreadyStarted: Bool = false) throws -> URL {
         let fm = FileManager.default
-        let access = source.startAccessingSecurityScopedResource()
+        let access = securityScopeAlreadyStarted ? false : source.startAccessingSecurityScopedResource()
         defer {
             if access { source.stopAccessingSecurityScopedResource() }
         }
