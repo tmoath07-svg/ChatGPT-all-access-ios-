@@ -429,6 +429,7 @@ struct CloudConversionView: View {
 struct CreatorPageView: View {
     @AppStorage("gta_language") private var appLanguage = "ar"
     private let creatorHandle = "Moa_sa7"
+    private let contributorHandle = "q.wq9@tik"
     private let tiktokURL = URL(string: "https://www.tiktok.com/@Moa_sa7")!
 
     var body: some View {
@@ -436,45 +437,35 @@ struct CreatorPageView: View {
             extraBackground.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 18) {
-                    VStack(spacing: 12) {
-                        ZStack {
-                            Circle().fill(
-                                LinearGradient(colors: [.purple, Color(red: 0.22, green: 0.08, blue: 0.48)],
-                                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                            ).frame(width: 104, height: 104)
-                            Image(systemName: "person.crop.circle.fill")
-                                .font(.system(size: 65)).foregroundStyle(.white)
+                    VStack(alignment: .leading, spacing: 13) {
+                        Text(appLanguage == "ar" ? "فريق التطوير" : "Development team")
+                            .font(.title2.bold()).foregroundStyle(.white)
+                        HStack(alignment: .top, spacing: 12) {
+                            creatorCard(handle: creatorHandle, role: appLanguage == "ar" ? "المطوّر وصاحب المشروع" : "Founder & Developer", icon: "crown.fill", primary: true)
+                            creatorCard(handle: contributorHandle, role: appLanguage == "ar" ? "مساهم في المشروع" : "Project Contributor", icon: "person.fill", primary: false)
                         }
-                        Text("المبدع").font(.title2.bold()).foregroundStyle(.white)
-                        Text(creatorHandle).font(.title3.bold()).foregroundStyle(.purple)
-                        Text("صاحب ومطوّر GTA Converter")
-                        Text("مساهم إضافي: q.wq9@tik").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.62))
-                            .font(.subheadline).foregroundStyle(.white.opacity(0.65))
                     }
-                    .frame(maxWidth: .infinity).padding(.vertical, 28)
-                    .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 24))
-
+                    .padding(16).background(.white.opacity(0.055))
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     Link(destination: tiktokURL) {
                         HStack(spacing: 12) {
                             Image(systemName: "music.note").font(.title2)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("TikTok").font(.headline.bold())
-                                Text("@\(creatorHandle)").font(.caption).opacity(0.75)
+                                Text("@\\(creatorHandle)").font(.caption).opacity(0.75)
                             }
                             Spacer()
                             Image(systemName: "arrow.up.right").font(.headline)
-                        }
-                        .foregroundStyle(.white).padding(16)
-                        .background(Color.purple.opacity(0.28))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        }.foregroundStyle(.white).padding(16)
+                            .background(Color.purple.opacity(0.28))
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
-
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("حقوق التطبيق", systemImage: "c.circle.fill")
+                        Label(appLanguage == "ar" ? "حقوق التطبيق" : "App credits", systemImage: "c.circle.fill")
                             .font(.headline).foregroundStyle(.white)
-                        Text("© 2026 Moa_sa7. جميع الحقوق محفوظة.")
+                        Text("© 2026 \\(creatorHandle). " + (appLanguage == "ar" ? "جميع الحقوق محفوظة." : "All rights reserved."))
                             .font(.subheadline).foregroundStyle(.white.opacity(0.72))
-                        Text("GTA Converter مشروع مستقل. العلامات التجارية وأسماء الألعاب المذكورة تعود لأصحابها.")
+                        Text(appLanguage == "ar" ? "GTA Converter مشروع مستقل. العلامات التجارية وأسماء الألعاب المذكورة تعود لأصحابها." : "GTA Converter is an independent project. Mentioned trademarks and game names belong to their respective owners.")
                             .font(.caption).foregroundStyle(.white.opacity(0.48))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -483,13 +474,31 @@ struct CreatorPageView: View {
                 }.padding(16)
             }
         }
-        .navigationTitle("المبدع")
+        .navigationTitle(appLanguage == "ar" ? "المبدع" : "Creators")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
-        .environment(\.locale, Locale(identifier: appLanguage))
+        .environment(\\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\\.locale, Locale(identifier: appLanguage))
+    }
+
+    private func creatorCard(handle: String, role: String, icon: String, primary: Bool) -> some View {
+        VStack(spacing: 9) {
+            ZStack {
+                Circle().fill(LinearGradient(
+                    colors: primary ? [.purple, Color(red: 0.22, green: 0.08, blue: 0.48)] : [.blue, Color(red: 0.08, green: 0.18, blue: 0.42)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )).frame(width: 58, height: 58)
+                Image(systemName: icon).font(.system(size: 25, weight: .bold)).foregroundStyle(.white)
+            }
+            Text(handle).font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(primary ? .purple : .cyan).lineLimit(1).minimumScaleFactor(0.7)
+            Text(role).font(.caption2.weight(.medium)).foregroundStyle(.white.opacity(0.7))
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 132).padding(10)
+        .background(.white.opacity(0.055)).clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 17).stroke(primary ? .purple.opacity(0.35) : .cyan.opacity(0.25)))
     }
 }
-
 
 struct ChiakiRemotePlayView: View {
     private let projectURL = URL(string: "https://github.com/chiaki-ng/chiaki-ng")!
