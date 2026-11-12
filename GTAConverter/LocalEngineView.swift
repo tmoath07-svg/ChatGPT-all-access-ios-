@@ -271,10 +271,13 @@ struct LocalEngineView: View {
                 isBusy = true
                 errorText = ""
                 report = "يتم نسخ الملف المختار إلى مساحة التطبيق..."
+                let scopeStarted = selectedURL.startAccessingSecurityScopedResource()
                 Task {
+                    defer { if scopeStarted { selectedURL.stopAccessingSecurityScopedResource() } }
                     do {
                         let localURL = try await Task.detached(priority: .userInitiated) {
-                            try FileImportService.importItem(from: selectedURL, category: "Imports")
+                            try FileImportService.importItem(from: selectedURL, category: "Imports",
+                                                              securityScopeAlreadyStarted: true)
                         }.value
                         switch selectedAction {
                         case .sourceFolder:
