@@ -231,7 +231,7 @@ struct GTAModBrowserView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
-                    .environment(.layoutDirection, .leftToRight)
+                    .environment(\.layoutDirection, .leftToRight)
                     .foregroundStyle(.white)
                 Button {
                     if validURL != nil { browserID = UUID() }
