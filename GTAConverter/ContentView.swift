@@ -25,7 +25,7 @@ struct ContentView: View {
     @AppStorage("gta_home_density") private var homeDensity = "comfortable"
     @AppStorage("gta_motion_enabled") private var motionEnabled = true
     @AppStorage("gta_language") private var appLanguage = "ar"
-    @AppStorage("gta_welcome_message") private var welcomeMessage = "حيّاك في GTA Converter"
+    @AppStorage("gta_welcome_message") private var welcomeMessage = "حيّاك في INRPF"
     @AppStorage("gta_background_color") private var backgroundStyle = "midnight"
     @AppStorage("gta_onboarding_complete") private var onboardingComplete = false
     @State private var showOnboarding = false
@@ -87,7 +87,7 @@ struct ContentView: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            .navigationTitle("GTA Converter")
+            .navigationTitle("INRPF")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(navigationBackground, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -509,7 +509,7 @@ struct ContentView: View {
     }
 
     private var footer: some View {
-        Text("© 2026 Moa_sa7 • GTA Converter")
+        Text("© 2026 Moa_sa7 • INRPF")
             .font(.system(size: 10)).foregroundStyle(.white.opacity(0.35))
             .multilineTextAlignment(.center).padding(.horizontal, 8)
     }
@@ -1173,7 +1173,7 @@ private struct AppSettingsView: View {
                         if !cacheMessage.isEmpty { Text(cacheMessage).font(.caption).foregroundStyle(.white.opacity(0.65)) }
                     }
                     group(language == "ar" ? "حول التطبيق" : "About", icon: "info.circle") {
-                        settingRow(language == "ar" ? "اسم التطبيق" : "App name", "GTA Converter")
+                        settingRow(language == "ar" ? "اسم التطبيق" : "App name", "INRPF")
                         settingRow(language == "ar" ? "النظام الأدنى" : "Minimum iOS", "iOS 16+")
                     }
                     group(language == "ar" ? "الخصوصية" : "Privacy", icon: "lock.shield") {
