@@ -183,6 +183,19 @@ struct FeatureHubView: View {
         }
     }
 
+    private var readyCount: Int {
+        items.filter { $0.status == "متاح" || $0.status == "تجهيز متاح" }.count
+    }
+
+    private var partialCount: Int {
+        let states = ["فحص متاح", "متاح يدوياً", "جزئي", "دليل وتجهيز", "تحليل محلي", "قيد التطوير"]
+        return items.filter { states.contains($0.status) }.count
+    }
+
+    private var plannedCount: Int {
+        items.count - readyCount - partialCount
+    }
+
     var body: some View {
         ZStack {
             extraBackground.ignoresSafeArea()
@@ -280,7 +293,7 @@ struct FeatureHubView: View {
 
     private func statusColor(_ status: String) -> Color {
         if status == "متاح" || status == "تجهيز متاح" { return .green }
-        if status == "فحص متاح" || status == "متاح يدوياً" || status == "جزئي" { return .orange }
+        if status == "فحص متاح" || status == "متاح يدوياً" || status == "جزئي" || status == "تحليل محلي" || status == "دليل وتجهيز" { return .orange }
         return .gray
     }
 }
