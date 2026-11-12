@@ -207,6 +207,11 @@ struct GTAModBrowserView: View {
         return url
     }
 
+    private var isArchiveLink: Bool {
+        guard let url = validURL else { return false }
+        return ["zip", "rar"].contains(url.pathExtension.lowercased())
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
@@ -230,8 +235,8 @@ struct GTAModBrowserView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(Array(shortcuts.enumerated()), id: \.offset) { entry in
-                        let item = entry.element
+                    ForEach(shortcuts.indices, id: \.self) { index in
+                        let item = shortcuts[index]
                         Button {
                             address = item.2
                             browserID = UUID()
@@ -261,11 +266,12 @@ struct GTAModBrowserView: View {
                     guard let url = validURL else { return }
                     downloads.startDownload(url)
                 } label: {
-                    Label("تنزيل الرابط الحالي", systemImage: "arrow.down.circle.fill")
+                    Label("تنزيل ملف ZIP / RAR", systemImage: "arrow.down.circle.fill")
                         .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(12)
-                        .background(Color.purple.opacity(0.8))
+                        .background(Color.purple.opacity(isArchiveLink ? 0.8 : 0.25))
                         .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
                 }
+                .disabled(!isArchiveLink)
                 NavigationLink(destination: GTADownloadsView()) {
                     Label("التنزيلات", systemImage: "tray.and.arrow.down.fill")
                         .font(.subheadline.bold()).padding(12)
@@ -473,8 +479,8 @@ struct GTATransferHistoryView: View {
         ZStack {
             GTAAppBackground()
             List {
-                ForEach(Array(records.enumerated()), id: \.offset) { entry in
-                    let record = entry.element
+                ForEach(records.indices, id: \.self) { index in
+                    let record = records[index]
                     VStack(alignment: .leading, spacing: 5) {
                         Text(record.0).font(.subheadline.bold()).foregroundStyle(.white)
                         Text(record.1).font(.caption).foregroundStyle(.white.opacity(0.6))
@@ -541,8 +547,8 @@ struct GTAAppearanceSettingsView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     section("لون الواجهة", icon: "paintpalette.fill") {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
-                            ForEach(Array(accents.enumerated()), id: \.offset) { entry in
-                                let option = entry.element
+                            ForEach(accents.indices, id: \.self) { index in
+                                let option = accents[index]
                                 Button { accent = option.0 } label: {
                                     HStack {
                                         Circle().fill(color(option.0)).frame(width: 15, height: 15)
@@ -558,8 +564,8 @@ struct GTAAppearanceSettingsView: View {
                     }
 
                     section("خلفية التطبيق", icon: "photo.fill") {
-                        ForEach(Array(backgrounds.enumerated()), id: \.offset) { entry in
-                            let option = entry.element
+                        ForEach(backgrounds.indices, id: \.self) { index in
+                            let option = backgrounds[index]
                             Button { background = option.0; customPath = "" } label: {
                                 HStack {
                                     Text(option.1).foregroundStyle(.white)
