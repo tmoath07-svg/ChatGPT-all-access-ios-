@@ -236,9 +236,8 @@ struct FTPBrowserView: View {
         }
         .navigationTitle("FTP جهاز PS4")
         .navigationBarTitleDisplayMode(.inline)
-        .background {
+        .sheet(isPresented: $showingUpload) {
             INRPFDocumentPickerPresenter(
-                isPresented: $showingUpload,
                 contentTypes: [.item],
                 onCompletion: { result in
                     switch result {
@@ -249,6 +248,7 @@ struct FTPBrowserView: View {
                     }
                 }
             )
+            .ignoresSafeArea()
         }
         .alert("مجلد جديد", isPresented: $showingNewFolder) {
             TextField("اسم المجلد", text: $folderName)

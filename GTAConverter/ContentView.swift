@@ -368,7 +368,7 @@ struct ContentView: View {
 
     private var actionButtons: some View {
         VStack(spacing: 10) {
-            Button(action: processSource) {
+            Button(action: { processSource() }) {
                 Label("فك الملفات وتجهيز نسخة احتياطية", systemImage: "shippingbox.fill")
                     .font(.headline).frame(maxWidth: .infinity).padding(16)
                     .background(LinearGradient(colors: [purple, Color(red: 0.37, green: 0.18, blue: 0.76)],

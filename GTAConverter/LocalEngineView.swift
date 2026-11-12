@@ -258,12 +258,12 @@ struct LocalEngineView: View {
         }
         .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
         .environment(\.locale, Locale(identifier: appLanguage))
-        .background {
+        .sheet(isPresented: $showingFileImporter) {
             INRPFDocumentPickerPresenter(
-                isPresented: $showingFileImporter,
                 contentTypes: activePicker?.contentTypes ?? [.item],
                 onCompletion: handleEngineImport
             )
+            .ignoresSafeArea()
         }
     }
 
