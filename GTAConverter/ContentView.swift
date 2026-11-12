@@ -361,11 +361,11 @@ struct ContentView: View {
                         let raw = item.entry.path
                         let relative = try safeRelativePath(raw)
                         let destination = root.appendingPathComponent(relative)
-                        if item.entry.fileType == .directory {
+                        if raw.hasSuffix("/") {
                             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
                             continue
                         }
-                        let data = item.bytes
+                        let data = Data(item.bytes)
                         totalBytes += Int64(data.count)
                         count += 1
                         guard totalBytes <= 1_500_000_000, count <= 20_000 else {
