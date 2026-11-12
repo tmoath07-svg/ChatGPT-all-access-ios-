@@ -2,10 +2,11 @@ name: Audit Ps4tools Engine for iOS Porting
 
 on:
   push:
-    branches: [main, fix/import-drop-redesign]
+    branches: [main, fix/import-drop-redesign, feature/local-engine-ios]
     paths:
       - ".github/workflows/audit-ps4tools-engine.yml"
       - "GTAConverter/**"
+      - "LocalEngine/**"
   workflow_dispatch:
 
 permissions:
@@ -33,11 +34,11 @@ jobs:
           python - <<'PY'
           import ast, hashlib, json, re, shutil
           from pathlib import Path
+          import zipfile
 
           archive = Path("reference/ZokiiStudio-Toolkit-FIXED.zip")
           if not archive.is_file():
               raise SystemExit("Ps4tools toolkit ZIP was not found.")
-          import zipfile
           with zipfile.ZipFile(archive) as z:
               bad = z.testzip()
               if bad:
@@ -47,9 +48,9 @@ jobs:
           root = Path("audit-output/unpacked")
           scripts = []
           patterns = {
-              "windows_executables": r"(?i)\.exe\b|\.dll\b",
-              "wine_or_windows_paths": r"(?i)\bwine\b|[A-Z]:\\|\\\\",
-              "subprocess_calls": r"(?i)subprocess\.|os\.system|Popen",
+              "windows_executables": r"(?i)\.exe\\b|\\.dll\\b",
+              "wine_or_windows_paths": r"(?i)\\bwine\\b|[A-Z]:\\\\|\\\\\\\\",
+              "subprocess_calls": r"(?i)subprocess\\.|os\\.system|Popen",
               "native_library_calls": r"(?i)ctypes|windll|WinDLL|CDLL",
               "archive_tools": r"(?i)7z|rarfile|zipfile|libarchive|RPFBuilder",
           }
@@ -66,9 +67,9 @@ jobs:
                   "extension": p.suffix.lower(),
               }
               if p.suffix.lower() == ".py":
-                  text = raw.decode("utf-8", errors="replace")
+                  source = raw.decode("utf-8", errors="replace")
                   try:
-                      tree = ast.parse(text, filename=str(rel))
+                      tree = ast.parse(source, filename=str(rel))
                       entry["syntax"] = "valid"
                       entry["imports"] = sorted({
                           (n.module or "") if isinstance(n, ast.ImportFrom) else alias.name
@@ -83,7 +84,7 @@ jobs:
                   except SyntaxError as e:
                       entry["syntax"] = f"invalid: {e}"
                   entry["platform_markers"] = {
-                      name: len(re.findall(pattern, text))
+                      name: len(re.findall(pattern, source))
                       for name, pattern in patterns.items()
                   }
               scripts.append(entry)
@@ -96,9 +97,9 @@ jobs:
               json.dumps(scripts, ensure_ascii=False, indent=2), encoding="utf-8"
           )
           (Path("audit-output") / "README.txt").write_text(
-              "Ps4tools source snapshot for GTA Converter iOS porting analysis.\n"
-              "The source files are copied from the reference repository toolkit ZIP.\n"
-              "No conversion binaries are executed during this audit.\n",
+              "Ps4tools source snapshot for GTA Converter iOS porting analysis.\\n"
+              "The source files are copied from the reference repository toolkit ZIP.\\n"
+              "No conversion binaries are executed during this audit.\\n",
               encoding="utf-8"
           )
           print(f"Audited {len(scripts)} toolkit files.")
