@@ -17,8 +17,12 @@ jobs:
 
       - name: Generate app icon
         run: |
-          python3 -m pip install --user pillow
-          python3 scripts/generate_app_icon.py
+          set -euo pipefail
+          python3 -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install pillow
+          python scripts/generate_app_icon.py
 
       - name: Install XcodeGen
         run: brew install xcodegen
