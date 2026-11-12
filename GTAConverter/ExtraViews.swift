@@ -376,7 +376,7 @@ struct CloudConversionView: View {
         }
         .navigationTitle("التحويل السحابي")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, .rightToLeft)
     }
 
     private func cloudStep(_ number: String, title: String, detail: String) -> some View {
