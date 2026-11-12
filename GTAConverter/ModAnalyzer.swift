@@ -90,8 +90,8 @@ enum ModAnalyzer {
             URL(fileURLWithPath: $0).lastPathComponent.lowercased() == "handling.meta"
         }
         let isFiveMVehicleResource =
-            (!manifestFiles.isEmpty && !yftFiles.isEmpty && !ytdFiles.isEmpty) ||
-            (!yftFiles.isEmpty && !ytdFiles.isEmpty && hasVehiclesMeta && hasHandlingMeta)
+            !yftFiles.isEmpty && !ytdFiles.isEmpty && hasVehiclesMeta &&
+            (!manifestFiles.isEmpty || hasHandlingMeta)
 
         let size = ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
         var lines = [
