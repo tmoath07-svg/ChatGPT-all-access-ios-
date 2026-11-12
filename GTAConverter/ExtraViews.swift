@@ -1,4 +1,5 @@
 import SwiftUI
+import CryptoKit
 
 private let extraBackground = Color(red: 0.035, green: 0.025, blue: 0.065)
 
@@ -150,7 +151,8 @@ struct FeatureHubView: View {
         .init(id:38,title:"RPF Explorer",category:"الملفات",icon:"archivebox.fill",status:"مخطط",detail:"استعراض شجرة RPF واستخراج الملفات باستخدام أدوات متوافقة."),
         .init(id:39,title:"Texture Converter",category:"الملفات",icon:"photo.artframe",status:"مخطط",detail:"تحويل الخامات بين الصيغ المدعومة بعد استخراجها مع الحفاظ على الجودة والأبعاد."),
         .init(id:40,title:"Mod Installer Guide",category:"PS4",icon:"book.closed.fill",status:"مخطط",detail:"دليل تركيب مرتب يوضح المسارات والمتطلبات وخطوات التحقق."),
-        .init(id:41,title:"Chiaki Remote Play",category:"PlayStation",icon:"gamecontroller.fill",status:"دليل وتجهيز",detail:"مركز Chiaki لمشروع Remote Play ومعلومات دعم iOS وروابط المشروع الرسمية.",route:"chiaki")
+        .init(id:41,title:"Chiaki Remote Play",category:"PlayStation",icon:"gamecontroller.fill",status:"دليل وتجهيز",detail:"مركز Chiaki لمشروع Remote Play ومعلومات دعم iOS وروابط المشروع الرسمية.",route:"chiaki"),
+        .init(id:42,title:"File Hash Inspector",category:"الملفات",icon:"number.square",status:"متاح",detail:"حساب بصمة SHA-256 للملفات محلياً على الآيباد للتحقق من تطابق النسخ وسلامة النقل.",route:"hash")
     ]
 
     private var filteredItems: [FeatureCatalogItem] {
@@ -239,6 +241,7 @@ struct FeatureHubView: View {
         case "ytd": YTDTextureLabView()
         case "cloud": CloudConversionView()
         case "chiaki": ChiakiRemotePlayView()
+        case "hash": FileHashInspectorView()
         case "dlc": FeatureInfoView(item: item)
         default: FeatureInfoView(item: item)
         }
@@ -482,5 +485,97 @@ struct ChiakiRemotePlayView: View {
         .navigationTitle("Chiaki")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\\.layoutDirection, .rightToLeft)
+    }
+}
+
+
+struct FileHashInspectorView: View {
+    @State private var showingPicker = false
+    @State private var isBusy = false
+    @State private var report = "اختر ملفاً أو عدة ملفات لحساب بصمة SHA-256."
+    
+    var body: some View {
+        ZStack {
+            extraBackground.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    VStack(alignment: .leading, spacing: 9) {
+                        Image(systemName: "number.square").font(.system(size: 38)).foregroundStyle(.purple)
+                        Text("فاحص بصمة الملفات").font(.title2.bold()).foregroundStyle(.white)
+                        Text("احسب SHA-256 محلياً على جهازك، بدون رفع الملفات إلى أي خادم.")
+                            .font(.subheadline).foregroundStyle(.white.opacity(0.65))
+                    }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 20))
+                    
+                    Button { showingPicker = true } label: {
+                        Label("اختيار ملفات للفحص", systemImage: "doc.badge.magnifyingglass")
+                            .font(.headline.bold()).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(16)
+                            .background(Color.purple.opacity(0.82))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }.disabled(isBusy)
+                    
+                    if isBusy {
+                        HStack(spacing: 10) {
+                            ProgressView().tint(.white)
+                            Text("جاري حساب البصمات...").font(.subheadline.bold()).foregroundStyle(.white)
+                        }.padding(14)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text("نتيجة الفحص").font(.headline).foregroundStyle(.white)
+                        Text(report).font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.78))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }.padding(15).background(.white.opacity(0.055))
+                        .clipShape(RoundedRectangle(cornerRadius: 15))
+                    
+                    Text("معلومة: إذا تطابقت بصمة SHA-256 لملفين، فهذا مؤشر قوي أن محتواهما متطابق. البصمة لا تصلح الملف التالف، لكنها تساعدك تكتشف اختلاف النسخ.")
+                        .font(.caption).foregroundStyle(.white.opacity(0.5))
+                }.padding(16)
+            }
+        }
+        .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+            switch result {
+            case .success(let urls): calculateHashes(urls)
+            case .failure(let error): report = "تعذر اختيار الملفات: \\(error.localizedDescription)"
+            }
+        }
+        .navigationTitle("File Hash")
+        .navigationBarTitleDisplayMode(.inline)
+        .environment(\\.layoutDirection, .rightToLeft)
+    }
+    
+    private func calculateHashes(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        isBusy = true
+        report = "تم اختيار \\(urls.count) ملف. جاري الفحص..."
+        DispatchQueue.global(qos: .userInitiated).async {
+            var lines: [String] = []
+            for url in urls {
+                let hasAccess = url.startAccessingSecurityScopedResource()
+                defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let handle = try FileHandle(forReadingFrom: url)
+                    defer { try? handle.close() }
+                    var hasher = SHA256()
+                    var byteCount: Int64 = 0
+                    while let chunk = try handle.read(upToCount: 1_048_576), !chunk.isEmpty {
+                        hasher.update(data: chunk)
+                        byteCount += Int64(chunk.count)
+                    }
+                    let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+                    let sizeMB = Double(byteCount) / 1_048_576.0
+                    lines.append("الملف: \\(url.lastPathComponent)\\nالحجم: \\(String(format: "%.2f", sizeMB)) MB\\nSHA-256: \\(digest)")
+                } catch {
+                    lines.append("الملف: \\(url.lastPathComponent)\\nفشل الفحص: \\(error.localizedDescription)")
+                }
+            }
+            DispatchQueue.main.async {
+                report = lines.joined(separator: "\\n\\n--------------------\\n\\n")
+                isBusy = false
+            }
+        }
     }
 }
