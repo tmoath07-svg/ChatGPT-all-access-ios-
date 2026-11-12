@@ -116,7 +116,7 @@ jobs:
 
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
           test "$VERSION" = "2.01"
-          test "$BUILD" = "21"
+          test "$BUILD" = "22"
           zip -qry INRPF-2.01-unsigned.ipa Payload
           unzip -t INRPF-2.01-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"
