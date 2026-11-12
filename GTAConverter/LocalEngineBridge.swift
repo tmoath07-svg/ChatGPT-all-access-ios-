@@ -37,6 +37,15 @@ enum LocalEngineBridge {
         return try decode(pointer)
     }
 
+    static func buildYTD(from folder: URL, to output: URL) throws -> [String: Any] {
+        let pointer = folder.path.withCString { input in
+            output.path.withCString { destination in
+                gta_engine_build_ytd(input, destination)
+            }
+        }
+        return try decode(pointer)
+    }
+
     private static func decode(_ pointer: UnsafeMutablePointer<CChar>?) throws -> [String: Any] {
         guard let pointer else {
             throw NSError(domain: "GTALocalEngine", code: 1,
