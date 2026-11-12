@@ -1,7 +1,7 @@
 import SwiftUI
 import Foundation
 
-private struct INRPFHistoryEntry: Codable, Identifiable {
+struct INRPFHistoryEntry: Codable, Identifiable {
     let id: UUID
     let date: Date
     let title: String
@@ -13,7 +13,7 @@ enum INRPFLocalTimeline {
 
     static func record(_ title: String, details: String) {
         var entries = load()
-        entries.insert(INRPFHistoryEntry(id: UUID(), date: Date(), title: title, details: details), at: 0)
+        entries.insert(INRPFHistoryEntry(id: UUID(), date: Date(), title: String(title.prefix(100)), details: String(details.prefix(500))), at: 0)
         entries = Array(entries.prefix(250))
         if let data = try? JSONEncoder().encode(entries) {
             UserDefaults.standard.set(data, forKey: storageKey)
