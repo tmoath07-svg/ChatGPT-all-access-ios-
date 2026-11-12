@@ -45,7 +45,7 @@ struct FeatureAnalysisTests {
         try write("new", to: right.appendingPathComponent("added.txt"))
 
         let changes = try INRPFFileComparison.compare(left: left, right: right)
-        precondition(changes.count == 4, "Comparison expected 4 paths, got \\(changes.count): \\(changes.map(\\.path))")
+        precondition(changes.count == 4, "Comparison expected 4 paths, got \(changes.count): \(changes.map(\.path))")
         precondition(changes.filter { $0.change == .unchanged }.map(\.path) == ["same.txt"], "Unchanged file classification failed")
         precondition(changes.filter { $0.change == .changed }.map(\.path) == ["changed.txt"], "Changed file classification failed")
         precondition(changes.filter { $0.change == .removed }.map(\.path) == ["removed.txt"], "Removed file classification failed")
