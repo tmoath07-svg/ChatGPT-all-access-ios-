@@ -74,7 +74,7 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
     let mut binary_files = 0usize;
     let mut resource_files = 0usize;
     for entry in &archive.entries {
-        match entry.kind {
+        match &entry.kind {
             RpfEntryKind::Directory { .. } => directories += 1,
             RpfEntryKind::BinaryFile { .. } => binary_files += 1,
             RpfEntryKind::ResourceFile { .. } => resource_files += 1,
