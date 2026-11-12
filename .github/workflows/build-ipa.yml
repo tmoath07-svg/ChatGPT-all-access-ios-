@@ -34,7 +34,9 @@ jobs:
           python3 - "$PACKAGE_MANIFEST" <<'PY'
           from pathlib import Path
           import sys
+          import os
           path = Path(sys.argv[1])
+          os.chmod(path, 0o644)
           source = path.read_text()
           if "swiftLanguageModes: [.v6]" not in source:
               raise SystemExit("Expected SwiftArchive Swift 6 language mode was not found; refusing an unsafe blind patch.")
