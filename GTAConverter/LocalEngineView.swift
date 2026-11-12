@@ -26,7 +26,6 @@ struct LocalEngineView: View {
     @State private var extractedTextureFolder: URL?
     @State private var convertedResourceURL: URL?
     @State private var builtYtdURL: URL?
-    @State private var extractedRpfFolder: URL?
     @State private var convertedFolderURL: URL?
 
     init(initialFolder: URL? = nil, initialFile: URL? = nil) {

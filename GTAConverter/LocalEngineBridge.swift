@@ -29,14 +29,6 @@ enum LocalEngineBridge {
         return try decode(pointer)
     }
 
-    static func extractRPF(at file: URL, to outputDirectory: URL) throws -> [String: Any] {
-        let pointer = file.path.withCString { input in
-            outputDirectory.path.withCString { output in
-                gta_engine_extract_rpf(input, output)
-            }
-        }
-        return try decode(pointer)
-    }
 
     static func convertResource(at file: URL, to outputDirectory: URL) throws -> [String: Any] {
         let pointer = file.path.withCString { input in
