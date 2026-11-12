@@ -263,8 +263,17 @@ fn resource_mapping(extension: &str) -> Result<(&'static str, bool), String> {
         "yft" => Ok(("oft", true)),
         "ydr" => Ok(("odr", true)),
         "ydd" => Ok(("odd", true)),
+        "ypt" => Ok(("opt", true)),
         "ybn" => Ok(("obn", true)),
         "ybd" => Ok(("obd", true)),
+        "yld" => Ok(("old", true)),
+        "yed" => Ok(("oed", true)),
+        "yfd" => Ok(("ofd", true)),
+        "ynd" => Ok(("ond", true)),
+        "ynv" => Ok(("onv", true)),
+        "yvr" => Ok(("ovr", true)),
+        "ywr" => Ok(("owr", true)),
+        "ypdb" => Ok(("opdb", true)),
         "ycd" => Ok(("ocd", false)),
         "ymap" => Ok(("omap", false)),
         "ytyp" => Ok(("otyp", false)),
@@ -306,8 +315,9 @@ fn read_decompressed_payload(payload: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 fn replace_marker(data: &mut [u8]) -> usize {
-    const PC_MARKER: [u8; 8] = [0x96, 0x69, 0x99, 0x55, 0x55, 0x55, 0x55, 0x77];
-    const PS4_MARKER: [u8; 8] = [0x96, 0x68, 0x99, 0x55, 0x55, 0x55, 0x55, 0x77];
+    // Exact little-endian constants verified against the reference converter.
+    const PC_MARKER: [u8; 8] = [0x96, 0x69, 0x99, 0x99, 0x55, 0x55, 0x55, 0x77];
+    const PS4_MARKER: [u8; 8] = [0x96, 0x68, 0x99, 0x99, 0x55, 0x55, 0x55, 0x77];
     if data.len() < PC_MARKER.len() {
         return 0;
     }
@@ -701,8 +711,8 @@ mod tests {
         use flate2::Compression;
         use std::io::Write;
 
-        let pc = [0x96, 0x69, 0x99, 0x55, 0x55, 0x55, 0x55, 0x77];
-        let ps4 = [0x96, 0x68, 0x99, 0x55, 0x55, 0x55, 0x55, 0x77];
+        let pc = [0x96, 0x69, 0x99, 0x99, 0x55, 0x55, 0x55, 0x77];
+        let ps4 = [0x96, 0x68, 0x99, 0x99, 0x55, 0x55, 0x55, 0x77];
         let mut payload = b"test-model:".to_vec();
         payload.extend_from_slice(&pc);
         payload.extend_from_slice(b":end");
@@ -755,8 +765,10 @@ mod tests {
     fn keeps_initial_resource_port_focused_on_vehicle_assets() {
         assert!(resource_mapping("yft").is_ok());
         assert!(resource_mapping("ydr").is_ok());
-        assert!(resource_mapping("ypt").is_err());
-        assert!(resource_mapping("yed").is_err());
+        assert_eq!(resource_mapping("ypt").unwrap().0, "opt");
+        assert_eq!(resource_mapping("yed").unwrap().0, "oed");
+        assert_eq!(resource_mapping("ynv").unwrap().0, "onv");
+        assert_eq!(resource_mapping("ypdb").unwrap().0, "opdb");
     }
 
     #[test]
