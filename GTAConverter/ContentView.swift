@@ -357,7 +357,7 @@ struct ContentView: View {
         }
         return true
     }
-    private static func appManagedFolder(_ name: String) throws -> URL {
+    nonisolated private static func appManagedFolder(_ name: String) throws -> URL {
         let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let root = documents.appendingPathComponent("GTA Converter", isDirectory: true)
         let folder = root.appendingPathComponent(name, isDirectory: true)
@@ -365,7 +365,7 @@ struct ContentView: View {
         return folder
     }
 
-    private static func copyPickedItemIntoAppStorage(_ source: URL) throws -> URL {
+    nonisolated private static func copyPickedItemIntoAppStorage(_ source: URL) throws -> URL {
         let hasAccess = source.startAccessingSecurityScopedResource()
         defer {
             if hasAccess { source.stopAccessingSecurityScopedResource() }
@@ -492,7 +492,7 @@ struct ContentView: View {
         }
     }
 
-    private static func safeRelativePath(_ raw: String) throws -> String {
+    nonisolated private static func safeRelativePath(_ raw: String) throws -> String {
         let normalized = raw.replacingOccurrences(of: "\\", with: "/")
         let parts = normalized.split(separator: "/", omittingEmptySubsequences: true)
         guard !parts.isEmpty, !normalized.hasPrefix("/"),
@@ -502,7 +502,7 @@ struct ContentView: View {
         return parts.map(String.init).joined(separator: "/")
     }
 
-    private static func copyFolderSafely(from source: URL, to destination: URL) throws {
+    nonisolated private static func copyFolderSafely(from source: URL, to destination: URL) throws {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: source, includingPropertiesForKeys: [.isDirectoryKey],
                                              options: [.skipsHiddenFiles]) else {
