@@ -23,27 +23,48 @@ jobs:
 
       - name: Build unsigned app
         run: |
+          set -euo pipefail
           xcodebuild \
             -project GTAConverter.xcodeproj \
             -scheme GTAConverter \
             -configuration Release \
             -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Package unsigned IPA
+      - name: Package and validate IPA
         run: |
+          set -euo pipefail
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/GTA Converter.app"
           test -d "$APP_PATH"
+          test -f "$APP_PATH/Info.plist"
+
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          zip -r GTA-Converter-unsigned.ipa Payload
+          zip -qry GTA-Converter-unsigned.ipa Payload
+
+          unzip -t GTA-Converter-unsigned.ipa
+          INFO="Payload/GTA Converter.app/Info.plist"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
+          EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")
+
+          test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
+          test -n "$VERSION"
+          test -x "Payload/GTA Converter.app/$EXECUTABLE"
+
+          echo "IPA package: valid"
+          echo "Bundle ID: $BUNDLE_ID"
+          echo "Version: $VERSION"
+          echo "Executable: $EXECUTABLE"
+          echo "NOTE: This IPA is unsigned and must be signed by SideStore/AltStore or a valid Apple signing service before installation."
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: GTA-Converter-unsigned-IPA
+          name: GTA-Converter-IPA-Unsigned
           path: GTA-Converter-unsigned.ipa
           if-no-files-found: error
           retention-days: 14
