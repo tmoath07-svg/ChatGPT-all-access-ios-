@@ -2,7 +2,7 @@ name: Build GTA Converter IPA
 
 on:
   push:
-    branches: [main]
+    branches: [main, fix/import-drop-redesign]
   workflow_dispatch:
 
 permissions:
