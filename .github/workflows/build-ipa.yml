@@ -112,10 +112,7 @@ jobs:
           test "$VERSION" = "1.6.0"
           test "$BUILD" = "13"
           test -x "Payload/GTA Converter.app/$EXECUTABLE"
-          otool -L "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "libgta_local_engine" && {
-            echo "Unexpected dynamic Rust engine dependency."
-            exit 1
-          } || true
+          nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_build_rpf7"
 
           mkdir -p release-package
           cp GTA-Converter-1.6.0-unsigned.ipa release-package/GTA-Converter-1.6.0-unsigned.ipa
