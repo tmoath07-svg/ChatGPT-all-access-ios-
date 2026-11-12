@@ -279,7 +279,6 @@ struct FeatureHubView: View {
         case "utility": LocalUtilityFeatureView(featureID: item.id)
         case "xml": DLClistEditorView()
         case "rpf": LocalEngineView()
-        case "ytd": YTDTextureLabView()
         case "cloud": CloudConversionView()
         case "chiaki": ChiakiRemotePlayView()
         case "hash": FileHashInspectorView()
