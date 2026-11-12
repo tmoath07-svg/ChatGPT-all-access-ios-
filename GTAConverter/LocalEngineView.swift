@@ -10,11 +10,13 @@ struct LocalEngineView: View {
     @State private var errorText = ""
     @State private var isBusy = false
     @State private var showingFolderPicker = false
+    @State private var showingYtdBuildPicker = false
     @State private var showingRPFPicker = false
     @State private var showingResourcePicker = false
     @State private var showingYTDPicker = false
     @State private var extractedTextureFolder: URL?
     @State private var convertedResourceURL: URL?
+    @State private var builtYtdURL: URL?
 
     init(initialFolder: URL? = nil) {
         self.initialFolder = initialFolder
@@ -97,6 +99,14 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
+                    Button { showingYtdBuildPicker = true } label: {
+                        Label("بناء قاموس YTD من DDS والصور", systemImage: "square.stack.3d.up.fill")
+                            .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
+                            .background(.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain).disabled(isBusy)
+
                     if let outputFile {
                         VStack(alignment: .leading, spacing: 10) {
                             Label("تم إنشاء الملف وفحص بنيته", systemImage: "checkmark.seal.fill")
@@ -104,6 +114,22 @@ struct LocalEngineView: View {
                             Text(outputFile.lastPathComponent).font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7))
                             ShareLink(item: outputFile) {
                                 Label("مشاركة أرشيف RPF7", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity).padding(13)
+                                    .background(.white.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                            }
+                        }
+                        .padding(15).localEnginePanel()
+                    }
+
+                    if let builtYtdURL {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("تم بناء قاموس YTD وفحصه", systemImage: "checkmark.seal.fill")
+                                .font(.headline).foregroundStyle(.green)
+                            Text(builtYtdURL.lastPathComponent)
+                                .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7))
+                            ShareLink(item: builtYtdURL) {
+                                Label("مشاركة قاموس YTD", systemImage: "square.and.arrow.up")
                                     .frame(maxWidth: .infinity).padding(13)
                                     .background(.white.opacity(0.1))
                                     .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
@@ -177,6 +203,16 @@ struct LocalEngineView: View {
                       allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls): sourceFolder = urls.first
+            case .failure(let error): errorText = error.localizedDescription
+            }
+        }
+        .fileImporter(isPresented: $showingYtdBuildPicker,
+                      allowedContentTypes: [.folder],
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                buildYTD(from: url)
             case .failure(let error): errorText = error.localizedDescription
             }
         }
@@ -281,6 +317,43 @@ struct LocalEngineView: View {
                 }
             }
             if access { file.stopAccessingSecurityScopedResource() }
+        }
+    }
+
+    private func buildYTD(from folder: URL) {
+        let access = folder.startAccessingSecurityScopedResource()
+        isBusy = true
+        errorText = ""
+        builtYtdURL = nil
+        report = "يتم قراءة DDS والصور وبناء قاموس YTD محلياً..."
+        Task.detached(priority: .userInitiated) {
+            do {
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                                                            appropriateFor: nil, create: true)
+                let outputDirectory = documents.appendingPathComponent("GTA Converter/Local Engine/Texture Dictionaries", isDirectory: true)
+                try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+                let safeName = folder.lastPathComponent.replacingOccurrences(of: "/", with: "_")
+                let output = outputDirectory.appendingPathComponent("\(safeName).ytd")
+                let result = try LocalEngineBridge.buildYTD(from: folder, to: output)
+                await MainActor.run {
+                    builtYtdURL = output
+                    report = """
+                    الصيغة: \(result["format"] as? String ?? "YTD")
+                    الخامات المضمنة: \(result["textures"] as? Int ?? 0)
+                    الحجم الأصلي: \(ByteCountFormatter.string(fromByteCount: Int64(result["input_bytes"] as? Int64 ?? 0), countStyle: .file))
+                    حجم الناتج: \(ByteCountFormatter.string(fromByteCount: Int64(result["output_bytes"] as? Int64 ?? 0), countStyle: .file))
+                    الخامات التي اجتازت الفحص: \(result["validated_textures"] as? Int ?? 0)
+                    \(result["warning"] as? String ?? "")
+                    """
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorText = error.localizedDescription
+                    isBusy = false
+                }
+            }
+            if access { folder.stopAccessingSecurityScopedResource() }
         }
     }
 
