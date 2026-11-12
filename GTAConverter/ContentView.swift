@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var progressText = ""
     @State private var importKind = ImportKind.archive
     @State private var isDropTargeted = false
+    @State private var lastErrorDetails = ""
 
     private let purple = Color(red: 0.57, green: 0.30, blue: 0.98)
     private let background = Color(red: 0.035, green: 0.025, blue: 0.065)
@@ -66,6 +67,9 @@ struct ContentView: View {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     NavigationLink(destination: AppFilesView()) { Image(systemName: "folder.fill").foregroundStyle(purple) }
                     NavigationLink(destination: AppSettingsView()) { Image(systemName: "gearshape.fill").foregroundStyle(purple) }
+                    NavigationLink(destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails)) {
+                        Image(systemName: "waveform.path.ecg").foregroundStyle(purple)
+                    }
                 }
             }
             .sheet(isPresented: $showingImporter) {
@@ -284,8 +288,18 @@ struct ContentView: View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: isError ? "exclamationmark.triangle.fill" : "info.circle.fill")
                 .foregroundStyle(isError ? .red : purple)
-            Text(status).font(.caption).foregroundStyle(.white.opacity(0.72))
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(status).font(.caption).foregroundStyle(.white.opacity(0.72))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if isError {
+                    Button {
+                        UIPasteboard.general.string = lastErrorDetails
+                    } label: {
+                        Label("نسخ الخطأ وسببه", systemImage: "doc.on.doc")
+                            .font(.caption.bold()).foregroundStyle(.white)
+                    }
+                }
+            }
         }
         .padding(13).background(.white.opacity(0.045)).clipShape(RoundedRectangle(cornerRadius: 13))
     }
@@ -548,6 +562,13 @@ struct ContentView: View {
 
     private func fail(_ message: String) {
         status = message
+        lastErrorDetails = """
+        GTA Converter - Error Report
+        الوقت: \\(ISO8601DateFormatter().string(from: Date()))
+        الخطأ: \\(message)
+        السبب/التفاصيل: قد يكون الملف غير مدعوم أو تالفاً، أو تعذرت صلاحية الوصول، أو فشل نظام الملفات.
+        الملف: \\(sourceURL?.lastPathComponent ?? selectedFileName)
+        """
         isError = true
     }
 
