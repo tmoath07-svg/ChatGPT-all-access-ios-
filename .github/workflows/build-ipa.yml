@@ -84,7 +84,7 @@ jobs:
 
           mkdir -p release-package
           cp GTA-Converter-1.2.1-unsigned.ipa release-package/GTA-Converter-1.2.1-unsigned.ipa
-          cat > release-package/اقرأ-أولاً.txt <<\x27EOF\x27
+          cat > release-package/اقرأ-أولاً.txt <<'EOF'
           GTA Converter 1.2.1 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
