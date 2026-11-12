@@ -303,6 +303,7 @@ private struct FeatureInfoView: View {
 
 struct CloudConversionView: View {
     private let workflowURL = URL(string: "https://github.com/tmoath07-svg/ChatGPT-all-access-ios-/actions/workflows/convert-pc-to-ps4.yml")!
+    private let releaseURL = URL(string: "https://github.com/tmoath07-svg/Ps4tools/releases/tag/25")!
 
     var body: some View {
         ZStack {
@@ -316,6 +317,22 @@ struct CloudConversionView: View {
                             .font(.subheadline).foregroundStyle(.white.opacity(0.65))
                     }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
                         .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 20))
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("ملف التجربة جاهز في Ps4tools", systemImage: "shippingbox.fill")
+                            .font(.headline.bold()).foregroundStyle(.white)
+                        Text("جهزت إعداد التشغيل على Release Tag رقم 25، وفيه الملف rb3nasb.2.rar. عند فتح Run workflow اترك Release Tag على 25، واختر تحويل مود FiveM متعدد السيارات إلى DLC للسوني.")
+                            .font(.subheadline).foregroundStyle(.white.opacity(0.72))
+                        Link(destination: releaseURL) {
+                            Label("فتح Release 25 والملف rb3nasb.2.rar", systemImage: "arrow.down.circle.fill")
+                                .font(.subheadline.bold()).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(14)
+                                .background(Color.orange.opacity(0.78))
+                                .clipShape(RoundedRectangle(cornerRadius: 13))
+                        }
+                    }
+                    .padding(16).background(.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
 
                     VStack(alignment: .leading, spacing: 12) {
                         Label("FiveM إلى PS4 DLC", systemImage: "car.side.fill")
@@ -341,7 +358,7 @@ struct CloudConversionView: View {
                                 .background(Color.purple.opacity(0.88))
                                 .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
-                        Text("في GitHub اختر Run workflow ثم: «تحويل مود FiveM متعدد السيارات إلى DLC للسوني». ضع رابط ZIP/RAR مباشر في خانة URL، أو ارفع المورد داخل مجلد input. بعد نجاح التشغيل نزّل Artifact وافحص التقرير قبل تثبيته.")
+                        Text("اضغط Run workflow. الإعدادات الافتراضية الآن تستخدم Release Tag = 25 وتختار تحويل FiveM إلى DLC. لا تضع رابطاً في URL إذا كنت تستخدم ملف الريليس. بعد نجاح التشغيل نزّل Artifact وافحص التقرير قبل تثبيته.")
                             .font(.caption).foregroundStyle(.white.opacity(0.68))
                         Text("تنبيه توافق: هذا المسار مخصص لحزم السيارات ذات البنية المذكورة، وليس كل موارد FiveM. سكربتات Lua وواجهات NUI والاعتماديات الخاصة بسيرفر FiveM لا تتحول تلقائياً إلى DLC للعبة PS4.")
                             .font(.caption.bold()).foregroundStyle(.orange)
