@@ -24,6 +24,23 @@ enum INRPFOrbxAutoInstallPlanner {
 
     static let remoteRoot = "/data/orbx/gta/rpf"
     static let remoteAddon = remoteRoot + "/dlc_addon"
+    static let remoteDLClistDirectory = "/data/orbx/gta"
+
+    /// Removes exactly one redundant same-name wrapper folder, without flattening valid DLC subfolders.
+    static func packageContentRoot(for packageFolder: URL) throws -> URL {
+        let children = try FileManager.default.contentsOfDirectory(
+            at: packageFolder,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        )
+        guard children.count == 1, let only = children.first,
+              only.lastPathComponent.caseInsensitiveCompare(packageFolder.lastPathComponent) == .orderedSame else {
+            return packageFolder
+        }
+        let values = try only.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard values.isDirectory == true, values.isSymbolicLink != true else { return packageFolder }
+        return only
+    }
 
     static func isValidPackageName(_ name: String) -> Bool {
         guard !name.isEmpty, name.count <= 64 else { return false }
@@ -100,14 +117,7 @@ enum INRPFOrbxAutoInstallPlanner {
         guard parser.parse() else {
             throw PlanError.malformedXML(parser.parserError?.localizedDescription ?? "XML parsing failed")
         }
-        let pattern = #"(?is)<Item(?:\s[^>]*)?>(.*?)</Item\s*>"#
-        let expression = try NSRegularExpression(pattern: pattern)
-        let fullRange = NSRange(xml.startIndex..<xml.endIndex, in: xml)
-        let items = expression.matches(in: xml, range: fullRange).compactMap { match -> String? in
-            guard let range = Range(match.range(at: 1), in: xml) else { return nil }
-            return String(xml[range]).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return (delegate.hasPaths, items)
+        return (delegate.hasPaths, delegate.items.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
     }
 }
 
