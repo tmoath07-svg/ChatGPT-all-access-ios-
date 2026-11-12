@@ -602,6 +602,118 @@ fn safe_texture_filename(name: &str, index: usize, hash: u32) -> String {
     cleaned
 }
 
+
+fn convert_resource_folder(input: &Path, output: &Path) -> Result<(usize, usize, usize, u64, u64), String> {
+    if !input.is_dir() {
+        return Err("المصدر المحدد ليس مجلداً.".to_string());
+    }
+    if output.starts_with(input) || input.starts_with(output) {
+        return Err("مجلد الناتج يجب أن يكون خارج مجلد المصدر وغير متداخل معه.".to_string());
+    }
+    if output.exists() {
+        return Err("مجلد الناتج موجود مسبقاً. اختر مجلداً جديداً حتى لا تُستبدل ملفاتك.".to_string());
+    }
+    let mut files = Vec::new();
+    let mut input_bytes = 0u64;
+    collect_files(input, input, 0, &mut files, &mut input_bytes)?;
+    if files.is_empty() {
+        return Err("المجلد المصدر فارغ.".to_string());
+    }
+    let parent = output.parent().ok_or_else(|| "مسار مجلد الناتج غير صالح.".to_string())?;
+    fs::create_dir_all(parent).map_err(|error| format!("تعذر إنشاء مجلد الناتج: {error}"))?;
+    let staging = parent.join(format!(".gta-convert-staging-{}", std::process::id()));
+    if staging.exists() {
+        fs::remove_dir_all(&staging).map_err(|error| format!("تعذر تنظيف مجلد عمل سابق: {error}"))?;
+    }
+    fs::create_dir_all(&staging).map_err(|error| format!("تعذر إنشاء مجلد العمل: {error}"))?;
+
+    let result = (|| -> Result<(usize, usize, usize, u64, u64), String> {
+        let mut converted_count = 0usize;
+        let mut copied_count = 0usize;
+        let mut patched_markers = 0usize;
+        let mut output_bytes = 0u64;
+        for (relative, source_path, _) in &files {
+            let extension = source_path.extension().and_then(|v| v.to_str()).unwrap_or("").to_ascii_lowercase();
+            if extension == "ytd" {
+                return Err(format!("توقف التحويل عند {}: يحتاج YTD إلى بناء OTD بصيغة Orbis، وهذا المحرك لم يكتمل بعد. لم يتم اعتماد مجلد ناقص.", relative));
+            }
+            let source = fs::read(source_path)
+                .map_err(|error| format!("تعذرت قراءة {}: {error}", source_path.display()))?;
+            let (relative_output, bytes, converted, markers) = if matches!(
+                extension.as_str(),
+                "yft" | "ydr" | "ydd" | "ypt" | "ybn" | "ybd" | "yld" | "yed" |
+                "yfd" | "ynd" | "ynv" | "yvr" | "ywr" | "ypdb" | "ycd" |
+                "ymap" | "ytyp" | "ymt" | "ymf"
+            ) {
+                let (new_extension, output_bytes, patched, mode) = convert_resource_bytes(&extension, &source)?;
+                if mode == "extension-only-no-RSC7" {
+                    return Err(format!("الملف {} يحمل امتداد .{} لكن لا يحتوي ترويسة RSC7 المطلوبة. أُوقف التحويل بدلاً من تغيير اسمه فقط.", relative, extension));
+                }
+                let mut path = PathBuf::from(relative);
+                path.set_extension(new_extension);
+                (path, output_bytes, true, patched)
+            } else {
+                (PathBuf::from(relative), source, false, 0)
+            };
+            let destination = staging.join(&relative_output);
+            if !destination.starts_with(&staging) {
+                return Err(format!("مسار ناتج غير آمن: {}", relative_output.display()));
+            }
+            if let Some(dir) = destination.parent() {
+                fs::create_dir_all(dir).map_err(|error| format!("تعذر إنشاء {}: {error}", dir.display()))?;
+            }
+            fs::write(&destination, &bytes)
+                .map_err(|error| format!("تعذرت كتابة {}: {error}", destination.display()))?;
+            output_bytes = output_bytes.saturating_add(bytes.len() as u64);
+            if converted {
+                converted_count += 1;
+                patched_markers += markers;
+            } else {
+                copied_count += 1;
+            }
+        }
+        if converted_count == 0 {
+            return Err("لم يتم العثور على موارد Y* مدعومة للتحويل في المجلد.".to_string());
+        }
+        fs::rename(&staging, output)
+            .map_err(|error| format!("تعذر اعتماد مجلد التحويل النهائي: {error}"))?;
+        Ok((converted_count, copied_count, patched_markers, input_bytes, output_bytes))
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_dir_all(&staging);
+    }
+    result
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_engine_convert_folder(
+    input_directory: *const c_char,
+    output_directory: *const c_char,
+) -> *mut c_char {
+    let input = match read_c_path(input_directory) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    let output = match read_c_path(output_directory) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    match convert_resource_folder(&input, &output) {
+        Ok((converted, copied, markers, input_bytes, output_bytes)) => result_ok(json!({
+            "ok": true,
+            "converted_resources": converted,
+            "copied_files": copied,
+            "patched_markers": markers,
+            "input_bytes": input_bytes,
+            "output_bytes": output_bytes,
+            "output": output.to_string_lossy(),
+            "warning": "تم تحويل الموارد البنيوية المدعومة ونسخ الملفات الأخرى. أي YTD يوقف العملية لأن OTD Orbis لم يكتمل بعد؛ لا تعتبر الناتج DLC نهائياً."
+        })),
+        Err(error) => result_error(error),
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn gta_engine_extract_ytd(
     input_path: *const c_char,
@@ -944,6 +1056,48 @@ mod tests {
         assert_eq!(resource_mapping("yed").unwrap().0, "oed");
         assert_eq!(resource_mapping("ynv").unwrap().0, "onv");
         assert_eq!(resource_mapping("ypdb").unwrap().0, "opdb");
+    }
+
+    #[test]
+    fn batch_conversion_preserves_folders_and_copies_other_files() {
+        use flate2::write::DeflateEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+        let root = std::env::temp_dir().join(format!("gta-engine-batch-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let input = root.join("input");
+        let output = root.join("output");
+        fs::create_dir_all(input.join("stream")).unwrap();
+        fs::write(input.join("common.xml"), b"<meta/>").unwrap();
+        let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(b"synthetic model payload").unwrap();
+        let compressed = encoder.finish().unwrap();
+        let mut rsc = Vec::from(&b"RSC7"[..]);
+        rsc.extend_from_slice(&13u32.to_le_bytes());
+        rsc.extend_from_slice(&0u32.to_le_bytes());
+        rsc.extend_from_slice(&0u32.to_le_bytes());
+        rsc.extend_from_slice(&compressed);
+        fs::write(input.join("stream/car.yft"), rsc).unwrap();
+        let result = convert_resource_folder(&input, &output).unwrap();
+        assert_eq!(result.0, 1);
+        assert_eq!(result.1, 1);
+        assert!(output.join("stream/car.oft").exists());
+        assert_eq!(fs::read(output.join("common.xml")).unwrap(), b"<meta/>");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn batch_conversion_refuses_ytd_without_orbis_otd_builder() {
+        let root = std::env::temp_dir().join(format!("gta-engine-ytd-batch-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let input = root.join("input");
+        let output = root.join("output");
+        fs::create_dir_all(&input).unwrap();
+        fs::write(input.join("vehicle.ytd"), b"YTD").unwrap();
+        let error = convert_resource_folder(&input, &output).unwrap_err();
+        assert!(error.contains("Orbis"));
+        assert!(!output.exists());
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
