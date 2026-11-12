@@ -22,8 +22,10 @@ struct FiveMModAnalyzerTests {
         let plain = root.appendingPathComponent("plain", isDirectory: true)
         try write("readme", to: plain.appendingPathComponent("readme.txt"))
         let nonFiveM = try ModAnalyzer.analyze(at: plain)
-        precondition(!nonFiveM.isFiveMVehicleResource && nonFiveM.fileCount == 0 && nonFiveM.dlcFiles.isEmpty,
-                     "Non-vehicle folder was not safely rejected")
+        precondition(!nonFiveM.isFiveMVehicleResource && nonFiveM.fileCount == 1 && nonFiveM.dlcFiles.isEmpty,
+                     "Non-vehicle inventory should retain the real file count")
+        precondition(nonFiveM.reportText.contains("لم يتم التعرف على مود مركبة"),
+                     "Non-vehicle diagnostic explanation is missing")
 
         let dlc = root.appendingPathComponent("dlc_pack", isDirectory: true)
         try write("rpf", to: dlc.appendingPathComponent("dlc.rpf"))

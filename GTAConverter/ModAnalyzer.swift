@@ -94,23 +94,6 @@ enum ModAnalyzer {
             }
         }
 
-        guard !vehicleMetaFiles.isEmpty else {
-            return ModAnalysisReport(
-                fileCount: 0,
-                totalBytes: 0,
-                dlcFiles: [],
-                packNames: [],
-                readmeFiles: [],
-                duplicatePackNames: [],
-                yftFiles: [],
-                ytdFiles: [],
-                vehicleMetaFiles: [],
-                manifestFiles: [],
-                isFiveMVehicleResource: false,
-                reportText: "INRPF يدعم تحليل مودات المركبات فقط. لم يتم العثور على ملفات بيانات مركبة."
-            )
-        }
-
         let counts = Dictionary(grouping: allNames, by: { $0.lowercased() })
         let duplicates = counts.values.filter { $0.count > 1 }.compactMap { $0.first }.sorted()
         let names = Array(Set(allNames)).sorted()
@@ -149,6 +132,8 @@ enum ModAnalyzer {
 
         if isFiveMVehicleResource {
             lines.append("النتيجة: تم التعرف على مورد سيارة FiveM يحتوي ملفات موديل وخامات وملفات تعريف. يحتاج تحويل بنية المورد وملفات META إلى حزمة DLC متوافقة مع PS4؛ فك الملفات وحده ليس تحويلاً.")
+        } else if vehicleMetaFiles.isEmpty {
+            lines.append("النتيجة: لم يتم التعرف على مود مركبة مدعوم. تم الاحتفاظ بجرد الملفات الفعلي بدلاً من إرجاع أرقام صفرية مضللة.")
         } else if dlcFiles.isEmpty {
             lines.append("النتيجة: لم يتم العثور على dlc.rpf أو بنية سيارة FiveM مكتملة.")
         } else {

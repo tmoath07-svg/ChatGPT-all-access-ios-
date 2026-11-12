@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import SwiftArchive
 import UIKit
+import SwiftLlama
 
 struct ContentView: View {
     let initialSourceURL: URL?
@@ -21,6 +22,7 @@ struct ContentView: View {
     @State private var isDropTargeted = false
     @State private var lastErrorDetails = ""
     @State private var modAnalysis: ModAnalysisReport?
+    @State private var aiDiagnosis = ""
     @AppStorage("gta_conversion_mode") private var conversionMode = "auto"
     @AppStorage("gta_cover_style") private var coverStyle = "neon"
     @AppStorage("gta_accent_color") private var accentColor = "purple"
@@ -83,6 +85,7 @@ struct ContentView: View {
                         actionButtons.gtaScrollGlassMotion(motionEnabled)
                         if let outputFolder { outputCard(outputFolder) }
                         if let modAnalysis { modAnalysisCard(modAnalysis) }
+                        if !aiDiagnosis.isEmpty { aiDiagnosisCard }
                         if let generatedURL { xmlShareCard(generatedURL) }
                         statusCard
                         footer
@@ -110,12 +113,13 @@ struct ContentView: View {
                     }
                 }
             }
-            .fileImporter(
-                isPresented: $showingImporter,
-                allowedContentTypes: importKind == .folder ? [.folder] : [.data],
-                allowsMultipleSelection: false,
-                onCompletion: handleImport
-            )
+            .sheet(isPresented: $showingImporter) {
+                INRPFDocumentPickerPresenter(
+                    contentTypes: importKind == .folder ? [.folder] : [.data],
+                    onCompletion: handleImport
+                )
+                .ignoresSafeArea()
+            }
             .disabled(isBusy)
             .overlay {
                 if isBusy {
@@ -142,8 +146,9 @@ struct ContentView: View {
                 didApplyInitialSource = true
                 sourceURL = initialSourceURL
                 selectedFileName = initialSourceURL.lastPathComponent
-                status = "تم تحديد الملف من مستكشف الملفات. اضغط فك الملفات وتجهيز نسخة احتياطية."
+                status = "تم تحديد الملف. بدأ فك المود وفحصه تلقائياً..."
                 isError = false
+                processSource(from: initialSourceURL)
             }
         }
         .fullScreenCover(isPresented: $showOnboarding) {
@@ -400,6 +405,21 @@ struct ContentView: View {
         .padding(16).panel()
     }
 
+
+    private var aiDiagnosisCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("تشخيص الذكاء الاصطناعي المحلي", systemImage: "brain.head.profile")
+                .font(.headline.bold()).foregroundStyle(.purple)
+            Text(aiDiagnosis)
+                .font(.subheadline).foregroundStyle(.white.opacity(0.86))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("التشخيص مبني على الملفات والبيانات التي أمكن قراءتها. لم يتم تغيير الملفات الأصلية أو تطبيق تعديل تخميني على ملفات YFT/YTD/RPF.")
+                .font(.caption2).foregroundStyle(.orange.opacity(0.9))
+        }
+        .padding(16).panel()
+    }
+
     private func modAnalysisCard(_ report: ModAnalysisReport) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionTitle("تحليل بنية المود", icon: "car.side.and.exclamationmark")
@@ -554,12 +574,14 @@ struct ContentView: View {
                     }.value
                     sourceURL = importedURL
                     selectedFileName = pickedURL.lastPathComponent
-                    status = "تم استيراد الملف وحفظ نسخة داخل التطبيق. صار جاهز للمعالجة."
+                    status = "تم الاستيراد. بدأ فك المود وفحصه تلقائياً..."
                     isError = false
+                    isBusy = false
+                    processSource(from: importedURL)
                 } catch {
                     fail("تعذر استيراد الملف: \(error.localizedDescription)", underlyingError: error)
+                    isBusy = false
                 }
-                isBusy = false
             }
         case .failure(let error):
             fail("تعذر اختيار الملف: \(error.localizedDescription)")
@@ -588,9 +610,10 @@ struct ContentView: View {
                 DispatchQueue.main.async {
                     sourceURL = importedURL
                     selectedFileName = url.lastPathComponent
-                    status = "تم استيراد الملف المسحوب وحفظه داخل التطبيق."
+                    status = "تم الاستيراد. بدأ فك المود وفحصه تلقائياً..."
                     isError = false
                     isBusy = false
+                    processSource(from: importedURL)
                 }
             } catch {
                 DispatchQueue.main.async { fail("تعذر استيراد الملف المسحوب: " + error.localizedDescription); isBusy = false }
@@ -638,16 +661,17 @@ struct ContentView: View {
                 try FileManager.default.moveItem(at: temporary, to: destination)
                 sourceURL = destination
                 selectedFileName = destination.lastPathComponent
-                status = "اكتمل التحميل. اضغط «فك الملفات»."
+                status = "اكتمل التحميل. بدأ فك المود وفحصه تلقائياً..."
                 isError = false
+                processSource(from: destination)
             } catch {
                 fail("فشل التحميل: \(error.localizedDescription)")
             }
         }
     }
 
-    private func processSource() {
-        guard let sourceURL else { return }
+    private func processSource(from sourceOverride: URL? = nil) {
+        guard let sourceURL = sourceOverride ?? self.sourceURL else { return }
         Task {
             isBusy = true
             progressText = "نسخ وفك الملفات بأمان..."
@@ -732,6 +756,13 @@ struct ContentView: View {
                 outputFolder = root
                 incompleteRoot = nil
                 modAnalysis = analysis
+                aiDiagnosis = ""
+                progressText = "الذكاء الاصطناعي المحلي يفحص المود ويبحث عن حلول..."
+                do {
+                    aiDiagnosis = try await INRPFLocalAIDiagnosis.analyze(reportText: analysis.reportText)
+                } catch {
+                    aiDiagnosis = "تعذر تشغيل التشخيص الذكي المحلي: \(error.localizedDescription)\nتم إكمال الفحص البنيوي الأساسي، ولم يتم تعديل أي ملف."
+                }
                 if !analysis.packNames.isEmpty {
                     packNames = analysis.packNames.joined(separator: "\n")
                 }

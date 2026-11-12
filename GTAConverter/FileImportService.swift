@@ -33,9 +33,9 @@ enum FileImportService {
         let sandboxPath = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
             .standardizedFileURL.resolvingSymlinksInPath().path
         let isInsideAppSandbox = sourcePath == sandboxPath || sourcePath.hasPrefix(sandboxPath + "/")
-        guard securityScopeAlreadyStarted || access || isInsideAppSandbox else {
-            throw ImportFailure.accessDenied
-        }
+        // A false security-scope result does not always mean access is denied:
+        // some provider URLs are already readable without a scoped grant.
+        // Let coordinated file access determine whether the copy is actually allowed.
 
         let documents = try fm.url(for: .documentDirectory, in: .userDomainMask,
                                    appropriateFor: nil, create: true)
@@ -114,57 +114,46 @@ enum FileImportService {
 }
 
 
-/// Presents Apple's document picker in import-copy mode.
-/// The selected item is materialized as a temporary copy before our app reads it.
+/// Presents the document picker as the sheet's root controller.
+/// This avoids presenting a second controller from a hidden background host.
 struct INRPFDocumentPickerPresenter: UIViewControllerRepresentable {
-    @Binding var isPresented: Bool
     let contentTypes: [UTType]
     let onCompletion: (Result<[URL], Error>) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
+        Coordinator(onCompletion: onCompletion)
     }
 
-    func makeUIViewController(context: Context) -> UIViewController {
-        let host = UIViewController()
-        host.view.backgroundColor = .clear
-        return host
-    }
-
-    func updateUIViewController(_ host: UIViewController, context: Context) {
-        context.coordinator.parent = self
-        guard isPresented,
-              host.presentedViewController == nil,
-              !context.coordinator.isPresenting else { return }
-
-        context.coordinator.isPresenting = true
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let picker = UIDocumentPickerViewController(
             forOpeningContentTypes: contentTypes,
             asCopy: true
         )
         picker.delegate = context.coordinator
         picker.allowsMultipleSelection = false
-        host.present(picker, animated: true)
+        return picker
+    }
+
+    func updateUIViewController(_ picker: UIDocumentPickerViewController, context: Context) {
+        context.coordinator.onCompletion = onCompletion
     }
 
     final class Coordinator: NSObject, UIDocumentPickerDelegate {
-        var parent: INRPFDocumentPickerPresenter
-        var isPresenting = false
+        var onCompletion: (Result<[URL], Error>) -> Void
 
-        init(parent: INRPFDocumentPickerPresenter) {
-            self.parent = parent
+        init(onCompletion: @escaping (Result<[URL], Error>) -> Void) {
+            self.onCompletion = onCompletion
         }
 
         func documentPicker(_ controller: UIDocumentPickerViewController,
                             didPickDocumentsAt urls: [URL]) {
-            isPresenting = false
-            parent.isPresented = false
-            parent.onCompletion(.success(urls))
+            controller.dismiss(animated: true) {
+                self.onCompletion(.success(urls))
+            }
         }
 
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-            isPresenting = false
-            parent.isPresented = false
+            controller.dismiss(animated: true)
         }
     }
 }
