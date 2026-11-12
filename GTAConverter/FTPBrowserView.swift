@@ -154,7 +154,7 @@ private final class INRPFtpClient {
     }
 
     private func waitUntilReady(_ connection: NWConnection) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let lock = NSLock()
             var resumed = false
             connection.stateUpdateHandler = { state in
@@ -179,7 +179,7 @@ private final class INRPFtpClient {
     }
 
     private func send(_ data: Data, on connection: NWConnection) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             connection.send(content: data, completion: .contentProcessed { error in
                 if let error { continuation.resume(throwing: error) }
                 else { continuation.resume() }
@@ -208,7 +208,7 @@ private final class INRPFtpClient {
     }
 
     private func receiveChunk(_ connection: NWConnection) async throws -> Data {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
             connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, complete, error in
                 if let error { continuation.resume(throwing: error) }
                 else if let data, !data.isEmpty { continuation.resume(returning: data) }
@@ -221,7 +221,7 @@ private final class INRPFtpClient {
     private func receiveAll(_ connection: NWConnection) async throws -> Data {
         var result = Data()
         while true {
-            let chunk: Data? = try await withCheckedThrowingContinuation { continuation in
+            let chunk: Data? = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
                 connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, complete, error in
                     if let error { continuation.resume(throwing: error) }
                     else if let data, !data.isEmpty { continuation.resume(returning: data) }
