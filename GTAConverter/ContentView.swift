@@ -63,15 +63,7 @@ struct ContentView: View {
             .fileImporter(isPresented: $showingImporter,
                           allowedContentTypes: importKind == .folder ? [.folder] : [.item],
                           allowsMultipleSelection: false,
-                          onCompletion: handleImport,
-                          onCancellation: {
-                              status = "تم إلغاء اختيار الملف."
-                              isError = false
-                          })
-            .fileDialogBrowserOptions(.displayFileExtensions)
-            .fileDialogMessage(importKind == .folder
-                               ? "اختر مجلد المود من تطبيق الملفات."
-                               : "اختر ملف المود أو الأرشيف. يمكن اختيار ZIP وRAR وRPF وYFT وYTD وغيرها.")
+                          onCompletion: handleImport)
             .disabled(isBusy)
             .overlay {
                 if isBusy {
