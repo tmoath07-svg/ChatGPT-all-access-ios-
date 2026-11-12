@@ -149,6 +149,7 @@ struct ContentView: View {
     private var topMenu: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 9) {
+                menuLink("التحويل السحابي", icon: "cloud.gear.fill", destination: CloudConversionView())
                 menuLink("التصميم", icon: "paintpalette.fill", destination: AppearanceSettingsView())
                 menuLink("الميزات", icon: "square.grid.2x2.fill", destination: FeatureHubView())
                 menuLink("ملفاتي", icon: "folder.fill", destination: AppFilesView())
