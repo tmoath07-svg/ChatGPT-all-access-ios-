@@ -330,7 +330,7 @@ struct ContentView: View {
                     status = "تم استيراد الملف وحفظ نسخة داخل التطبيق. صار جاهز للمعالجة."
                     isError = false
                 } catch {
-                    fail("تعذر استيراد الملف: \(error.localizedDescription)")
+                    fail("تعذر استيراد الملف: \(error.localizedDescription)", underlyingError: error)
                 }
                 isBusy = false
             }
@@ -501,7 +501,7 @@ struct ContentView: View {
                 status = "اكتمل فك الملفات. تم الاحتفاظ بالأصل وإنشاء نسخة عمل مستقلة."
                 isError = false
             } catch {
-                fail("تعذر تجهيز الأرشيف: \(error.localizedDescription)")
+                fail("تعذر تجهيز الأرشيف: \(error.localizedDescription)", underlyingError: error)
             }
         }
     }
@@ -560,9 +560,9 @@ struct ContentView: View {
         } catch { fail("فشل إنشاء XML: \(error.localizedDescription)") }
     }
 
-    private func fail(_ message: String) {
+    private func fail(_ message: String, underlyingError: Error? = nil) {
         status = message
-        let nsError = NSError(domain: "GTAConverter", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+        let nsError = underlyingError.map { $0 as NSError } ?? NSError(domain: "GTAConverter", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
         let reason = nsError.localizedFailureReason ?? "لم يوفّر النظام سبباً إضافياً."
         let suggestion = nsError.localizedRecoverySuggestion ?? "انسخ التقرير وأرسله كما هو لتحديد موضع المشكلة."
         lastErrorDetails = """
