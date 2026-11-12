@@ -1,5 +1,6 @@
 import SwiftUI
 import CryptoKit
+import UIKit
 
 private let extraBackground = Color(red: 0.035, green: 0.025, blue: 0.065)
 
@@ -152,7 +153,8 @@ struct FeatureHubView: View {
         .init(id:39,title:"Texture Converter",category:"الملفات",icon:"photo.artframe",status:"مخطط",detail:"تحويل الخامات بين الصيغ المدعومة بعد استخراجها مع الحفاظ على الجودة والأبعاد."),
         .init(id:40,title:"Mod Installer Guide",category:"PS4",icon:"book.closed.fill",status:"مخطط",detail:"دليل تركيب مرتب يوضح المسارات والمتطلبات وخطوات التحقق."),
         .init(id:41,title:"Chiaki Remote Play",category:"PlayStation",icon:"gamecontroller.fill",status:"دليل وتجهيز",detail:"مركز Chiaki لمشروع Remote Play ومعلومات دعم iOS وروابط المشروع الرسمية.",route:"chiaki"),
-        .init(id:42,title:"File Hash Inspector",category:"الملفات",icon:"number.square",status:"متاح",detail:"حساب بصمة SHA-256 للملفات محلياً على الآيباد للتحقق من تطابق النسخ وسلامة النقل.",route:"hash")
+        .init(id:42,title:"File Hash Inspector",category:"الملفات",icon:"number.square",status:"متاح",detail:"حساب بصمة SHA-256 للملفات محلياً على الآيباد للتحقق من تطابق النسخ وسلامة النقل.",route:"hash"),
+        .init(id:43,title:"Orbx DLC Validator",category:"PS4",icon:"checkmark.seal.fill",status:"متاح",detail:"فحص أسماء حزم DLC وكشف التكرار والأسماء غير الصالحة وإنشاء مسارات Orbx بصيغة PS4 المطلقة.",route:"dlcvalidator")
     ]
 
     private var filteredItems: [FeatureCatalogItem] {
@@ -242,6 +244,7 @@ struct FeatureHubView: View {
         case "cloud": CloudConversionView()
         case "chiaki": ChiakiRemotePlayView()
         case "hash": FileHashInspectorView()
+        case "dlcvalidator": OrbxDLCValidatorView()
         case "dlc": FeatureInfoView(item: item)
         default: FeatureInfoView(item: item)
         }
@@ -577,5 +580,130 @@ struct FileHashInspectorView: View {
                 isBusy = false
             }
         }
+    }
+}
+
+
+struct OrbxDLCValidatorView: View {
+    @State private var input = ""
+    @State private var copied = false
+
+    private var candidates: [String] {
+        input.split(whereSeparator: { $0.isNewline || $0 == "," })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private var validNames: [String] {
+        candidates.filter {
+            $0.range(of: #"^[A-Za-z0-9_-]{1,64}$"#, options: .regularExpression) != nil
+        }
+    }
+
+    private var uniqueNames: [String] {
+        var seen = Set<String>()
+        return validNames.filter { seen.insert($0.lowercased()).inserted }
+    }
+
+    private var duplicateNames: [String] {
+        var seen = Set<String>()
+        var duplicates = Set<String>()
+        for name in validNames {
+            if !seen.insert(name.lowercased()).inserted { duplicates.insert(name) }
+        }
+        return duplicates.sorted()
+    }
+
+    private var invalidCount: Int { candidates.count - validNames.count }
+
+    private var xmlOutput: String {
+        let entries = uniqueNames.map {
+            "        <Item>/data/orbx/gta/rpf/dlc_addon/" + $0 + "/</Item>"
+        }.joined(separator: "\n")
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<SMandatoryPacksData>\n    <Paths>\n" + entries + "\n    </Paths>\n</SMandatoryPacksData>"
+    }
+
+    var body: some View {
+        ZStack {
+            extraBackground.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Image(systemName: "checkmark.seal.fill").font(.system(size: 36)).foregroundStyle(.purple)
+                        Text("مدقق حزم Orbx DLC").font(.title2.bold()).foregroundStyle(.white)
+                        Text("اكتب اسم كل مجلد DLC في سطر مستقل، وسيتم فحصه وإنشاء مسارات PS4 المطلقة.")
+                            .font(.subheadline).foregroundStyle(.white.opacity(0.65))
+                    }.padding(17).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
+
+                    TextEditor(text: $input)
+                        .frame(minHeight: 160)
+                        .scrollContentBackground(.hidden)
+                        .padding(10)
+                        .background(.black.opacity(0.28))
+                        .clipShape(RoundedRectangle(cornerRadius: 13))
+                        .foregroundStyle(.white)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    HStack(spacing: 8) {
+                        validatorStat("الإجمالي", value: "\(candidates.count)", color: .white)
+                        validatorStat("صالح", value: "\(uniqueNames.count)", color: .green)
+                        validatorStat("مكرر", value: "\(duplicateNames.count)", color: .orange)
+                        validatorStat("غير صالح", value: "\(invalidCount)", color: .red)
+                    }
+
+                    if !duplicateNames.isEmpty || invalidCount > 0 {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("ملاحظات الفحص").font(.subheadline.bold()).foregroundStyle(.white)
+                            if !duplicateNames.isEmpty {
+                                Text("أسماء مكررة: " + duplicateNames.joined(separator: ", "))
+                                    .font(.caption).foregroundStyle(.orange)
+                            }
+                            if invalidCount > 0 {
+                                Text("تم استبعاد \(invalidCount) اسم. المسموح: أحرف إنجليزية وأرقام وشرطة وشرطة سفلية، حتى 64 خانة.")
+                                    .font(.caption).foregroundStyle(.red.opacity(0.9))
+                            }
+                        }.padding(13).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.white.opacity(0.055)).clipShape(RoundedRectangle(cornerRadius: 13))
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("ناتج dlclist.xml").font(.headline).foregroundStyle(.white)
+                        Text(xmlOutput).font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.78))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12).background(.black.opacity(0.25))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        Button {
+                            UIPasteboard.general.string = xmlOutput
+                            copied = true
+                        } label: {
+                            Label(copied ? "تم النسخ" : "نسخ XML", systemImage: copied ? "checkmark" : "doc.on.doc")
+                                .font(.subheadline.bold()).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(14)
+                                .background(Color.purple.opacity(0.8))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }.disabled(uniqueNames.isEmpty)
+                    }.padding(15).background(.white.opacity(0.055))
+                        .clipShape(RoundedRectangle(cornerRadius: 15))
+
+                    Text("الصيغة المستخدمة: /data/orbx/gta/rpf/dlc_addon/NAME/ . لا يتم إدراج الأسماء المكررة أو غير الصالحة.")
+                        .font(.caption).foregroundStyle(.white.opacity(0.5))
+                }.padding(16)
+            }
+        }
+        .navigationTitle("Orbx DLC Validator")
+        .navigationBarTitleDisplayMode(.inline)
+        .environment(\.layoutDirection, .rightToLeft)
+    }
+
+    private func validatorStat(_ title: String, value: String, color: Color) -> some View {
+        VStack(spacing: 4) {
+            Text(value).font(.headline.bold()).foregroundStyle(color)
+            Text(title).font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.55))
+        }.frame(maxWidth: .infinity).padding(.vertical, 10)
+            .background(.white.opacity(0.05)).clipShape(RoundedRectangle(cornerRadius: 11))
     }
 }
