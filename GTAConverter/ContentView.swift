@@ -939,7 +939,7 @@ private struct AppFilesView: View {
     @State private var errorText: String?
 
     private var root: URL {
-        directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("GTA Converter", isDirectory: true)
     }
 
