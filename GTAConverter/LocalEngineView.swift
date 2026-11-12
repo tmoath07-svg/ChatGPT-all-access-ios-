@@ -9,13 +9,16 @@ struct LocalEngineView: View {
     @State private var report = ""
     @State private var errorText = ""
     @State private var isBusy = false
-    @State private var showingFolderPicker = false
-    @State private var showingYtdBuildPicker = false
-    @State private var showingRPFPicker = false
-    @State private var showingRPFExtractPicker = false
-    @State private var showingResourcePicker = false
-    @State private var showingFolderConvertPicker = false
-    @State private var showingYTDPicker = false
+    @State private var activePicker: EnginePicker?
+    private enum EnginePicker {
+        case sourceFolder, buildYTD, inspectRPF, extractRPF, convertResource, convertFolder, extractYTD
+        var contentTypes: [UTType] {
+            switch self {
+            case .sourceFolder, .buildYTD, .convertFolder: return [.folder]
+            default: return [.item]
+            }
+        }
+    }
     @State private var extractedTextureFolder: URL?
     @State private var convertedResourceURL: URL?
     @State private var builtYtdURL: URL?
@@ -54,7 +57,7 @@ struct LocalEngineView: View {
                             .font(.headline).foregroundStyle(.white)
                         Text(sourceFolder?.lastPathComponent ?? "لم يتم اختيار مجلد")
                             .font(.caption).foregroundStyle(.white.opacity(0.62))
-                        Button { showingFolderPicker = true } label: {
+                        Button { activePicker = .sourceFolder } label: {
                             Label("اختيار مجلد", systemImage: "folder.badge.plus")
                                 .frame(maxWidth: .infinity).padding(13)
                                 .background(.white.opacity(0.09))
@@ -79,7 +82,7 @@ struct LocalEngineView: View {
                     .disabled(sourceFolder == nil || isBusy)
                     .opacity(sourceFolder == nil || isBusy ? 0.45 : 1)
 
-                    Button { showingRPFPicker = true } label: {
+                    Button { activePicker = .inspectRPF } label: {
                         Label("فحص ملف RPF موجود", systemImage: "doc.text.magnifyingglass")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -87,7 +90,7 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
-                    Button { showingRPFExtractPicker = true } label: {
+                    Button { activePicker = .extractRPF } label: {
                         Label("استخراج ملفات RPF محلياً", systemImage: "archivebox")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -95,7 +98,7 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
-                    Button { showingResourcePicker = true } label: {
+                    Button { activePicker = .convertResource } label: {
                         Label("تحويل مورد Y* إلى O* محلياً", systemImage: "arrow.left.arrow.right")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -103,7 +106,7 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
-                    Button { showingFolderConvertPicker = true } label: {
+                    Button { activePicker = .convertFolder } label: {
                         Label("تحويل مجلد موارد كامل دفعة واحدة", systemImage: "folder.badge.gearshape")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -111,7 +114,7 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
-                    Button { showingYTDPicker = true } label: {
+                    Button { activePicker = .extractYTD } label: {
                         Label("استخراج خامات YTD إلى DDS", systemImage: "photo.stack")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -119,7 +122,7 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
-                    Button { showingYtdBuildPicker = true } label: {
+                    Button { activePicker = .buildYTD } label: {
                         Label("بناء قاموس YTD من DDS والصور", systemImage: "square.stack.3d.up.fill")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -250,72 +253,39 @@ struct LocalEngineView: View {
         .navigationTitle("المحرك المحلي")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.layoutDirection, .rightToLeft)
-        .fileImporter(isPresented: $showingFolderPicker,
-                      allowedContentTypes: [.folder],
-                      allowsMultipleSelection: false) { result in
+        .fileImporter(
+            isPresented: Binding(
+                get: { activePicker != nil },
+                set: { if !$0 { activePicker = nil } }
+            ),
+            allowedContentTypes: activePicker?.contentTypes ?? [.item],
+            allowsMultipleSelection: false
+        ) { result in
+            defer { activePicker = nil }
             switch result {
-            case .success(let urls): sourceFolder = urls.first
-            case .failure(let error): errorText = error.localizedDescription
-            }
-        }
-        .fileImporter(isPresented: $showingYtdBuildPicker,
-                      allowedContentTypes: [.folder],
-                      allowsMultipleSelection: false) { result in
-            switch result {
+            case .failure(let error):
+                errorText = error.localizedDescription
             case .success(let urls):
                 guard let url = urls.first else { return }
-                buildYTD(from: url)
-            case .failure(let error): errorText = error.localizedDescription
-            }
-        }
-        .fileImporter(isPresented: $showingRPFPicker,
-                      allowedContentTypes: [.item],
-                      allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                inspect(url)
-            case .failure(let error): errorText = error.localizedDescription
-            }
-        }
-        .fileImporter(isPresented: $showingRPFExtractPicker,
-                      allowedContentTypes: [.item],
-                      allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                extractRPF(url)
-            case .failure(let error): errorText = error.localizedDescription
-            }
-        }
-        .fileImporter(isPresented: $showingResourcePicker,
-                      allowedContentTypes: [.item],
-                      allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                convertResource(url)
-            case .failure(let error): errorText = error.localizedDescription
-            }
-        }
-        .fileImporter(isPresented: $showingFolderConvertPicker,
-                      allowedContentTypes: [.folder],
-                      allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                convertFolder(url)
-            case .failure(let error): errorText = error.localizedDescription
-            }
-        }
-        .fileImporter(isPresented: $showingYTDPicker,
-                      allowedContentTypes: [.item],
-                      allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                extractYTD(url)
-            case .failure(let error): errorText = error.localizedDescription
+                switch activePicker {
+                case .sourceFolder:
+                    sourceFolder = url
+                    errorText = ""
+                case .buildYTD:
+                    buildYTD(from: url)
+                case .inspectRPF:
+                    inspect(url)
+                case .extractRPF:
+                    extractRPF(url)
+                case .convertResource:
+                    convertResource(url)
+                case .convertFolder:
+                    convertFolder(url)
+                case .extractYTD:
+                    extractYTD(url)
+                case .none:
+                    break
+                }
             }
         }
     }
