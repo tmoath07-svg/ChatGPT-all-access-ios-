@@ -562,12 +562,17 @@ struct ContentView: View {
 
     private func fail(_ message: String) {
         status = message
+        let nsError = NSError(domain: "GTAConverter", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+        let reason = nsError.localizedFailureReason ?? "لم يوفّر النظام سبباً إضافياً."
+        let suggestion = nsError.localizedRecoverySuggestion ?? "انسخ التقرير وأرسله كما هو لتحديد موضع المشكلة."
         lastErrorDetails = """
         GTA Converter - Error Report
-        الوقت: \\(ISO8601DateFormatter().string(from: Date()))
-        الخطأ: \\(message)
-        السبب/التفاصيل: قد يكون الملف غير مدعوم أو تالفاً، أو تعذرت صلاحية الوصول، أو فشل نظام الملفات.
-        الملف: \\(sourceURL?.lastPathComponent ?? selectedFileName)
+        الوقت: \(ISO8601DateFormatter().string(from: Date()))
+        الخطأ: \(message)
+        السبب: \(reason)
+        اقتراح النظام: \(suggestion)
+        الملف: \(sourceURL?.lastPathComponent ?? selectedFileName)
+        المسار: \(sourceURL?.path ?? "غير متوفر")
         """
         isError = true
     }
