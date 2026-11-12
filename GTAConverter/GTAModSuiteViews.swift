@@ -2,6 +2,7 @@ import SwiftUI
 import WebKit
 import PhotosUI
 import Combine
+import UIKit
 
 // MARK: - Shared app background
 
