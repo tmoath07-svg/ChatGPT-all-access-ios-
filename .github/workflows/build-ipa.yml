@@ -23,7 +23,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: GTAConverter/Resources/qwen2.5-1.5b-instruct-q4_k_m.gguf
-          key: inrpf-qwen25-15b-q4km-6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e435e9407e
+          key: inrpf-qwen25-15b-q4km-6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
 
       - name: Prepare bundled offline Arabic AI model
         run: |
@@ -34,7 +34,7 @@ jobs:
           if [ ! -s "$MODEL" ]; then
             curl --fail --location --retry 4 --retry-delay 5 "$MODEL_URL" --output "$MODEL"
           fi
-          echo "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e435e9407e  $MODEL" | shasum -a 256 --check
+          echo "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e  $MODEL" | shasum -a 256 --check
           LICENSE_URL="https://www.apache.org/licenses/LICENSE-2.0.txt"
           curl --fail --location --retry 3 "$LICENSE_URL" --output GTAConverter/Resources/Qwen-LICENSE.txt
           test -s GTAConverter/Resources/Qwen-LICENSE.txt
