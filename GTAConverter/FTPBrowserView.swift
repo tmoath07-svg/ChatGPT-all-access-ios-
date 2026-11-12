@@ -80,8 +80,15 @@ private final class INRPFtpClient {
                 return (name, isDirectory, size)
             }
             if !entries.isEmpty { return entries.map { (name: $0.0, isDirectory: $0.1, size: $0.2) } }
-        } catch {
-            // Older PS4 FTP servers may not implement MLSD; retry with classic LIST.
+        } catch let failure as FTPFailure {
+            // Only fall back when the server explicitly does not support MLSD.
+            // Network, authentication, and passive-mode failures must remain visible.
+            if case .response(let response) = failure {
+                let code = Int(response.prefix(3)) ?? -1
+                guard [500, 501, 502, 504].contains(code) else { throw failure }
+            } else {
+                throw failure
+            }
         }
         return try await listFallback(path: path)
     }
@@ -118,9 +125,10 @@ private final class INRPFtpClient {
         let dataConnection = try await openPassiveConnection()
         let reply = try await command("STOR \(remoteName)")
         try Self.expectPreliminary(reply)
-        try await send(data, on: dataConnection)
-        dataConnection.cancel()
+        // Mark the data stream complete so the FTP server receives EOF cleanly.
+        try await sendFinal(data, on: dataConnection)
         let completion = try await readReply(try requireControl())
+        dataConnection.cancel()
         try Self.expectSuccess(completion, codes: [226, 250])
     }
 
@@ -147,17 +155,39 @@ private final class INRPFtpClient {
     }
 
     private func openPassiveConnection() async throws -> NWConnection {
+        // EPSV is preferable on a local network because it reuses the control
+        // connection's host and avoids broken/private addresses in PASV replies.
+        let extended = try await command("EPSV")
+        if (Int(extended.prefix(3)) ?? -1) == 229,
+           let open = extended.firstIndex(of: "("),
+           let close = extended[open...].firstIndex(of: ")") {
+            let tuple = extended[extended.index(after: open)..<close]
+            let ports = tuple.split(separator: "|").compactMap { UInt16($0) }
+            if let dataPort = ports.last, dataPort > 0 {
+                let connection = makeConnection(host: host, port: dataPort)
+                try await waitUntilReady(connection)
+                return connection
+            }
+        }
+
+        // GoldHEN and older console FTP servers commonly use PASV.
         let response = try await command("PASV")
         try Self.expectSuccess(response, codes: [227])
         guard let open = response.firstIndex(of: "("), let close = response[open...].firstIndex(of: ")") else {
             throw FTPFailure.invalidPassiveResponse
         }
-        let numbers = response[response.index(after: open)..<close].split(separator: ",").compactMap { UInt16($0.trimmingCharacters(in: .whitespaces)) }
-        guard numbers.count == 6, numbers[0] <= 255, numbers[1] <= 255, numbers[2] <= 255, numbers[3] <= 255,
-              numbers[4] <= 255, numbers[5] <= 255 else { throw FTPFailure.invalidPassiveResponse }
-        let dataHost = numbers[0...3].map(String.init).joined(separator: ".")
+        let numbers = response[response.index(after: open)..<close]
+            .split(separator: ",")
+            .compactMap { UInt16($0.trimmingCharacters(in: .whitespaces)) }
+        guard numbers.count == 6, numbers.allSatisfy({ $0 <= 255 }) else {
+            throw FTPFailure.invalidPassiveResponse
+        }
+        // Ignore the advertised PASV host: many console servers return 0.0.0.0
+        // or an unreachable interface address. The control host is the correct
+        // peer for a same-LAN PS4 session; only the negotiated data port is used.
         let dataPort = numbers[4] * 256 + numbers[5]
-        let connection = makeConnection(host: dataHost, port: dataPort)
+        guard dataPort > 0 else { throw FTPFailure.invalidPassiveResponse }
+        let connection = makeConnection(host: host, port: dataPort)
         try await waitUntilReady(connection)
         return connection
     }
@@ -191,6 +221,16 @@ private final class INRPFtpClient {
     private func send(_ data: Data, on connection: NWConnection) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             connection.send(content: data, completion: .contentProcessed { error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume() }
+            })
+        }
+    }
+
+    private func sendFinal(_ data: Data, on connection: NWConnection) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            connection.send(content: data, contentContext: .defaultMessage, isComplete: true,
+                            completion: .contentProcessed { error in
                 if let error { continuation.resume(throwing: error) }
                 else { continuation.resume() }
             })
