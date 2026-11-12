@@ -484,7 +484,7 @@ struct ChiakiRemotePlayView: View {
         }
         .navigationTitle("Chiaki")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, .rightToLeft)
     }
 }
 
@@ -539,18 +539,18 @@ struct FileHashInspectorView: View {
         .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             switch result {
             case .success(let urls): calculateHashes(urls)
-            case .failure(let error): report = "تعذر اختيار الملفات: \\(error.localizedDescription)"
+            case .failure(let error): report = "تعذر اختيار الملفات: \(error.localizedDescription)"
             }
         }
         .navigationTitle("File Hash")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, .rightToLeft)
     }
     
     private func calculateHashes(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         isBusy = true
-        report = "تم اختيار \\(urls.count) ملف. جاري الفحص..."
+        report = "تم اختيار \(urls.count) ملف. جاري الفحص..."
         DispatchQueue.global(qos: .userInitiated).async {
             var lines: [String] = []
             for url in urls {
@@ -567,13 +567,13 @@ struct FileHashInspectorView: View {
                     }
                     let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
                     let sizeMB = Double(byteCount) / 1_048_576.0
-                    lines.append("الملف: \\(url.lastPathComponent)\\nالحجم: \\(String(format: "%.2f", sizeMB)) MB\\nSHA-256: \\(digest)")
+                    lines.append("الملف: \(url.lastPathComponent)\nالحجم: \(String(format: "%.2f", sizeMB)) MB\nSHA-256: \(digest)")
                 } catch {
-                    lines.append("الملف: \\(url.lastPathComponent)\\nفشل الفحص: \\(error.localizedDescription)")
+                    lines.append("الملف: \(url.lastPathComponent)\nفشل الفحص: \(error.localizedDescription)")
                 }
             }
             DispatchQueue.main.async {
-                report = lines.joined(separator: "\\n\\n--------------------\\n\\n")
+                report = lines.joined(separator: "\n\n--------------------\n\n")
                 isBusy = false
             }
         }
