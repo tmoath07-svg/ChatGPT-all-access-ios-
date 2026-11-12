@@ -53,6 +53,12 @@ jobs:
           swiftc GTAConverter/FeatureAnalysisCore.swift Tests/feature_analysis_tests.swift -o /tmp/feature-analysis-tests
           /tmp/feature-analysis-tests
 
+      - name: Test local utility core
+        run: |
+          set -euo pipefail
+          swiftc GTAConverter/ModAnalyzer.swift GTAConverter/LocalUtilityCore.swift Tests/local_utility_tests.swift -o /tmp/local-utility-tests
+          /tmp/local-utility-tests
+
       - name: Test Orbx auto installer with local DLC fixture
         run: |
           set -euo pipefail
