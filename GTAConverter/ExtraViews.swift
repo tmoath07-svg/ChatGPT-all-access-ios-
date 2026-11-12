@@ -759,14 +759,13 @@ struct FileHashInspectorView: View {
     private func calculateHashes(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         isBusy = true
-        report = "تم اختيار \(urls.count) ملف. جاري الفحص..."
-        DispatchQueue.global(qos: .userInitiated).async {
+        report = "تم اختيار \(urls.count) ملف. يتم استيرادها بأمان ثم حساب البصمات..."
+        Task.detached(priority: .userInitiated) {
             var lines: [String] = []
             for url in urls {
-                let hasAccess = url.startAccessingSecurityScopedResource()
-                defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
                 do {
-                    let handle = try FileHandle(forReadingFrom: url)
+                    let localURL = try FileImportService.importItem(from: url, category: "Imports")
+                    let handle = try FileHandle(forReadingFrom: localURL)
                     defer { try? handle.close() }
                     var hasher = SHA256()
                     var byteCount: Int64 = 0
@@ -781,7 +780,7 @@ struct FileHashInspectorView: View {
                     lines.append("الملف: \(url.lastPathComponent)\nفشل الفحص: \(error.localizedDescription)")
                 }
             }
-            DispatchQueue.main.async {
+            await MainActor.run {
                 report = lines.joined(separator: "\n\n--------------------\n\n")
                 isBusy = false
             }
