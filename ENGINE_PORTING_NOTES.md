@@ -56,7 +56,7 @@ The new `LocalEngine` Rust static library currently provides:
 - Re-parse validation of the generated archive.
 - Native structural conversion for the observed Y* to O* extension map: RSC7 header preservation, raw/zlib/gzip DEFLATE detection, PC-to-PS4 marker replacement, and raw-DEFLATE recompression.
 - Extension-only conversion for the non-patched types observed in the source scripts.
-- File count, recursion depth, and total input-size limits.
+- File count, recursion depth, and total input-size limits (512MB).
 - Symlink skipping and path traversal checks.
 
 The SwiftUI local engine screen is wired to these functions. The build workflow compiles the Rust static library for `aarch64-apple-ios`, runs Rust tests, links it into the unsigned IPA, and verifies the exported C ABI symbol.
