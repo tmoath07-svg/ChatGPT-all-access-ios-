@@ -491,7 +491,7 @@ pub unsafe extern "C" fn gta_engine_extract_ytd(
     let mut used_names = std::collections::HashSet::new();
 
     for (index, texture) in textures.iter().enumerate() {
-        if texture.pixel_data.is_empty() {
+        if texture.pixel_data.is_empty() || texture.format == rage_formats::TextureFormat::Unknown {
             continue;
         }
         let mut name = safe_texture_filename(&texture.name, index, texture.name_hash);
@@ -613,7 +613,7 @@ mod tests {
             depth: 1,
             format: rage_formats::TextureFormat::DXT1,
             levels: 1,
-            stride: 8,
+            stride: 2,
             pixel_data: vec![0u8; 8],
         };
         let dds = texture.to_dds();
