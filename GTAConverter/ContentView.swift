@@ -608,10 +608,12 @@ struct ContentView: View {
             progressText = "نسخ وفك الملفات بأمان..."
             defer { isBusy = false }
             var currentArchivePath = "لم يبدأ استخراج أي عنصر"
+            var incompleteRoot: URL?
             do {
                 let root = try Self.appManagedFolder("Ready")
                     .appendingPathComponent("GTA-Prepared-\(UUID().uuidString)", isDirectory: true)
                 try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+                incompleteRoot = root
 
                 var isDirectory: ObjCBool = false
                 FileManager.default.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory)
@@ -683,6 +685,7 @@ struct ContentView: View {
                     try ModAnalyzer.analyze(at: root)
                 }.value
                 outputFolder = root
+                incompleteRoot = nil
                 modAnalysis = analysis
                 status = "اكتمل فك الملفات. المسار المختار: \(resolvedMode(for: analysis)). تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf. هذا تجهيز وفحص، وليس تحويل PC إلى PS4 تلقائياً."
                 isError = false
