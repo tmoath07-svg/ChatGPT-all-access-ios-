@@ -37,6 +37,15 @@ enum LocalEngineBridge {
         return try decode(pointer)
     }
 
+    static func convertFolder(at folder: URL, to outputDirectory: URL) throws -> [String: Any] {
+        let pointer = folder.path.withCString { input in
+            outputDirectory.path.withCString { output in
+                gta_engine_convert_folder(input, output)
+            }
+        }
+        return try decode(pointer)
+    }
+
     static func extractYTD(at file: URL, to outputDirectory: URL) throws -> [String: Any] {
         let pointer = file.path.withCString { input in
             outputDirectory.path.withCString { output in
