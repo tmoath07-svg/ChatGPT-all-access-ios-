@@ -108,7 +108,7 @@ jobs:
           # XcodeGen may omit version keys from the generated plist on some runner/Xcode combinations.
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 2.02' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 2.02' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 22' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 23' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 23' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 23' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
           BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")
