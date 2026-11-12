@@ -133,7 +133,7 @@ struct FeatureHubView: View {
         .init(id:1,title:"محلل المودات الذكي",category:"الملفات",icon:"doc.text.magnifyingglass",status:"متاح",detail:"تحليل الأرشيفات والملفات واكتشاف مكونات المود. افتح شاشة الاستيراد والتحليل من الصفحة الرئيسية.",live:true),
         .init(id:2,title:"مختبر YTD",category:"الملفات",icon:"photo.stack.fill",status:"فحص متاح",detail:"اختيار ملفات YTD وفحص الحجم وترويسة RSC7. استخراج DDS وإعادة بناء YTD والتحويل الفعلي تحتاج محرك معالجة مختبراً.",route:"ytd"),
         .init(id:3,title:"عارض YDR وYFT",category:"السيارات",icon:"cube.transparent",status:"قيد التطوير",detail:"معاينة المجسمات والخامات تتطلب قارئ صيغ RAGE وتحويلها إلى نموذج قابل للعرض."),
-        .init(id:4,title:"محرر Hex",category:"الملفات",icon:"chevron.left.forwardslash.chevron.right",status:"مخطط",detail:"عارض ومحرر بيانات ثنائية مع حماية من تعديل الملفات الأصلية بالخطأ."),
+        .init(id:4,title:"محرر Hex",category:"الملفات",icon:"chevron.left.forwardslash.chevron.right",status:"مخطط",detail:"عرض وتعديل بايتات الملف بصيغة Hex مع حفظ نسخة جديدة دون المساس بالأصل."),
         .init(id:5,title:"كاشف أخطاء المودات",category:"الملفات",icon:"stethoscope",status:"جزئي",detail:"التحليل الحالي يكشف بعض الملفات والمكونات. فحص الاعتماديات والتوافق الشامل يحتاج قواعد إضافية."),
         .init(id:6,title:"منشئ DLC سيارات",category:"السيارات",icon:"car.side.fill",status:"تجهيز متاح",detail:"تجهيز هيكل DLC ومسارات Orbx وملف dlclist. تحويل محتوى PC نفسه يحتاج محرك التحويل السحابي.",route:"dlc"),
         .init(id:7,title:"فاحص ملفات السيارة",category:"السيارات",icon:"car.rear.fill",status:"جزئي",detail:"فحص وجود الملفات المعروفة ممكن ضمن التحليل. التحقق من صحة كل بنية YFT/YTD يحتاج محللات متخصصة."),
@@ -159,17 +159,17 @@ struct FeatureHubView: View {
         .init(id:27,title:"Mod Timeline",category:"الإدارة",icon:"timeline.selection",status:"مخطط",detail:"سجل زمني لكل تعديل وعملية تحويل ونتيجة بناء."),
         .init(id:28,title:"Batch Converter",category:"PS4",icon:"square.stack.3d.up.fill",status:"مخطط",detail:"إرسال عدة مودات إلى طابور معالجة سحابي مع تقرير منفصل لكل مود."),
         .init(id:29,title:"Mod Preview",category:"الملفات",icon:"play.rectangle",status:"جزئي",detail:"معاينة الصور والملفات المدعومة. معاينة المجسمات تتطلب عارضاً ثلاثي الأبعاد."),
-        .init(id:30,title:"Auto DLC Naming",category:"PS4",icon:"tag.fill",status:"مخطط",detail:"اقتراح أسماء مجلدات DLC آمنة وفريدة مع فحص التعارض."),
-        .init(id:31,title:"Smart Folder",category:"الملفات",icon:"folder.badge.plus",status:"مخطط",detail:"ترتيب الملفات حسب نوعها وبنيتها مع إبقاء نسخة المصدر دون تغيير."),
+        .init(id:30,title:"Auto DLC Naming",category:"PS4",icon:"tag.fill",status:"متاح",route:"utility",detail:"توليد اسم مجلد DLC آمن وفريد بصيغة ASCII مع فحص التعارض."),
+        .init(id:31,title:"Smart Folder",category:"الملفات",icon:"folder.badge.plus",status:"متاح",route:"utility",detail:"نسخ ملفات المود إلى مجلدات مصنفة حسب الامتداد مع الحفاظ على بنية المسارات والمصدر دون تغيير."),
         .init(id:32,title:"Build History",category:"الإدارة",icon:"clock.arrow.circlepath",status:"جزئي",detail:"سجل عمليات GitHub Actions متاح من صفحة التشغيل. سجل داخل التطبيق يحتاج ربط API.",route:"cloud"),
-        .init(id:33,title:"Mod Report PDF",category:"الإدارة",icon:"doc.richtext",status:"مخطط",detail:"تصدير تقرير تحليل وفحص شامل بصيغة PDF."),
-        .init(id:34,title:"PS4 Compatibility Score",category:"PS4",icon:"chart.bar.xaxis",status:"مخطط",detail:"درجة مبنية على اختبارات واضحة، وليست ضماناً للتشغيل على الجهاز."),
-        .init(id:35,title:"Mod Backup",category:"الإدارة",icon:"externaldrive.fill",status:"جزئي",detail:"يمكن حفظ الملفات الناتجة في تطبيق الملفات. نسخ احتياطي بإصدارات واستعادة تلقائية ما زال مخططاً."),
+        .init(id:33,title:"Mod Report PDF",category:"الإدارة",icon:"doc.richtext",status:"متاح",route:"utility",detail:"إنشاء تقرير PDF محلي من تحليل المود ومشاركته من الجهاز."),
+        .init(id:34,title:"PS4 Compatibility Score",category:"PS4",icon:"chart.bar.xaxis",status:"متاح",route:"utility",detail:"حساب مؤشر جاهزية بنيوي من الملفات المكتشفة، وليس ضمان توافق أو تشغيل على PS4."),
+        .init(id:35,title:"Mod Backup",category:"الإدارة",icon:"externaldrive.fill",status:"متاح",route:"utility",detail:"إنشاء نسخة احتياطية مؤرخة من مجلد المود دون تعديل المصدر."),
         .init(id:36,title:"Project Templates",category:"الإدارة",icon:"square.grid.2x2.fill",status:"مخطط",detail:"قوالب جاهزة لمشاريع السيارات والخرائط والشخصيات والملفات العامة."),
-        .init(id:37,title:"Dependency Checker",category:"الملفات",icon:"point.3.connected.trianglepath.dotted",status:"مخطط",detail:"كشف الملفات التي تشير إلى ملفات أخرى وتحديد الاعتماديات الناقصة."),
+        .init(id:37,title:"Dependency Checker",category:"الملفات",icon:"point.3.connected.trianglepath.dotted",status:"متاح",route:"utility",detail:"قراءة اعتماديات FiveM وملفات manifest والتحقق من مراجع الملفات المحلية."),
         .init(id:38,title:"RPF Explorer",category:"الملفات",icon:"archivebox.fill",status:"مخطط",detail:"استعراض شجرة RPF واستخراج الملفات باستخدام أدوات متوافقة."),
         .init(id:39,title:"Texture Converter",category:"الملفات",icon:"photo.artframe",status:"مخطط",detail:"تحويل الخامات بين الصيغ المدعومة بعد استخراجها مع الحفاظ على الجودة والأبعاد."),
-        .init(id:40,title:"Mod Installer Guide",category:"PS4",icon:"book.closed.fill",status:"مخطط",detail:"دليل تركيب مرتب يوضح المسارات والمتطلبات وخطوات التحقق."),
+        .init(id:40,title:"Mod Installer Guide",category:"PS4",icon:"book.closed.fill",status:"متاح",route:"utility",detail:"دليل خطوات Orbx وPS4 مع تنبيهات المسارات والنسخ الاحتياطي والتحقق."),
         .init(id:41,title:"Chiaki Remote Play",category:"PlayStation",icon:"gamecontroller.fill",status:"دليل وتجهيز",detail:"مركز Chiaki لمشروع Remote Play ومعلومات دعم iOS وروابط المشروع الرسمية.",route:"chiaki"),
         .init(id:42,title:"File Hash Inspector",category:"الملفات",icon:"number.square",status:"متاح",detail:"حساب بصمة SHA-256 للملفات محلياً على الآيباد للتحقق من تطابق النسخ وسلامة النقل.",route:"hash"),
         .init(id:43,title:"Orbx DLC Validator",category:"PS4",icon:"checkmark.seal.fill",status:"متاح",detail:"فحص أسماء حزم DLC وكشف التكرار والأسماء غير الصالحة وإنشاء مسارات Orbx بصيغة PS4 المطلقة.",route:"dlcvalidator"),
@@ -276,6 +276,7 @@ struct FeatureHubView: View {
         case "handling": HandlingAnalyzerView()
         case "compare": ModComparisonView()
         case "ai": LocalAIAssistantView(featureID: item.id)
+        case "utility": LocalUtilityFeatureView(featureID: item.id)
         case "cloud": CloudConversionView()
         case "chiaki": ChiakiRemotePlayView()
         case "hash": FileHashInspectorView()
