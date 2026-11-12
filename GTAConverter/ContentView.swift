@@ -989,26 +989,33 @@ private struct AppFilesView: View {
                     Text(errorText).foregroundStyle(.red).font(.caption).padding(.horizontal)
                 }
 
-                List {
-                    ForEach(filteredItems, id: \.standardizedFileURL) { url in
-                        fileRow(url)
-                            .listRowBackground(Color.white.opacity(0.045))
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(filteredItems, id: \.standardizedFileURL) { url in
+                            fileRow(url)
+                        }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 18)
                 }
-                .scrollContentBackground(.hidden)
-                .listStyle(.plain)
+                .scrollIndicators(.hidden)
             }
         }
         .navigationTitle("مستكشف الملفات")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(isPresented: $showSelectedItem) {
-            if let selectedURL {
-                if (try? selectedURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                    AppFilesView(directory: selectedURL)
+        .sheet(isPresented: $showSelectedItem) {
+            NavigationStack {
+                if let selectedURL {
+                    if (try? selectedURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                        AppFilesView(directory: selectedURL)
+                    } else {
+                        AppFileDetailView(url: selectedURL)
+                    }
                 } else {
-                    AppFileDetailView(url: selectedURL)
+                    Text("لم يتم تحديد ملف").foregroundStyle(.white)
                 }
             }
+            .preferredColorScheme(.dark)
         }
         .onAppear(perform: loadItems)
     }
@@ -1024,23 +1031,27 @@ private struct AppFilesView: View {
             selectedURL = url
             showSelectedItem = true
         } label: {
-            HStack(spacing: 11) {
+            HStack(spacing: 12) {
                 Image(systemName: isDirectory ? "folder.fill" : icon(for: url))
-                    .font(.title3).foregroundStyle(isDirectory ? Color.purple : .white.opacity(0.75))
-                    .frame(width: 28)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(url.lastPathComponent).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
-                    Text(isDirectory ? "مجلد • اضغط للفتح" : fileSize(url) + " • اضغط لعرض الإجراءات")
-                        .font(.caption2).foregroundStyle(.white.opacity(0.5))
+                    .font(.title2).foregroundStyle(isDirectory ? Color.purple : .white.opacity(0.8))
+                    .frame(width: 34)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(url.lastPathComponent)
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        .lineLimit(2).multilineTextAlignment(.leading)
+                    Text(isDirectory ? "مجلد • اضغط لفتحه" : fileSize(url) + " • اضغط لفتح الملف")
+                        .font(.caption2).foregroundStyle(.white.opacity(0.55))
                 }
-                Spacer()
-                Image(systemName: "chevron.left").font(.caption.bold()).foregroundStyle(.white.opacity(0.5))
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.left").font(.caption.bold()).foregroundStyle(.white.opacity(0.45))
             }
-            .contentShape(Rectangle())
-            .padding(.vertical, 3)
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white.opacity(0.055))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
         .contextMenu {
             ShareLink(item: url) { Label("مشاركة", systemImage: "square.and.arrow.up") }
             Button(role: .destructive) { remove(url) } label: { Label("حذف", systemImage: "trash") }
