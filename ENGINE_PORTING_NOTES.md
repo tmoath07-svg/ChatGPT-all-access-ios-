@@ -54,6 +54,8 @@ The new `LocalEngine` Rust static library currently provides:
 - RPF header/table inspection for supported unencrypted archives.
 - Generic unencrypted RPF7 building from a selected directory.
 - Re-parse validation of the generated archive.
+- Native structural conversion for the observed Y* to O* extension map: RSC7 header preservation, raw/zlib/gzip DEFLATE detection, PC-to-PS4 marker replacement, and raw-DEFLATE recompression.
+- Extension-only conversion for the non-patched types observed in the source scripts.
 - File count, recursion depth, and total input-size limits.
 - Symlink skipping and path traversal checks.
 
@@ -61,7 +63,7 @@ The SwiftUI local engine screen is wired to these functions. The build workflow 
 
 ## Explicitly not complete yet
 
-- No PS4-specific YFT/YDR/YDD/YBN/etc. resource conversion has been implemented in the iOS engine yet.
+- The structural RSC7 patch has only unit-level synthetic tests so far; it still needs real, legally supplied fixture files and byte-for-byte comparison against the reference converter.
 - No YTD-to-OTD compiler has been implemented yet.
 - Generic RPF7 creation is not equivalent to a validated PS4 DLC build.
 - Cloud conversion remains available as a temporary fallback until local outputs pass fixture tests and in-game validation.
