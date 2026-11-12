@@ -1,12 +1,15 @@
 import SwiftUI
 
 struct OrbxPS4TransferView: View {
-    let packageURL: URL
-    let packNames: [String]
+    let packageURL: URL?
+    let initialPackNames: [String]
 
-    @State private var host = ""
-    @State private var port = "2121"
-    @State private var username = "anonymous"
+    @AppStorage("inrpf_ps4_host") private var host = ""
+    @AppStorage("inrpf_ps4_port") private var port = "2121"
+    @AppStorage("inrpf_ps4_username") private var username = "anonymous"
+    @State private var availablePackages: [URL] = []
+    @State private var selectedPackagePath = ""
+    @State private var packNames: [String] = []
     @State private var password = ""
     @State private var isBusy = false
     @State private var status = "أدخل عنوان PS4 بعد تفعيل FTP في GoldHEN. سيتم رفع مجلدات DLC ودمج dlclist.xml."
@@ -15,6 +18,14 @@ struct OrbxPS4TransferView: View {
 
     private let remoteRoot = "/data/orbx/gta/rpf"
     private var purple: Color { Color(red: 0.70, green: 0.42, blue: 0.88) }
+    private var selectedPackageURL: URL? { availablePackages.first { $0.path == selectedPackagePath } }
+
+    init(packageURL: URL? = nil, packNames: [String] = []) {
+        self.packageURL = packageURL
+        self.initialPackNames = packNames
+        _selectedPackagePath = State(initialValue: packageURL?.path ?? "")
+        _packNames = State(initialValue: packNames)
+    }
 
     var body: some View {
         ZStack {
@@ -29,6 +40,27 @@ struct OrbxPS4TransferView: View {
                     }
                     .padding(17).frame(maxWidth: .infinity, alignment: .leading)
                     .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
+
+                    VStack(alignment: .leading, spacing: 9) {
+                        Label("حزمة المود الجاهزة", systemImage: "shippingbox.fill")
+                            .font(.subheadline.bold()).foregroundStyle(purple)
+                        if availablePackages.isEmpty {
+                            Text("ما فيه حزمة Orbx جاهزة. جهّز الحزمة أولاً من شاشة حزم PS4.")
+                                .font(.caption).foregroundStyle(.orange)
+                        } else {
+                            Picker("اختر الحزمة", selection: $selectedPackagePath) {
+                                ForEach(availablePackages, id: \.path) { item in
+                                    Text(item.lastPathComponent).tag(item.path)
+                                }
+                            }
+                            .pickerStyle(.menu).tint(.white)
+                            .onChange(of: selectedPackagePath) { _, _ in loadSelectedPackageNames() }
+                            Text("عدد الحزم داخلها: \(packNames.count)")
+                                .font(.caption).foregroundStyle(.white.opacity(0.6))
+                        }
+                    }
+                    .padding(14).background(.white.opacity(0.055))
+                    .clipShape(RoundedRectangle(cornerRadius: 15))
 
                     VStack(spacing: 11) {
                         field("IP جهاز PS4", text: $host, placeholder: "مثال: 192.168.1.50")
@@ -71,7 +103,7 @@ struct OrbxPS4TransferView: View {
                         .foregroundStyle(.white)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isBusy || host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || packNames.isEmpty)
+                    .disabled(isBusy || host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || packNames.isEmpty || selectedPackageURL == nil)
 
                     Text("الملفات المرفوعة: \(uploadedFiles)")
                         .font(.caption.bold()).foregroundStyle(purple)
@@ -90,6 +122,7 @@ struct OrbxPS4TransferView: View {
         .navigationTitle("إرسال إلى PS4")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.layoutDirection, .rightToLeft)
+        .onAppear(perform: discoverPackages)
     }
 
     private func field(_ title: String, text: Binding<String>, placeholder: String) -> some View {
@@ -111,7 +144,11 @@ struct OrbxPS4TransferView: View {
         let base = host.trimmingCharacters(in: .whitespacesAndNewlines)
         let user = username
         let pass = password
-        let package = packageURL
+        guard let package = selectedPackageURL else {
+            status = "اختر حزمة Orbx جاهزة أولاً."
+            isError = true
+            return
+        }
         let names = packNames
         let portValue = portNumber
         isBusy = true
@@ -169,12 +206,21 @@ struct OrbxPS4TransferView: View {
 
                 let temp = fm.temporaryDirectory.appendingPathComponent("inrpf-dlclist-\(UUID().uuidString).xml")
                 let remoteRPF = "/data/orbx/gta/rpf"
-                var merged = ""
-                do {
+                let remoteEntries = try LocalEngineBridge.ftpList(host: base, port: portValue,
+                    username: user, password: pass, path: remoteRPF)["entries"] as? [[String: Any]] ?? []
+                let hasExistingList = remoteEntries.contains {
+                    ($0["name"] as? String)?.caseInsensitiveCompare("dlclist.xml") == .orderedSame
+                }
+                var merged: String
+                if hasExistingList {
                     _ = try LocalEngineBridge.ftpDownload(host: base, port: portValue, username: user,
                         password: pass, path: remoteRPF, name: "dlclist.xml", destination: temp)
                     merged = try String(contentsOf: temp, encoding: .utf8)
-                } catch {
+                    guard merged.range(of: "</Paths>", options: .caseInsensitive) != nil else {
+                        throw NSError(domain: "INRPF.Transfer", code: 4,
+                            userInfo: [NSLocalizedDescriptionKey: "تعذر قراءة dlclist.xml الموجود أو لا يحتوي على </Paths>. لم نستبدله حفاظاً على قائمتك."])
+                    }
+                } else {
                     merged = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<SMandatoryPacksData>\n  <Paths>\n  </Paths>\n</SMandatoryPacksData>"
                 }
                 try? fm.removeItem(at: temp)
@@ -194,9 +240,10 @@ struct OrbxPS4TransferView: View {
                     password: pass, path: remoteRPF, name: "dlclist.xml", localFile: outputXML)
                 try? fm.removeItem(at: outputXML)
 
+                let completedFileCount = count
                 await MainActor.run {
-                    uploadedFiles = count
-                    status = "اكتمل رفع \(names.count) حزمة و\(count) ملف، وتم دمج dlclist.xml دون حذف المسارات السابقة."
+                    uploadedFiles = completedFileCount
+                    status = "اكتمل رفع \(names.count) حزمة و\(completedFileCount) ملف، وتم دمج dlclist.xml دون حذف المسارات السابقة."
                     isBusy = false
                     isError = false
                 }
@@ -210,13 +257,55 @@ struct OrbxPS4TransferView: View {
         }
     }
 
-    private static func ensureRemoteDirectory(host: String, port: UInt16, username: String, password: String, fullPath: String) throws {
+    nonisolated private static func ensureRemoteDirectory(host: String, port: UInt16, username: String, password: String, fullPath: String) throws {
         let parts = fullPath.split(separator: "/").map(String.init)
         var parent = "/"
         for part in parts {
-            _ = try? LocalEngineBridge.ftpMakeDirectory(host: host, port: port, username: username,
-                password: password, path: parent, name: part)
-            parent = parent == "/" ? "/" + part : parent + "/" + part
+            let current = parent == "/" ? "/" + part : parent + "/" + part
+            do {
+                _ = try LocalEngineBridge.ftpList(host: host, port: port, username: username,
+                                                   password: password, path: current)
+            } catch {
+                _ = try LocalEngineBridge.ftpMakeDirectory(host: host, port: port, username: username,
+                                                             password: password, path: parent, name: part)
+                _ = try LocalEngineBridge.ftpList(host: host, port: port, username: username,
+                                                   password: password, path: current)
+            }
+            parent = current
         }
+    }
+
+    private func discoverPackages() {
+        let ready = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("GTA Converter/Ready", isDirectory: true)
+        let found = (try? FileManager.default.contentsOfDirectory(at: ready,
+            includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+        availablePackages = found.filter {
+            $0.lastPathComponent.hasPrefix("PS4-Orbx-") &&
+            ((try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true)
+        }.sorted { $0.lastPathComponent > $1.lastPathComponent }
+
+        if let packageURL, !availablePackages.contains(where: { $0.path == packageURL.path }) {
+            availablePackages.insert(packageURL, at: 0)
+        }
+        if selectedPackagePath.isEmpty, let first = availablePackages.first {
+            selectedPackagePath = first.path
+        }
+        loadSelectedPackageNames()
+    }
+
+    private func loadSelectedPackageNames() {
+        guard let selectedPackageURL else { packNames = []; return }
+        if !initialPackNames.isEmpty, packageURL?.path == selectedPackageURL.path {
+            packNames = initialPackNames
+            return
+        }
+        let addon = selectedPackageURL.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+        let folders = (try? FileManager.default.contentsOfDirectory(at: addon,
+            includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+        packNames = folders.filter {
+            ((try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true) &&
+            $0.lastPathComponent.range(of: #"^[A-Za-z0-9_-]{1,64}$"#, options: .regularExpression) != nil
+        }.map(\.lastPathComponent).sorted()
     }
 }
