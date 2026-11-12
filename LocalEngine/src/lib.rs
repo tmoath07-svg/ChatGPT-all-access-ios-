@@ -263,17 +263,8 @@ fn resource_mapping(extension: &str) -> Result<(&'static str, bool), String> {
         "yft" => Ok(("oft", true)),
         "ydr" => Ok(("odr", true)),
         "ydd" => Ok(("odd", true)),
-        "ypt" => Ok(("opt", true)),
         "ybn" => Ok(("obn", true)),
         "ybd" => Ok(("obd", true)),
-        "yld" => Ok(("old", true)),
-        "yed" => Ok(("oed", true)),
-        "yfd" => Ok(("ofd", true)),
-        "ynd" => Ok(("ond", true)),
-        "ynv" => Ok(("onv", true)),
-        "yvr" => Ok(("ovr", true)),
-        "ywr" => Ok(("owr", true)),
-        "ypdb" => Ok(("opdb", true)),
         "ycd" => Ok(("ocd", false)),
         "ymap" => Ok(("omap", false)),
         "ytyp" => Ok(("otyp", false)),
@@ -619,6 +610,14 @@ mod tests {
         let dds = texture.to_dds();
         assert_eq!(&dds[..4], b"DDS ");
         assert_eq!(dds.len(), 128 + 8);
+    }
+
+    #[test]
+    fn keeps_initial_resource_port_focused_on_vehicle_assets() {
+        assert!(resource_mapping("yft").is_ok());
+        assert!(resource_mapping("ydr").is_ok());
+        assert!(resource_mapping("ypt").is_err());
+        assert!(resource_mapping("yed").is_err());
     }
 
     #[test]
