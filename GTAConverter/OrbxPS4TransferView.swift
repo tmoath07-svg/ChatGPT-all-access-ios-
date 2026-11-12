@@ -17,6 +17,7 @@ struct OrbxPS4TransferView: View {
     @State private var uploadedFiles = 0
 
     private let remoteRoot = "/data/orbx/gta/rpf"
+    private let remoteDLClistDirectory = "/data/orbx/gta"
     private var purple: Color { Color(red: 0.70, green: 0.42, blue: 0.88) }
     private var selectedPackageURL: URL? { availablePackages.first { $0.path == selectedPackagePath } }
 
@@ -84,7 +85,7 @@ struct OrbxPS4TransferView: View {
                             .font(.subheadline.bold()).foregroundStyle(purple)
                         Text(remoteRoot + "/dlc_addon/")
                             .font(.caption.monospaced()).foregroundStyle(.white).textSelection(.enabled)
-                        Text("ملف القائمة: " + remoteRoot + "/dlclist.xml")
+                        Text("ملف القائمة: ORBX/GTA/dlclist.xml  •  /data/orbx/gta/dlclist.xml")
                             .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7)).textSelection(.enabled)
                         Text("الحزم: " + packNames.joined(separator: "، "))
                             .font(.caption).foregroundStyle(.white.opacity(0.62))
@@ -168,6 +169,7 @@ struct OrbxPS4TransferView: View {
             let fm = FileManager.default
             let remoteRPF = INRPFOrbxAutoInstallPlanner.remoteRoot
             let remoteAddon = INRPFOrbxAutoInstallPlanner.remoteAddon
+            let remoteListDirectory = INRPFOrbxAutoInstallPlanner.remoteDLClistDirectory
             let listTemp = fm.temporaryDirectory.appendingPathComponent("inrpf-dlclist-original-\(UUID().uuidString).xml")
             let outputXML = fm.temporaryDirectory.appendingPathComponent("inrpf-dlclist-merged-\(UUID().uuidString).xml")
             let verifyXML = fm.temporaryDirectory.appendingPathComponent("inrpf-dlclist-verify-\(UUID().uuidString).xml")
@@ -178,36 +180,36 @@ struct OrbxPS4TransferView: View {
                 try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: remoteAddon)
 
                 let remoteEntries = try LocalEngineBridge.ftpList(host: base, port: portValue,
-                    username: user, password: pass, path: remoteRPF)["entries"] as? [[String: Any]] ?? []
+                    username: user, password: pass, path: remoteListDirectory)["entries"] as? [[String: Any]] ?? []
                 let hasExistingList = remoteEntries.contains {
                     ($0["name"] as? String)?.caseInsensitiveCompare("dlclist.xml") == .orderedSame
                 }
 
-                let originalXML: String?
-                if hasExistingList {
-                    _ = try LocalEngineBridge.ftpDownload(host: base, port: portValue, username: user,
-                        password: pass, path: remoteRPF, name: "dlclist.xml", destination: listTemp)
-                    originalXML = try String(contentsOf: listTemp, encoding: .utf8)
-                } else {
-                    originalXML = nil
+                guard hasExistingList else {
+                    throw NSError(domain: "INRPF.Transfer", code: 7,
+                        userInfo: [NSLocalizedDescriptionKey: "ما لقيت dlclist.xml داخل ORBX/GTA. أوقفت التركيب حتى ما أنشئ قائمة جديدة وأمسح قائمتك بالغلط."])
                 }
+                _ = try LocalEngineBridge.ftpDownload(host: base, port: portValue, username: user,
+                    password: pass, path: remoteListDirectory, name: "dlclist.xml", destination: listTemp)
+                let originalXML = try String(contentsOf: listTemp, encoding: .utf8)
 
                 // Validate and merge before uploading any DLC files.
                 let merged = try INRPFOrbxAutoInstallPlanner.mergedDLClist(existing: originalXML, packageNames: names)
                 if hasExistingList {
                     let backupName = "dlclist.xml.inrpf-backup-\(Int(Date().timeIntervalSince1970))"
                     _ = try LocalEngineBridge.ftpUpload(host: base, port: portValue, username: user,
-                        password: pass, path: remoteRPF, name: backupName, localFile: listTemp)
+                        password: pass, path: remoteListDirectory, name: backupName, localFile: listTemp)
                 }
 
                 var count = 0
                 for name in names {
-                    let localPack = addon.appendingPathComponent(name, isDirectory: true)
+                    let packageFolder = addon.appendingPathComponent(name, isDirectory: true)
                     var isDirectory: ObjCBool = false
-                    guard fm.fileExists(atPath: localPack.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+                    guard fm.fileExists(atPath: packageFolder.path, isDirectory: &isDirectory), isDirectory.boolValue else {
                         throw NSError(domain: "INRPF.Transfer", code: 2,
                                       userInfo: [NSLocalizedDescriptionKey: "مجلد الحزمة غير موجود: \(name)"])
                     }
+                    let localPack = try INRPFOrbxAutoInstallPlanner.packageContentRoot(for: packageFolder)
                     let remotePack = remoteAddon + "/" + name
                     try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: remotePack)
                     guard let enumerator = fm.enumerator(at: localPack,
@@ -244,11 +246,11 @@ struct OrbxPS4TransferView: View {
 
                 try merged.write(to: outputXML, atomically: true, encoding: .utf8)
                 _ = try LocalEngineBridge.ftpUpload(host: base, port: portValue, username: user,
-                    password: pass, path: remoteRPF, name: "dlclist.xml", localFile: outputXML)
+                    password: pass, path: remoteListDirectory, name: "dlclist.xml", localFile: outputXML)
 
                 // Verify the deployed list by downloading it again.
                 _ = try LocalEngineBridge.ftpDownload(host: base, port: portValue, username: user,
-                    password: pass, path: remoteRPF, name: "dlclist.xml", destination: verifyXML)
+                    password: pass, path: remoteListDirectory, name: "dlclist.xml", destination: verifyXML)
                 let deployed = try String(contentsOf: verifyXML, encoding: .utf8)
                 let verified = try INRPFOrbxAutoInstallPlanner.mergedDLClist(existing: deployed, packageNames: names)
                 guard verified == deployed else {
