@@ -69,6 +69,20 @@ enum ModAnalyzer {
             }
             if ext == "yft" { yftFiles.append(relative) }
             if ext == "ytd" { ytdFiles.append(relative) }
+            if ext == "yft" || ext == "ytd" {
+                let genericFolders: Set<String> = [
+                    "stream", "vehicles", "vehicle", "data", "common", "x64",
+                    "dlc", "dlcpacks", "addon", "addons", "models", "textures"
+                ]
+                let components = relative.split(separator: "/").dropLast()
+                if components.count > 1,
+                   let candidate = components.reversed().first(where: {
+                       !genericFolders.contains($0.lowercased())
+                   }),
+                   candidate.range(of: #"^[A-Za-z0-9_-]{1,64}$"#, options: .regularExpression) != nil {
+                    allNames.append(String(candidate))
+                }
+            }
             if vehicleMetaNames.contains(lower) { vehicleMetaFiles.append(relative) }
             if lower == "fxmanifest.lua" || lower == "__resource.lua" {
                 manifestFiles.append(relative)

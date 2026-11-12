@@ -10,6 +10,8 @@ struct LocalEngineView: View {
     @State private var errorText = ""
     @State private var isBusy = false
     @State private var activePicker: EnginePicker?
+    @State private var showingFileImporter = false
+    @AppStorage("gta_language") private var appLanguage = "ar"
     private enum EnginePicker {
         case sourceFolder, buildYTD, inspectRPF, extractRPF, convertResource, convertFolder, extractYTD
         var contentTypes: [UTType] {
@@ -41,10 +43,10 @@ struct LocalEngineView: View {
                         Label("GTA LOCAL ENGINE", systemImage: "cpu.fill")
                             .font(.system(size: 12, weight: .black, design: .rounded))
                             .tracking(1.2).foregroundStyle(purple)
-                        Text("محرك الملفات المحلي").font(.title2.bold()).foregroundStyle(.white)
+                        Text("محرر ومحرك الملفات المحلي").font(.title2.bold()).foregroundStyle(.white)
                         Text(LocalEngineBridge.version)
                             .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.55))
-                        Text("استخراج وبناء وفحص أرشيفات RPF7 وتحويل موارد اللعبة محلياً داخل الجهاز، بدون إرسال الملفات إلى خادم.")
+                        Text("افتح أرشيف RPF7 واستخرج محتوياته، عدّل الملفات في مجلد العمل، ثم أعد بناء الأرشيف محلياً. يدعم أيضاً فحص الموارد واستخراج وبناء YTD بصيغته المدعومة.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.72))
                     }
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
@@ -57,7 +59,7 @@ struct LocalEngineView: View {
                             .font(.headline).foregroundStyle(.white)
                         Text(sourceFolder?.lastPathComponent ?? "لم يتم اختيار مجلد")
                             .font(.caption).foregroundStyle(.white.opacity(0.62))
-                        Button { activePicker = .sourceFolder } label: {
+                        Button { openPicker(.sourceFolder) } label: {
                             Label("اختيار مجلد", systemImage: "folder.badge.plus")
                                 .frame(maxWidth: .infinity).padding(13)
                                 .background(.white.opacity(0.09))
@@ -82,7 +84,7 @@ struct LocalEngineView: View {
                     .disabled(sourceFolder == nil || isBusy)
                     .opacity(sourceFolder == nil || isBusy ? 0.45 : 1)
 
-                    Button { activePicker = .inspectRPF } label: {
+                    Button { openPicker(.inspectRPF) } label: {
                         Label("فحص ملف RPF موجود", systemImage: "doc.text.magnifyingglass")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -90,7 +92,7 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
-                    Button { activePicker = .extractRPF } label: {
+                    Button { openPicker(.extractRPF) } label: {
                         Label("استخراج ملفات RPF محلياً", systemImage: "archivebox")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -98,7 +100,7 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
-                    Button { activePicker = .convertResource } label: {
+                    Button { openPicker(.convertResource) } label: {
                         Label("تحويل مورد Y* إلى O* محلياً", systemImage: "arrow.left.arrow.right")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -106,7 +108,7 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
-                    Button { activePicker = .convertFolder } label: {
+                    Button { openPicker(.convertFolder) } label: {
                         Label("تحويل مجلد موارد كامل دفعة واحدة", systemImage: "folder.badge.gearshape")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -114,7 +116,7 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
-                    Button { activePicker = .extractYTD } label: {
+                    Button { openPicker(.extractYTD) } label: {
                         Label("استخراج خامات YTD إلى DDS", systemImage: "photo.stack")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -122,7 +124,7 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
-                    Button { activePicker = .buildYTD } label: {
+                    Button { openPicker(.buildYTD) } label: {
                         Label("بناء قاموس YTD من DDS والصور", systemImage: "square.stack.3d.up.fill")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
@@ -252,12 +254,10 @@ struct LocalEngineView: View {
         }
         .navigationTitle("المحرك المحلي")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\.locale, Locale(identifier: appLanguage))
         .fileImporter(
-            isPresented: Binding(
-                get: { activePicker != nil },
-                set: { if !$0 { activePicker = nil } }
-            ),
+            isPresented: $showingFileImporter,
             allowedContentTypes: activePicker?.contentTypes ?? [.item],
             allowsMultipleSelection: false
         ) { result in
@@ -290,6 +290,11 @@ struct LocalEngineView: View {
         }
     }
 
+    private func openPicker(_ picker: EnginePicker) {
+        activePicker = picker
+        showingFileImporter = true
+    }
+
     private func buildRPF() {
         guard let folder = sourceFolder else { return }
         let access = folder.startAccessingSecurityScopedResource()
@@ -298,7 +303,7 @@ struct LocalEngineView: View {
         report = "يتم الآن قراءة الملفات وبناء أرشيف محلي..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let outputDirectory = documents.appendingPathComponent("GTA Converter/Local Engine", isDirectory: true)
                 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
@@ -335,7 +340,7 @@ struct LocalEngineView: View {
         report = "يتم استخراج الملفات وفك الأرشيفات الداخلية..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let base = documents.appendingPathComponent("GTA Converter/Local Engine/Extracted RPF", isDirectory: true)
                 let folderName = file.deletingPathExtension().lastPathComponent
@@ -369,7 +374,7 @@ struct LocalEngineView: View {
         report = "يتم تحويل موارد المجلد ونسخ ملفات البيانات..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let base = documents.appendingPathComponent("GTA Converter/Local Engine/Batch Converted", isDirectory: true)
                 let safeName = folder.lastPathComponent.replacingOccurrences(of: "/", with: "_")
@@ -405,7 +410,7 @@ struct LocalEngineView: View {
         report = "يتم تحويل مورد اللعبة محلياً..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let outputDirectory = documents.appendingPathComponent("GTA Converter/Local Engine/Converted", isDirectory: true)
                 let result = try LocalEngineBridge.convertResource(at: file, to: outputDirectory)
@@ -440,7 +445,7 @@ struct LocalEngineView: View {
         report = "يتم قراءة DDS والصور وبناء قاموس YTD محلياً..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let outputDirectory = documents.appendingPathComponent("GTA Converter/Local Engine/Texture Dictionaries", isDirectory: true)
                 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
@@ -477,7 +482,7 @@ struct LocalEngineView: View {
         report = "يتم تحليل YTD واستخراج الخامات..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let base = documents.appendingPathComponent("GTA Converter/Local Engine/Textures", isDirectory: true)
                 let folderName = file.deletingPathExtension().lastPathComponent

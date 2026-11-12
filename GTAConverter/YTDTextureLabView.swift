@@ -3,12 +3,25 @@ import UniformTypeIdentifiers
 
 struct YTDTextureLabView: View {
     @State private var showingPicker = false
-    @State private var reports: [YTDFileReport] = []
-    @State private var status = "اختر ملفات YTD لفحصها والتأكد من سلامة ترويسة RAGE Resource."
+    @State private var pickerMode: PickerMode = .ytd
+    @State private var selectedYTDName = ""
+    @State private var extractedFolder: URL?
+    @State private var rebuiltYTD: URL?
+    @State private var status = "اختر ملف YTD لاستخراج خاماته، أو مجلد DDS لإعادة بناء قاموس."
+    @State private var isBusy = false
     @State private var isError = false
 
+    @AppStorage("gta_language") private var appLanguage = "ar"
     private let purple = Color(red: 0.60, green: 0.31, blue: 0.98)
-    private let background = Color(red: 0.035, green: 0.025, blue: 0.065)
+
+    private enum PickerMode {
+        case ytd
+        case ddsFolder
+    }
+
+    private var pickerTypes: [UTType] {
+        pickerMode == .ddsFolder ? [.folder] : [.item]
+    }
 
     var body: some View {
         ZStack {
@@ -18,128 +31,210 @@ struct YTDTextureLabView: View {
                     VStack(alignment: .leading, spacing: 9) {
                         Image(systemName: "photo.stack.fill")
                             .font(.system(size: 34)).foregroundStyle(purple)
-                        Text("مختبر ملفات YTD")
+                        Text("محرر ملفات YTD")
                             .font(.title2.bold()).foregroundStyle(.white)
-                        Text("فحص ملفات Texture Dictionary والتأكد من ترويسة RSC7 قبل إرسالها لمسار المعالجة.")
+                        Text("استخرج الخامات إلى DDS، عدّل الصور في أي محرر صور، ثم أعد بناء قاموس YTD من مجلد الخامات.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white.opacity(0.06))
+                    .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 20))
 
-                    Button { showingPicker = true } label: {
-                        Label("اختيار ملفات YTD", systemImage: "doc.badge.plus")
+                    Button {
+                        pickerMode = .ytd
+                        showingPicker = true
+                    } label: {
+                        Label("فتح YTD واستخراج الخامات إلى DDS", systemImage: "archivebox")
                             .font(.headline.bold()).frame(maxWidth: .infinity).padding(16)
                             .background(purple).clipShape(RoundedRectangle(cornerRadius: 14))
                             .foregroundStyle(.white)
                     }
+                    .buttonStyle(.plain)
+                    .disabled(isBusy)
 
-                    if !reports.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Label("نتائج الفحص: \(reports.count)", systemImage: "waveform.path")
-                                .font(.headline).foregroundStyle(.white)
-                            ForEach(reports) { report in
-                                VStack(alignment: .leading, spacing: 7) {
-                                    HStack {
-                                        Image(systemName: report.isRSC7 ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                                            .foregroundStyle(report.isRSC7 ? .green : .orange)
-                                        Text(report.name).font(.subheadline.bold()).foregroundStyle(.white)
-                                            .lineLimit(2)
-                                    }
-                                    HStack {
-                                        Text(report.sizeText)
-                                        Spacer()
-                                        Text(report.signature)
-                                    }
-                                    .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.58))
-                                    Text(report.isRSC7
-                                         ? "تم التعرف على ترويسة RSC7. هذا فحص أولي وليس إثباتاً أن الخامات قابلة للتحويل."
-                                         : "لم يتم التعرف على ترويسة RSC7؛ قد يكون الملف تالفاً أو بصيغة مختلفة.")
-                                        .font(.caption).foregroundStyle(.white.opacity(0.68))
-                                }
-                                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                                .background(.black.opacity(0.2))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                    Button {
+                        pickerMode = .ddsFolder
+                        showingPicker = true
+                    } label: {
+                        Label("إعادة بناء YTD من مجلد DDS", systemImage: "square.stack.3d.up.fill")
+                            .font(.headline.bold()).frame(maxWidth: .infinity).padding(16)
+                            .background(.white.opacity(0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.12)))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isBusy)
+
+                    if !selectedYTDName.isEmpty {
+                        infoCard(title: "ملف المصدر", value: selectedYTDName, icon: "doc")
+                    }
+
+                    if let extractedFolder {
+                        VStack(alignment: .leading, spacing: 9) {
+                            Label("تم استخراج الخامات", systemImage: "checkmark.seal.fill")
+                                .font(.headline).foregroundStyle(.green)
+                            Text(extractedFolder.lastPathComponent)
+                                .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.65))
+                            ShareLink(item: extractedFolder) {
+                                Label("مشاركة مجلد DDS", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity).padding(12)
+                                    .background(.white.opacity(0.09))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
                             }
                         }
                         .padding(15).background(.white.opacity(0.055))
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .clipShape(RoundedRectangle(cornerRadius: 17))
                     }
 
-                    NavigationLink(destination: CloudConversionView()) {
-                        Label("فتح أدوات المعالجة السحابية", systemImage: "cloud.gear.fill")
-                            .font(.headline.bold()).frame(maxWidth: .infinity).padding(15)
-                            .background(.white.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(.white)
+                    if let rebuiltYTD {
+                        VStack(alignment: .leading, spacing: 9) {
+                            Label("تم بناء قاموس YTD", systemImage: "checkmark.seal.fill")
+                                .font(.headline).foregroundStyle(.green)
+                            Text(rebuiltYTD.lastPathComponent)
+                                .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.65))
+                            ShareLink(item: rebuiltYTD) {
+                                Label("مشاركة ملف YTD", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity).padding(12)
+                                    .background(.white.opacity(0.09))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                            }
+                        }
+                        .padding(15).background(.white.opacity(0.055))
+                        .clipShape(RoundedRectangle(cornerRadius: 17))
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("وش يسوي هذا القسم؟", systemImage: "info.circle.fill")
-                            .font(.subheadline.bold()).foregroundStyle(.orange)
-                        Text("يفحص امتداد الملف وحجمه وترويسة RSC7 فقط. لا يستخرج صور DDS ولا يعيد بناء YTD أو يحوّله إلى PS4 محلياً. استخدم مسار المعالجة السحابية لتنفيذ أدوات YTD الموجودة في محرك Ps4tools، وتحقق من سجل التشغيل والناتج قبل استخدامه.")
-                            .font(.caption).foregroundStyle(.white.opacity(0.7))
+                    if isBusy {
+                        HStack(spacing: 10) {
+                            ProgressView().tint(.white)
+                            Text("جاري تنفيذ العملية محلياً...")
+                                .font(.caption.weight(.semibold)).foregroundStyle(.white)
+                        }
+                        .padding(13).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-                    .padding(14).background(.orange.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
 
                     Text(status)
-                        .font(.caption).foregroundStyle(isError ? .red : .white.opacity(0.65))
+                        .font(.caption).foregroundStyle(isError ? .red : .white.opacity(0.68))
                         .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                         .background(.white.opacity(0.045))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("ملاحظة الصيغة", systemImage: "info.circle.fill")
+                            .font(.subheadline.bold()).foregroundStyle(.orange)
+                        Text("استخراج DDS وإعادة بناء YTD متاحان عبر المحرك المحلي. البناء الحالي ينتج YTD بصيغة PC/Gen8، ولا ينتج OTD بصيغة Orbis الخاصة بـ PS4.")
+                            .font(.caption).foregroundStyle(.white.opacity(0.68))
+                    }
+                    .padding(14).background(.orange.opacity(0.07))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
                 .padding(16)
             }
         }
-        .navigationTitle("YTD")
+        .navigationTitle("محرر YTD")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.layoutDirection, .rightToLeft)
-        .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
-            inspectFiles(result)
+        .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\.locale, Locale(identifier: appLanguage))
+        .fileImporter(isPresented: $showingPicker, allowedContentTypes: pickerTypes, allowsMultipleSelection: false) { result in
+            handlePicker(result)
         }
     }
 
-    private func inspectFiles(_ result: Result<[URL], Error>) {
-        do {
-            let urls = try result.get()
-            var found: [YTDFileReport] = []
-            for url in urls where url.pathExtension.lowercased() == "ytd" {
-                let granted = url.startAccessingSecurityScopedResource()
-                defer { if granted { url.stopAccessingSecurityScopedResource() } }
-                let handle = try FileHandle(forReadingFrom: url)
-                defer { try? handle.close() }
-                let header = try handle.read(upToCount: 16) ?? Data()
-                let signature = String(data: header.prefix(4), encoding: .ascii) ?? "غير معروف"
-                let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-                let bytes = (attributes[.size] as? NSNumber)?.int64Value ?? 0
-                found.append(YTDFileReport(
-                    name: url.lastPathComponent,
-                    bytes: bytes,
-                    signature: signature,
-                    isRSC7: signature == "RSC7"
-                ))
+    private func infoCard(title: String, value: String, icon: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).foregroundStyle(purple)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.caption).foregroundStyle(.white.opacity(0.55))
+                Text(value).font(.subheadline.bold()).foregroundStyle(.white).lineLimit(2)
             }
-            reports = found
-            isError = found.isEmpty
-            status = found.isEmpty
-                ? "ما اخترت أي ملف بامتداد YTD."
-                : "اكتمل الفحص الأولي لـ \(found.count) ملف."
-        } catch {
+            Spacer()
+        }
+        .padding(13).background(.white.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 13))
+    }
+
+    private func handlePicker(_ result: Result<[URL], Error>) {
+        switch result {
+        case .failure(let error):
             isError = true
-            status = "تعذر فحص الملفات: \(error.localizedDescription)"
+            status = "تعذر اختيار العنصر: \(error.localizedDescription)"
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            if pickerMode == .ytd {
+                extractTextures(from: url)
+            } else {
+                rebuildDictionary(from: url)
+            }
         }
     }
-}
 
-private struct YTDFileReport: Identifiable {
-    let id = UUID()
-    let name: String
-    let bytes: Int64
-    let signature: String
-    let isRSC7: Bool
+    private func appSupportFolder(_ components: String...) throws -> URL {
+        let root = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let folder = components.reduce(root) { $0.appendingPathComponent($1, isDirectory: true) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
 
-    var sizeText: String {
-        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    private func extractTextures(from file: URL) {
+        guard file.pathExtension.lowercased() == "ytd" else {
+            isError = true
+            status = "اختر ملفاً بامتداد YTD."
+            return
+        }
+        let access = file.startAccessingSecurityScopedResource()
+        isBusy = true
+        isError = false
+        selectedYTDName = file.lastPathComponent
+        extractedFolder = nil
+        Task.detached(priority: .userInitiated) {
+            defer { if access { file.stopAccessingSecurityScopedResource() } }
+            do {
+                let base = try appSupportFolder("GTA Converter", "YTD Editor", "Extracted")
+                let output = base.appendingPathComponent(file.deletingPathExtension().lastPathComponent, isDirectory: true)
+                let result = try LocalEngineBridge.extractYTD(at: file, to: output)
+                await MainActor.run {
+                    extractedFolder = output
+                    let found = result["textures_found"] as? Int ?? 0
+                    let exported = result["textures_exported"] as? Int ?? 0
+                    status = "اكتمل الاستخراج: \(exported) من أصل \(found) خامة. عدّل ملفات DDS ثم أعد بناء القاموس."
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run {
+                    isError = true
+                    status = "فشل استخراج YTD: \(error.localizedDescription)"
+                    isBusy = false
+                }
+            }
+        }
+    }
+
+    private func rebuildDictionary(from folder: URL) {
+        let access = folder.startAccessingSecurityScopedResource()
+        isBusy = true
+        isError = false
+        rebuiltYTD = nil
+        Task.detached(priority: .userInitiated) {
+            defer { if access { folder.stopAccessingSecurityScopedResource() } }
+            do {
+                let base = try appSupportFolder("GTA Converter", "YTD Editor", "Built")
+                let safeName = folder.lastPathComponent.replacingOccurrences(of: "/", with: "_")
+                let output = base.appendingPathComponent("\(safeName).ytd")
+                let result = try LocalEngineBridge.buildYTD(from: folder, to: output)
+                await MainActor.run {
+                    rebuiltYTD = output
+                    let textures = result["textures"] as? Int ?? 0
+                    status = "اكتمل بناء YTD ويحتوي \(textures) خامة. تحقق من توافق الصيغة قبل استخدامها."
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run {
+                    isError = true
+                    status = "فشل بناء YTD: \(error.localizedDescription)"
+                    isBusy = false
+                }
+            }
+        }
     }
 }

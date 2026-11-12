@@ -118,6 +118,7 @@ struct ContentView: View {
             }
         }
         .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\.locale, Locale(identifier: appLanguage))
         .onAppear { showOnboarding = !onboardingComplete }
         .fullScreenCover(isPresented: $showOnboarding) {
             GTAOnboardingView { onboardingComplete = true; showOnboarding = false }
@@ -565,7 +566,7 @@ struct ContentView: View {
         return true
     }
     nonisolated private static func appManagedFolder(_ name: String) throws -> URL {
-        let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let root = documents.appendingPathComponent("GTA Converter", isDirectory: true)
         let folder = root.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -579,7 +580,7 @@ struct ContentView: View {
         }
 
         let fm = FileManager.default
-        let documents = try fm.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let documents = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let appRoot = documents.appendingPathComponent("GTA Converter", isDirectory: true)
         let imports = appRoot.appendingPathComponent("Imports", isDirectory: true)
         try fm.createDirectory(at: imports, withIntermediateDirectories: true)
@@ -736,6 +737,9 @@ struct ContentView: View {
                 outputFolder = root
                 incompleteRoot = nil
                 modAnalysis = analysis
+                if !analysis.packNames.isEmpty {
+                    packNames = analysis.packNames.joined(separator: "\n")
+                }
                 GTATransferHistoryStore.record(title: "فك وتحليل مود", detail: "\(analysis.fileCount) ملف • \(resolvedMode(for: analysis))")
                 if analysis.isFiveMVehicleResource {
                     status = "تم التعرف على مورد سيارة FiveM. ملفات YFT: \(analysis.yftFiles.count)، ملفات YTD: \(analysis.ytdFiles.count)، ملفات META: \(analysis.vehicleMetaFiles.count). تم الفحص فقط؛ تحويل PS4 يحتاج بناء DLC."
@@ -950,7 +954,7 @@ private struct AppFilesView: View {
     @State private var errorText: String?
 
     private var root: URL {
-        directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("GTA Converter", isDirectory: true)
     }
 
@@ -1085,7 +1089,7 @@ private struct AppSettingsView: View {
 
                     group("التخزين", icon: "internaldrive") {
                         Label("مجلد التطبيق", systemImage: "folder.fill").foregroundStyle(.white)
-                        Text("Files > On My iPhone/iPad > GTA Converter")
+                        Text("تخزين داخلي خاص بالتطبيق، غير ظاهر في تطبيق الملفات")
                             .font(.caption).foregroundStyle(.white.opacity(0.55))
                         Button {
                             do {

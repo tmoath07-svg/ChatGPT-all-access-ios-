@@ -447,6 +447,7 @@ struct CreatorPageView: View {
                         Text("المبدع").font(.title2.bold()).foregroundStyle(.white)
                         Text(creatorHandle).font(.title3.bold()).foregroundStyle(.purple)
                         Text("صاحب ومطوّر GTA Converter")
+                        Text("مساهم إضافي: q.wq9@tik").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.62))
                             .font(.subheadline).foregroundStyle(.white.opacity(0.65))
                     }
                     .frame(maxWidth: .infinity).padding(.vertical, 28)
@@ -483,7 +484,7 @@ struct CreatorPageView: View {
         }
         .navigationTitle("المبدع")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, Locale.current.language.languageCode?.identifier == "ar" ? .rightToLeft : .leftToRight)
     }
 }
 
