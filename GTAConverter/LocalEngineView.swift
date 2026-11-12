@@ -33,7 +33,7 @@ struct LocalEngineView: View {
                         Text("محرك الملفات المحلي").font(.title2.bold()).foregroundStyle(.white)
                         Text(LocalEngineBridge.version)
                             .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.55))
-                        Text("المرحلة الأولى: إنشاء وفحص أرشيف RPF7 محلياً داخل الجهاز، بدون إرسال الملفات إلى خادم.")
+                        Text("إنشاء وفحص RPF7 وتحويل بعض موارد RSC7 محلياً داخل الجهاز، بدون إرسال الملفات إلى خادم.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.72))
                     }
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
@@ -134,7 +134,7 @@ struct LocalEngineView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Label("حدود المرحلة الحالية", systemImage: "info.circle.fill")
                             .font(.subheadline.bold()).foregroundStyle(.orange)
-                        Text("هذا المحرك ينشئ حاوية RPF7 عامة ويفحص جدولها. بدأنا نقل التحويل البنيوي لبعض موارد RSC7 مثل YFT إلى O*، لكن YTD/OTD ومحرك ragebuilder وبناء DLC النهائي لم تكتمل بعد. لا تعتبر الناتج حزمة PS4 جاهزة.")
+                        Text("هذا المحرك ينشئ حاوية RPF7 عامة ويفحص جدولها. التحويل البنيوي لبعض موارد Y* إلى O* متاح، لكن YTD/OTD ومحرك ragebuilder وبناء DLC النهائي لم تكتمل بعد. حد المعالجة 512MB لكل ملف أو عملية. لا تعتبر الناتج حزمة PS4 جاهزة.")
                             .font(.caption).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(14).background(.orange.opacity(0.07))
