@@ -145,3 +145,55 @@ struct FeatureHubView: View {
         }.padding(14).background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
+
+
+struct CloudConversionView: View {
+    private let workflowURL = URL(string: "https://github.com/tmoath07-svg/ChatGPT-all-access-ios-/actions/workflows/convert-pc-to-ps4.yml")!
+    var body: some View {
+        ZStack {
+            extraBackground.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    VStack(alignment: .leading, spacing: 9) {
+                        Image(systemName: "cloud.gear.fill").font(.system(size: 34)).foregroundStyle(.purple)
+                        Text("محرك التحويل السحابي").font(.title2.bold()).foregroundStyle(.white)
+                        Text("يشغّل أدوات Ps4tools الفعلية على خوادم GitHub Actions، لأن أدوات Windows وWine لا تعمل مباشرة داخل iPadOS.")
+                            .font(.subheadline).foregroundStyle(.white.opacity(0.65))
+                    }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 20))
+
+                    cloudStep("1", title: "جهّز رابط المود", detail: "ارفع ملف ZIP أو RAR إلى مساحة ملفات تعطيك رابط تنزيل مباشر يمكن للخادم الوصول إليه.")
+                    cloudStep("2", title: "اختر نوع التحويل", detail: "من صفحة GitHub اختر Run workflow، ثم حدد Auto/نوع العملية المناسب والصق رابط الملف في خانة URL.")
+                    cloudStep("3", title: "نزّل الناتج", detail: "بعد انتهاء التشغيل افتح Artifacts ونزّل ملف النتيجة. ستجد ملفات PS4 والتقرير إذا نجحت العملية.")
+
+                    Link(destination: workflowURL) {
+                        Label("فتح محرك التحويل على GitHub", systemImage: "arrow.up.right.square")
+                            .font(.headline.bold()).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(16)
+                            .background(Color.purple.opacity(0.85))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+
+                    Text("ملاحظة: هذه أول وصلة تشغيل للمحرك السحابي، وليست إرسالاً تلقائياً للملف المحلي من التطبيق. يلزم رابط تنزيل مباشر وتشغيل الـWorkflow يدوياً. لن نعرض التحويل كأنه مكتمل قبل نجاح تشغيل فعلي وفحص ملف الناتج.")
+                        .font(.caption).foregroundStyle(.orange.opacity(0.9))
+                        .padding(13).background(.orange.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 12))
+                }.padding(16)
+            }
+        }
+        .navigationTitle("التحويل السحابي")
+        .navigationBarTitleDisplayMode(.inline)
+        .environment(\.layoutDirection, .rightToLeft)
+    }
+
+    private func cloudStep(_ number: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(number).font(.headline.bold()).foregroundStyle(.white)
+                .frame(width: 34, height: 34).background(.purple).clipShape(Circle())
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.subheadline.bold()).foregroundStyle(.white)
+                Text(detail).font(.caption).foregroundStyle(.white.opacity(0.58))
+            }
+            Spacer(minLength: 0)
+        }.padding(14).background(.white.opacity(0.055)).clipShape(RoundedRectangle(cornerRadius: 15))
+    }
+}
