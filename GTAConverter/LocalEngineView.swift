@@ -15,7 +15,7 @@ struct LocalEngineView: View {
     @State private var showingFileImporter = false
     @AppStorage("gta_language") private var appLanguage = "ar"
     private enum EnginePicker {
-        case sourceFolder, buildYTD, inspectRPF, extractRPF, convertResource, convertFolder, extractYTD
+        case sourceFolder, buildYTD, inspectRPF, listRPF, extractRPF, convertResource, convertFolder, extractYTD
         var contentTypes: [UTType] {
             switch self {
             case .sourceFolder, .buildYTD, .convertFolder: return [.folder]
@@ -89,6 +89,14 @@ struct LocalEngineView: View {
 
                     Button { openPicker(.inspectRPF) } label: {
                         Label("فحص ملف RPF موجود", systemImage: "doc.text.magnifyingglass")
+                            .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
+                            .background(.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain).disabled(isBusy)
+
+                    Button { openPicker(.listRPF) } label: {
+                        Label("استعراض شجرة ملفات RPF", systemImage: "list.bullet.indent")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
                             .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
@@ -314,6 +322,7 @@ struct LocalEngineView: View {
                         isBusy = false
                     case .buildYTD: buildYTD(from: localURL)
                     case .inspectRPF: inspect(localURL)
+                    case .listRPF: listRPF(localURL)
                     case .extractRPF: extractRPF(localURL)
                     case .convertResource: convertResource(localURL)
                     case .convertFolder: convertFolder(localURL)
@@ -531,6 +540,44 @@ struct LocalEngineView: View {
                     الخامات المكتشفة: \(result["textures_found"] as? Int ?? 0)
                     الخامات المستخرجة: \(result["textures_exported"] as? Int ?? 0)
                     حجم DDS الكلي: \(ByteCountFormatter.string(fromByteCount: Int64(result["output_bytes"] as? Int64 ?? 0), countStyle: .file))
+                    \(result["warning"] as? String ?? "")
+                    """
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorText = error.localizedDescription
+                    isBusy = false
+                }
+            }
+            if access { file.stopAccessingSecurityScopedResource() }
+        }
+    }
+
+    private func listRPF(_ file: URL) {
+        let access = file.startAccessingSecurityScopedResource()
+        isBusy = true
+        errorText = ""
+        report = "يتم قراءة شجرة RPF..."
+        Task.detached(priority: .userInitiated) {
+            do {
+                let result = try LocalEngineBridge.listRPF(at: file)
+                let items = result["items"] as? [[String: Any]] ?? []
+                let lines = items.prefix(600).compactMap { item -> String? in
+                    guard let path = item["path"] as? String else { return nil }
+                    let kind = item["kind"] as? String ?? "file"
+                    let marker = kind == "directory" ? "[DIR]" : (kind == "resource" ? "[RSC]" : "[FILE]")
+                    return "\(marker) \(path)"
+                }
+                await MainActor.run {
+                    let more = items.count > 600 ? "\n... تم إخفاء \(items.count - 600) عنصر إضافي من العرض." : ""
+                    report = """
+                    الصيغة: \(result["format"] as? String ?? "RPF")
+                    التشفير: \(result["encryption"] as? String ?? "غير معروف")
+                    عدد العناصر: \(result["count"] as? Int ?? items.count)
+
+                    \(lines.joined(separator: "\n"))\(more)
+
                     \(result["warning"] as? String ?? "")
                     """
                     isBusy = false

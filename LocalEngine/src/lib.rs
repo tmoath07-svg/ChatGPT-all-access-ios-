@@ -109,6 +109,119 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
     }))
 }
 
+
+fn collect_rpf_listing(
+    archive: &RpfArchive,
+    start: u32,
+    count: u32,
+    prefix: &str,
+    depth: usize,
+    items: &mut Vec<serde_json::Value>,
+) -> Result<(), String> {
+    if depth > MAX_DEPTH {
+        return Err(format!("تجاوز عمق شجرة RPF الحد المسموح ({MAX_DEPTH})."));
+    }
+    let begin = start as usize;
+    let end = begin.checked_add(count as usize)
+        .ok_or_else(|| "نطاق جدول RPF غير صالح أثناء بناء الشجرة.".to_string())?;
+    if end > archive.entries.len() {
+        return Err("مدخلات مجلد RPF تشير إلى نطاق خارج جدول الأرشيف.".to_string());
+    }
+
+    for entry in &archive.entries[begin..end] {
+        let name = entry.name.as_str();
+        if name.is_empty() || name == "." || name == ".."
+            || name.contains('/') || name.contains('\\')
+            || name.contains(':') || name.chars().any(|c| c.is_control()) {
+            return Err(format!("اسم عنصر غير آمن داخل RPF: {name}"));
+        }
+        let path = if prefix.is_empty() { name.to_string() } else { format!("{prefix}/{name}") };
+        match &entry.kind {
+            RpfEntryKind::Directory { entries_index, entries_count } => {
+                if items.len() >= MAX_FILES {
+                    return Err(format!("تجاوز عدد عناصر RPF الحد المسموح ({MAX_FILES})."));
+                }
+                items.push(json!({"path": path, "kind": "directory"}));
+                collect_rpf_listing(
+                    archive, *entries_index, *entries_count, &path, depth + 1, items,
+                )?;
+            }
+            RpfEntryKind::BinaryFile { .. } => {
+                if items.len() >= MAX_FILES {
+                    return Err(format!("تجاوز عدد عناصر RPF الحد المسموح ({MAX_FILES})."));
+                }
+                items.push(json!({"path": path, "kind": "binary"}));
+            }
+            RpfEntryKind::ResourceFile { .. } => {
+                if items.len() >= MAX_FILES {
+                    return Err(format!("تجاوز عدد عناصر RPF الحد المسموح ({MAX_FILES})."));
+                }
+                items.push(json!({"path": path, "kind": "resource"}));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_engine_list_rpf(path: *const c_char) -> *mut c_char {
+    let path = match read_c_path(path) {
+        Ok(value) => Path::new(value),
+        Err(error) => return result_error(error),
+    };
+    let metadata = match fs::metadata(path) {
+        Ok(value) => value,
+        Err(error) => return result_error(format!("تعذر قراءة الملف: {error}")),
+    };
+    if !metadata.is_file() {
+        return result_error("المصدر المحدد ليس ملفاً.");
+    }
+    if metadata.len() > MAX_INPUT_BYTES {
+        return result_error("حجم RPF أكبر من حد الفحص المحلي (512MB).");
+    }
+    let bytes = match fs::read(path) {
+        Ok(value) => value,
+        Err(error) => return result_error(format!("تعذرت قراءة بيانات RPF: {error}")),
+    };
+    let name = path.file_name().and_then(|v| v.to_str()).unwrap_or("archive.rpf");
+    let archive = match RpfArchive::parse(&bytes, name, None) {
+        Ok(value) => value,
+        Err(error) => return result_error(format!("تعذر تحليل RPF: {error:#}")),
+    };
+    let root = match archive.entries.first() {
+        Some(value) => value,
+        None => return result_error("جدول RPF فارغ."),
+    };
+    let (start, count) = match &root.kind {
+        RpfEntryKind::Directory { entries_index, entries_count } => (*entries_index, *entries_count),
+        _ => return result_error("مدخل الجذر في RPF ليس مجلداً."),
+    };
+    let mut items = Vec::new();
+    if let Err(error) = collect_rpf_listing(&archive, start, count, "", 0, &mut items) {
+        return result_error(error);
+    }
+    let version = match archive.version {
+        rpf_archive::RpfVersion::V7 => "RPF7",
+        rpf_archive::RpfVersion::V8 => "RPF8",
+        rpf_archive::RpfVersion::V6 => "RPF6",
+        rpf_archive::RpfVersion::V4 => "RPF4",
+        rpf_archive::RpfVersion::V3 => "RPF3",
+        rpf_archive::RpfVersion::V2 => "RPF2",
+        rpf_archive::RpfVersion::V0 => "RPF0",
+        rpf_archive::RpfVersion::Img1 => "IMG1",
+        rpf_archive::RpfVersion::Img2 => "IMG2",
+        rpf_archive::RpfVersion::Img3 => "IMG3",
+    };
+    result_ok(json!({
+        "ok": true,
+        "format": version,
+        "encryption": format!("{:?}", archive.encryption),
+        "count": items.len(),
+        "items": items,
+        "warning": "استعراض الشجرة يعرض أسماء العناصر وأنواعها فقط، ولا يفك تشفير الملفات."
+    }))
+}
+
 fn collect_files(
     root: &Path,
     current: &Path,
@@ -970,6 +1083,27 @@ mod tests {
         let meta = parsed.entries.iter().find(|entry| entry.name_lower == "vehicles.meta").expect("metadata entry");
         let extracted = parsed.extract_entry(&bytes, meta, None).expect("extract metadata");
         assert_eq!(extracted.as_slice(), expected);
+    }
+
+    #[test]
+    fn lists_rpf7_nested_paths_without_extracting() {
+        let mut builder = RpfBuilder::new(RpfEncryption::Open);
+        builder.add_file("common/data/vehicles.meta", b"<vehicles/>".to_vec());
+        builder.add_file("stream/cars/demo.yft", b"MODEL".to_vec());
+        let bytes = builder.build(None).unwrap();
+        let parsed = RpfArchive::parse(&bytes, "listing.rpf", None).unwrap();
+        let root = parsed.entries.first().unwrap();
+        let (start, count) = match &root.kind {
+            RpfEntryKind::Directory { entries_index, entries_count } => (*entries_index, *entries_count),
+            _ => panic!("RPF root is not a directory"),
+        };
+        let mut items = Vec::new();
+        collect_rpf_listing(&parsed, start, count, "", 0, &mut items).unwrap();
+        let paths = items.iter().filter_map(|item| item["path"].as_str()).collect::<Vec<_>>();
+        assert!(paths.contains(&"common"));
+        assert!(paths.contains(&"common/data"));
+        assert!(paths.contains(&"common/data/vehicles.meta"));
+        assert!(paths.contains(&"stream/cars/demo.yft"));
     }
 
     #[test]
