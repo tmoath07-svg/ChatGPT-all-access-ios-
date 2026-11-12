@@ -954,6 +954,8 @@ private struct AppFilesView: View {
     @State private var items: [URL] = []
     @State private var search = ""
     @State private var errorText: String?
+    @State private var selectedURL: URL?
+    @State private var showSelectedItem = false
 
     private var root: URL {
         directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -999,6 +1001,15 @@ private struct AppFilesView: View {
         }
         .navigationTitle("مستكشف الملفات")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $showSelectedItem) {
+            if let selectedURL {
+                if (try? selectedURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                    AppFilesView(directory: selectedURL)
+                } else {
+                    AppFileDetailView(url: selectedURL)
+                }
+            }
+        }
         .onAppear(perform: loadItems)
     }
 
@@ -1009,12 +1020,9 @@ private struct AppFilesView: View {
 
     @ViewBuilder private func fileRow(_ url: URL) -> some View {
         let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-        NavigationLink {
-            if isDirectory {
-                AppFilesView(directory: url)
-            } else {
-                AppFileDetailView(url: url)
-            }
+        Button {
+            selectedURL = url
+            showSelectedItem = true
         } label: {
             HStack(spacing: 11) {
                 Image(systemName: isDirectory ? "folder.fill" : icon(for: url))
@@ -1030,8 +1038,9 @@ private struct AppFilesView: View {
             }
             .contentShape(Rectangle())
             .padding(.vertical, 3)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
         .contextMenu {
             ShareLink(item: url) { Label("مشاركة", systemImage: "square.and.arrow.up") }
             Button(role: .destructive) { remove(url) } label: { Label("حذف", systemImage: "trash") }
