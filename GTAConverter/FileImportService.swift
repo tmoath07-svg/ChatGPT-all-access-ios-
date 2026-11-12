@@ -4,12 +4,14 @@ enum FileImportService {
     enum ImportFailure: LocalizedError {
         case missingSource
         case unsupportedItem
+        case accessDenied
         case copyFailed(String)
 
         var errorDescription: String? {
             switch self {
             case .missingSource: return "الملف أو المجلد المختار غير موجود أو لم يعد متاحاً."
             case .unsupportedItem: return "العنصر المختار ليس ملفاً أو مجلداً عادياً."
+            case .accessDenied: return "رفض iOS منح التطبيق صلاحية قراءة الملف. أعد اختيار الملف من تطبيق «الملفات»."
             case .copyFailed(let detail): return "فشل نسخ العنصر إلى مساحة التطبيق: \(detail)"
             }
         }
@@ -22,17 +24,18 @@ enum FileImportService {
         defer {
             if access { source.stopAccessingSecurityScopedResource() }
         }
+        let sourcePath = source.standardizedFileURL.path
+        let sandboxPath = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).standardizedFileURL.path
+        let isInsideAppSandbox = sourcePath == sandboxPath || sourcePath.hasPrefix(sandboxPath + "/")
+        guard securityScopeAlreadyStarted || access || isInsideAppSandbox else {
+            throw ImportFailure.accessDenied
+        }
 
         let documents = try fm.url(for: .documentDirectory, in: .userDomainMask,
                                    appropriateFor: nil, create: true)
         let appRoot = documents.appendingPathComponent("GTA Converter", isDirectory: true)
         let destinationParent = appRoot.appendingPathComponent(category, isDirectory: true)
         try fm.createDirectory(at: destinationParent, withIntermediateDirectories: true)
-
-        var isDirectory: ObjCBool = false
-        guard fm.fileExists(atPath: source.path, isDirectory: &isDirectory) else {
-            throw ImportFailure.missingSource
-        }
 
         let destinationRoot = destinationParent.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try fm.createDirectory(at: destinationRoot, withIntermediateDirectories: true)
