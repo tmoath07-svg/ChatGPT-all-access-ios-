@@ -172,73 +172,131 @@ fn collect_files(
 }
 
 
+
+fn extract_rpf_entries(
+    archive: &RpfArchive,
+    data: &[u8],
+    start: u32,
+    count: u32,
+    output: &Path,
+    depth: usize,
+    files_written: &mut usize,
+    total_bytes: &mut u64,
+) -> Result<(), String> {
+    if depth > 16 {
+        return Err("تجاوز عمق أرشيفات RPF الداخلية الحد المسموح (16).".to_string());
+    }
+    let begin = start as usize;
+    let end = begin.checked_add(count as usize)
+        .ok_or_else(|| "مدى جدول RPF غير صالح.".to_string())?;
+    if end > archive.entries.len() {
+        return Err("مدخلات مجلد RPF تشير إلى نطاق خارج جدول الأرشيف.".to_string());
+    }
+    for entry in &archive.entries[begin..end] {
+        if entry.name.is_empty() || entry.name == "." || entry.name == ".."
+            || entry.name.contains('/') || entry.name.contains('\\')
+            || entry.name.contains(':') || entry.name.chars().any(|c| c.is_control()) {
+            return Err(format!("اسم عنصر غير آمن داخل RPF: {}", entry.name));
+        }
+        let destination = output.join(&entry.name);
+        if !destination.starts_with(output) {
+            return Err(format!("مسار عنصر خرج عن مجلد الاستخراج: {}", entry.name));
+        }
+        match &entry.kind {
+            RpfEntryKind::Directory { entries_index, entries_count } => {
+                fs::create_dir_all(&destination)
+                    .map_err(|error| format!("تعذر إنشاء {}: {error}", destination.display()))?;
+                extract_rpf_entries(
+                    archive, data, *entries_index, *entries_count, &destination,
+                    depth + 1, files_written, total_bytes,
+                )?;
+            }
+            _ => {
+                let bytes = archive.extract_entry(data, entry, None)
+                    .map_err(|error| format!("تعذر استخراج {}: {error:#}", entry.name))?;
+                *total_bytes = total_bytes.saturating_add(bytes.len() as u64);
+                if *total_bytes > MAX_INPUT_BYTES {
+                    return Err("حجم الملفات بعد الاستخراج تجاوز 512MB.".to_string());
+                }
+                if *files_written >= MAX_FILES {
+                    return Err(format!("عدد الملفات تجاوز الحد المسموح ({MAX_FILES})."));
+                }
+                if entry.name_lower.ends_with(".rpf") {
+                    let nested = RpfArchive::parse(&bytes, &entry.name, None)
+                        .map_err(|error| format!("تعذر تحليل الأرشيف الداخلي {}: {error:#}", entry.name))?;
+                    if nested.version == rpf_archive::RpfVersion::V7 {
+                        if nested.encryption.is_encrypted() {
+                            return Err(format!("الأرشيف الداخلي {} مشفر ويحتاج مفاتيح اللعبة.", entry.name));
+                        }
+                        fs::create_dir_all(&destination)
+                            .map_err(|error| format!("تعذر إنشاء مجلد الأرشيف الداخلي: {error}"))?;
+                        let root = nested.entries.first()
+                            .ok_or_else(|| format!("الأرشيف الداخلي {} فارغ أو غير صالح.", entry.name))?;
+                        match root.kind {
+                            RpfEntryKind::Directory { entries_index, entries_count } => {
+                                extract_rpf_entries(
+                                    &nested, &bytes, entries_index, entries_count, &destination,
+                                    depth + 1, files_written, total_bytes,
+                                )?;
+                            }
+                            _ => return Err(format!("جذر الأرشيف الداخلي {} غير صالح.", entry.name)),
+                        }
+                    } else {
+                        fs::write(&destination, &bytes)
+                            .map_err(|error| format!("تعذرت كتابة {}: {error}", destination.display()))?;
+                        *files_written += 1;
+                    }
+                } else {
+                    fs::write(&destination, &bytes)
+                        .map_err(|error| format!("تعذرت كتابة {}: {error}", destination.display()))?;
+                    *files_written += 1;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn extract_rpf_to_directory(input: &Path, output: &Path) -> Result<(usize, u64, String), String> {
     let metadata = fs::metadata(input)
         .map_err(|error| format!("تعذر قراءة بيانات RPF: {error}"))?;
     if metadata.len() > MAX_INPUT_BYTES {
         return Err("حجم RPF يتجاوز حد المعالجة المحلي (512MB).".to_string());
     }
-    if !input.is_file() {
+    if !metadata.is_file() {
         return Err("المصدر المحدد ليس ملفاً.".to_string());
+    }
+    if output.starts_with(input) {
+        return Err("مجلد الاستخراج لا يمكن أن يكون داخل ملف المصدر.".to_string());
     }
     let bytes = fs::read(input)
         .map_err(|error| format!("تعذرت قراءة RPF: {error}"))?;
     let name = input.file_name().and_then(|v| v.to_str()).unwrap_or("archive.rpf");
     let archive = RpfArchive::parse(&bytes, name, None)
         .map_err(|error| format!("تعذر تحليل RPF: {error:#}"))?;
+    if archive.version != rpf_archive::RpfVersion::V7 {
+        return Err("الاستخراج المتداخل المحلي في هذه المرحلة يدعم RPF7 فقط.".to_string());
+    }
     if archive.encryption.is_encrypted() {
-        return Err("هذا الأرشيف مشفر. فك التشفير يحتاج مفاتيح اللعبة الأصلية، ولم يتم تخمينها أو تجاوزها.".to_string());
+        return Err("هذا الأرشيف مشفر. فك التشفير يحتاج مفاتيح اللعبة الأصلية.".to_string());
     }
-    if output.starts_with(input) {
-        return Err("مجلد الاستخراج لا يمكن أن يكون داخل ملف المصدر.".to_string());
-    }
+    let root = archive.entries.first()
+        .ok_or_else(|| "جدول RPF فارغ.".to_string())?;
+    let (start, count) = match root.kind {
+        RpfEntryKind::Directory { entries_index, entries_count } => (entries_index, entries_count),
+        _ => return Err("مدخل الجذر في RPF7 ليس مجلداً.".to_string()),
+    };
     fs::create_dir_all(output)
         .map_err(|error| format!("تعذر إنشاء مجلد الاستخراج: {error}"))?;
-
-    let mut count = 0usize;
-    let mut total = 0u64;
-    let mut failure: Option<String> = None;
-    archive.walk_files(&bytes, None, "", &mut |relative, data| {
-        if failure.is_some() { return; }
-        if count >= MAX_FILES {
-            failure = Some(format!("عدد الملفات تجاوز الحد المسموح ({MAX_FILES})."));
-            return;
-        }
-        if relative.is_empty() || relative.starts_with('/') || relative.contains('\\')
-            || relative.contains(':') || relative.split('/').any(|part| part.is_empty() || part == "." || part == "..") {
-            failure = Some(format!("تم رفض مسار داخل RPF غير آمن: {relative}"));
-            return;
-        }
-        total = total.saturating_add(data.len() as u64);
-        if total > MAX_INPUT_BYTES {
-            failure = Some("حجم الملفات بعد الاستخراج تجاوز 512MB.".to_string());
-            return;
-        }
-        let destination = output.join(relative);
-        if !destination.starts_with(output) {
-            failure = Some(format!("مسار استخراج خرج عن المجلد: {relative}"));
-            return;
-        }
-        if let Some(parent) = destination.parent() {
-            if let Err(error) = fs::create_dir_all(parent) {
-                failure = Some(format!("تعذر إنشاء مجلد {}: {error}", parent.display()));
-                return;
-            }
-        }
-        if let Err(error) = fs::write(&destination, &data) {
-            failure = Some(format!("تعذرت كتابة {}: {error}", destination.display()));
-            return;
-        }
-        count += 1;
-    }).map_err(|error| format!("فشل استخراج RPF: {error:#}"))?;
-
-    if let Some(error) = failure {
-        return Err(error);
+    let (mut files_written, mut total_bytes) = (0usize, 0u64);
+    extract_rpf_entries(
+        &archive, &bytes, start, count, output, 0,
+        &mut files_written, &mut total_bytes,
+    )?;
+    if files_written == 0 {
+        return Err("لم يتم استخراج ملفات من هذا الأرشيف.".to_string());
     }
-    if count == 0 {
-        return Err("لم يتم استخراج ملفات. قد يكون الأرشيف فارغاً أو غير مدعوم.".to_string());
-    }
-    Ok((count, total, format!("{:?}", archive.version)))
+    Ok((files_written, total_bytes, "RPF7".to_string()))
 }
 
 #[no_mangle]
@@ -811,12 +869,14 @@ mod tests {
         fs::write(input.join("vehicles.meta"), b"<vehicles/>").unwrap();
         let mut builder = RpfBuilder::new(RpfEncryption::Open);
         builder.add_file("common/data/vehicles.meta", b"<vehicles/>".to_vec());
+        builder.add_file("common/levels/demo.yft", b"MODEL".to_vec());
         let bytes = builder.build(None).unwrap();
         let archive_path = root.join("test.rpf");
         fs::write(&archive_path, bytes).unwrap();
         let result = extract_rpf_to_directory(&archive_path, &output).unwrap();
-        assert!(result.0 >= 1);
-        assert!(output.exists());
+        assert_eq!(result.0, 2);
+        assert_eq!(fs::read(output.join("common/data/vehicles.meta")).unwrap(), b"<vehicles/>");
+        assert_eq!(fs::read(output.join("common/levels/demo.yft")).unwrap(), b"MODEL");
         let _ = fs::remove_dir_all(&root);
     }
 
