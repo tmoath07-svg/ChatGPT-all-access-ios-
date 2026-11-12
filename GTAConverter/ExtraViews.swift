@@ -149,7 +149,7 @@ struct FeatureHubView: View {
         .init(id:17,title:"AI Mod Translator",category:"الذكاء الاصطناعي",icon:"character.bubble",status:"محلي",detail:"ترجم نصوص README والأوصاف مع إبقاء أسماء الملفات والمسارات كما هي."",route:"ai"),
         .init(id:18,title:"AI Compatibility",category:"الذكاء الاصطناعي",icon:"checkmark.shield.fill",status:"محلي",detail:"قيّم مؤشرات التوافق مع PS4 اعتماداً على الأدلة، ولا تدّعِ ضمان التشغيل."",route:"ai"),
         .init(id:19,title:"PS4 Package Studio",category:"PS4",icon:"shippingbox",status:"مخطط",detail:"تنظيم مخرجات التحويل في حزم واضحة مع تقرير محتوياتها."),
-        .init(id:20,title:"XML Studio",category:"PS4",icon:"list.bullet.rectangle",status:"جزئي",detail:"مولد dlclist موجود ضمن تجهيز Orbx. محرر XML تفاعلي شامل ما زال يحتاج بناء.",route:"dlc"),
+        .init(id:20,title:"XML Studio",category:"PS4",icon:"list.bullet.rectangle",status:"جزئي",detail:"محرر XML محلي مع فحص الصياغة وحفظ نسخة جديدة من dlclist.xml.",route:"xml"),
         .init(id:21,title:"Cloud Converter",category:"PS4",icon:"cloud.gear.fill",status:"متاح يدوياً",detail:"محرك Ps4tools موجود في GitHub Actions. تشغيله حالياً يتم من GitHub يدوياً برابط تنزيل مباشر.",route:"cloud"),
         .init(id:22,title:"مقارنة إصدارات المود",category:"الملفات",icon:"arrow.left.arrow.right",status:"متاح",detail:"مقارنة مجلدين محلياً ببصمات SHA-256 وكشف الملفات الجديدة والمحذوفة والمتغيرة والمتطابقة.",route:"compare"),
         .init(id:23,title:"مدير DLC",category:"PS4",icon:"folder.badge.gearshape",status:"تجهيز متاح",detail:"إدارة مخرجات DLC ومسارات Orbx وملف dlclist.",route:"dlc"),
@@ -167,8 +167,8 @@ struct FeatureHubView: View {
         .init(id:35,title:"Mod Backup",category:"الإدارة",icon:"externaldrive.fill",status:"متاح",route:"utility",detail:"إنشاء نسخة احتياطية مؤرخة من مجلد المود دون تعديل المصدر."),
         .init(id:36,title:"Project Templates",category:"الإدارة",icon:"square.grid.2x2.fill",status:"مخطط",detail:"قوالب جاهزة لمشاريع السيارات والخرائط والشخصيات والملفات العامة."),
         .init(id:37,title:"Dependency Checker",category:"الملفات",icon:"point.3.connected.trianglepath.dotted",status:"متاح",route:"utility",detail:"قراءة اعتماديات FiveM وملفات manifest والتحقق من مراجع الملفات المحلية."),
-        .init(id:38,title:"RPF Explorer",category:"الملفات",icon:"archivebox.fill",status:"مخطط",detail:"استعراض شجرة RPF واستخراج الملفات باستخدام أدوات متوافقة."),
-        .init(id:39,title:"Texture Converter",category:"الملفات",icon:"photo.artframe",status:"مخطط",detail:"تحويل الخامات بين الصيغ المدعومة بعد استخراجها مع الحفاظ على الجودة والأبعاد."),
+        .init(id:38,title:"RPF Explorer",category:"الملفات",icon:"archivebox.fill",status:"متاح",route:"rpf",detail:"فحص أرشيفات RPF7 واستخراج الأرشيفات غير المشفرة عبر المحرك المحلي."),
+        .init(id:39,title:"Texture Converter",category:"الملفات",icon:"photo.artframe",status:"جزئي",route:"ytd",detail:"استخراج خامات YTD المدعومة إلى DDS وبناء بعض القواميس. التحويل الكامل بين كل الصيغ غير متاح."),
         .init(id:40,title:"Mod Installer Guide",category:"PS4",icon:"book.closed.fill",status:"متاح",route:"utility",detail:"دليل خطوات Orbx وPS4 مع تنبيهات المسارات والنسخ الاحتياطي والتحقق."),
         .init(id:41,title:"Chiaki Remote Play",category:"PlayStation",icon:"gamecontroller.fill",status:"دليل وتجهيز",detail:"مركز Chiaki لمشروع Remote Play ومعلومات دعم iOS وروابط المشروع الرسمية.",route:"chiaki"),
         .init(id:42,title:"File Hash Inspector",category:"الملفات",icon:"number.square",status:"متاح",detail:"حساب بصمة SHA-256 للملفات محلياً على الآيباد للتحقق من تطابق النسخ وسلامة النقل.",route:"hash"),
@@ -277,12 +277,15 @@ struct FeatureHubView: View {
         case "compare": ModComparisonView()
         case "ai": LocalAIAssistantView(featureID: item.id)
         case "utility": LocalUtilityFeatureView(featureID: item.id)
+        case "xml": DLClistEditorView()
+        case "rpf": LocalEngineView()
+        case "ytd": YTDTextureLabView()
         case "cloud": CloudConversionView()
         case "chiaki": ChiakiRemotePlayView()
         case "hash": FileHashInspectorView()
         case "dlcvalidator": OrbxDLCValidatorView()
         case "fivem": FiveMStudioView()
-        case "dlc": FeatureInfoView(item: item)
+        case "dlc": OrbxPS4TransferView()
         default: FeatureInfoView(item: item)
         }
     }
