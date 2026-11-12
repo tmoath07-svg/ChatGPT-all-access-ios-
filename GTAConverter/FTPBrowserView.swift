@@ -304,7 +304,7 @@ private final class FTPBrowserModel: ObservableObject {
                 currentPath = currentPath == "/" ? "/" + entry.name : currentPath + "/" + entry.name
                 try await refresh()
                 error = ""
-            } catch { error = error.localizedDescription }
+            } catch let caughtError { self.error = caughtError.localizedDescription }
             isBusy = false
         }
     }
@@ -318,7 +318,7 @@ private final class FTPBrowserModel: ObservableObject {
                 currentPath = parts.dropLast().isEmpty ? "/" : "/" + parts.dropLast().joined(separator: "/")
                 try await refresh()
                 error = ""
-            } catch { error = error.localizedDescription }
+            } catch let caughtError { self.error = caughtError.localizedDescription }
             isBusy = false
         }
     }
@@ -334,7 +334,7 @@ private final class FTPBrowserModel: ObservableObject {
                 try await client.upload(data: data, remoteName: url.lastPathComponent)
                 try await refresh()
                 status = "تم رفع \(url.lastPathComponent)"
-            } catch { error = error.localizedDescription }
+            } catch let caughtError { self.error = caughtError.localizedDescription }
             isBusy = false
         }
     }
@@ -352,7 +352,7 @@ private final class FTPBrowserModel: ObservableObject {
                 try data.write(to: file, options: .atomic)
                 downloadedFile = file
                 status = "تم تنزيل \(safeName)"
-            } catch { error = error.localizedDescription }
+            } catch let caughtError { self.error = caughtError.localizedDescription }
             isBusy = false
         }
     }
@@ -364,7 +364,7 @@ private final class FTPBrowserModel: ObservableObject {
                 try await client.makeDirectory(name)
                 try await refresh()
                 error = ""
-            } catch { error = error.localizedDescription }
+            } catch let caughtError { self.error = caughtError.localizedDescription }
             isBusy = false
         }
     }
