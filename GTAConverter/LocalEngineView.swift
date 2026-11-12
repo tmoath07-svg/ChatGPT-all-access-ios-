@@ -273,56 +273,55 @@ struct LocalEngineView: View {
         }
         .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
         .environment(\.locale, Locale(identifier: appLanguage))
-        .fileImporter(
-            isPresented: $showingFileImporter,
-            allowedContentTypes: activePicker?.contentTypes ?? [.item],
-            allowsMultipleSelection: false
-        ) { result in
-            let selectedAction = activePicker
-            activePicker = nil
-            switch result {
-            case .failure(let error):
-                errorText = error.localizedDescription
-            case .success(let urls):
-                guard let selectedURL = urls.first, let selectedAction else { return }
-                isBusy = true
-                errorText = ""
-                report = "يتم نسخ الملف المختار إلى مساحة التطبيق..."
-                let scopeStarted = selectedURL.startAccessingSecurityScopedResource()
-                Task {
-                    defer { if scopeStarted { selectedURL.stopAccessingSecurityScopedResource() } }
-                    do {
-                        let localURL = try await Task.detached(priority: .userInitiated) {
-                            try FileImportService.importItem(from: selectedURL, category: "Imports",
-                                                              securityScopeAlreadyStarted: scopeStarted)
-                        }.value
-                        switch selectedAction {
-                        case .sourceFolder:
-                            var isDirectory: ObjCBool = false
-                            guard FileManager.default.fileExists(atPath: localURL.path, isDirectory: &isDirectory),
-                                  isDirectory.boolValue else {
-                                throw FileImportService.ImportFailure.unsupportedItem
-                            }
-                            sourceFolder = localURL
-                            report = "تم استيراد المجلد وحفظ نسخة محلية داخل التطبيق."
-                            isBusy = false
-                        case .buildYTD:
-                            buildYTD(from: localURL)
-                        case .inspectRPF:
-                            inspect(localURL)
-                        case .extractRPF:
-                            extractRPF(localURL)
-                        case .convertResource:
-                            convertResource(localURL)
-                        case .convertFolder:
-                            convertFolder(localURL)
-                        case .extractYTD:
-                            extractYTD(localURL)
+        .background {
+            INRPFDocumentPickerPresenter(
+                isPresented: $showingFileImporter,
+                contentTypes: activePicker?.contentTypes ?? [.item],
+                onCompletion: handleEngineImport
+            )
+        }
+    }
+
+
+    private func handleEngineImport(_ result: Result<[URL], Error>) {
+        let selectedAction = activePicker
+        activePicker = nil
+        switch result {
+        case .failure(let error):
+            errorText = error.localizedDescription
+        case .success(let urls):
+            guard let selectedURL = urls.first, let selectedAction else { return }
+            isBusy = true
+            errorText = ""
+            report = "يتم حفظ النسخة المستوردة داخل التطبيق..."
+            let scopeStarted = selectedURL.startAccessingSecurityScopedResource()
+            Task {
+                defer { if scopeStarted { selectedURL.stopAccessingSecurityScopedResource() } }
+                do {
+                    let localURL = try await Task.detached(priority: .userInitiated) {
+                        try FileImportService.importItem(from: selectedURL, category: "Imports",
+                                                          securityScopeAlreadyStarted: scopeStarted)
+                    }.value
+                    switch selectedAction {
+                    case .sourceFolder:
+                        var isDirectory: ObjCBool = false
+                        guard FileManager.default.fileExists(atPath: localURL.path, isDirectory: &isDirectory),
+                              isDirectory.boolValue else {
+                            throw FileImportService.ImportFailure.unsupportedItem
                         }
-                    } catch {
-                        errorText = "تعذر استيراد العنصر المختار: \(error.localizedDescription)"
+                        sourceFolder = localURL
+                        report = "تم استيراد المجلد وحفظ نسخة محلية داخل التطبيق."
                         isBusy = false
+                    case .buildYTD: buildYTD(from: localURL)
+                    case .inspectRPF: inspect(localURL)
+                    case .extractRPF: extractRPF(localURL)
+                    case .convertResource: convertResource(localURL)
+                    case .convertFolder: convertFolder(localURL)
+                    case .extractYTD: extractYTD(localURL)
                     }
+                } catch {
+                    errorText = "تعذر استيراد العنصر المختار: \\(error.localizedDescription)"
+                    isBusy = false
                 }
             }
         }
