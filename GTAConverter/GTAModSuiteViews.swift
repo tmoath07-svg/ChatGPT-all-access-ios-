@@ -212,7 +212,7 @@ struct GTAModBrowserView: View {
         let isModCategory = (host == "www.gta5-mods.com" || host == "gta5-mods.com") &&
             ["/vehicles", "/maps", "/player"].contains(where: { url.path.hasPrefix($0) })
         let isScopedSearch = host == "www.google.com" && url.path == "/search" &&
-            (url.query?.contains("site%3Agta5-mods.com") == true)
+            (url.query?.contains("gta5-mods.com") == true)
         let isArchive = ["zip", "rar"].contains(url.pathExtension.lowercased()) &&
             (host == "www.gta5-mods.com" || host == "gta5-mods.com")
         return (isModCategory || isScopedSearch || isArchive) ? url : nil
@@ -397,7 +397,7 @@ private struct BrowserWebView: UIViewRepresentable {
             let allowedCategory = (host == "www.gta5-mods.com" || host == "gta5-mods.com") &&
                 ["/vehicles", "/maps", "/player"].contains(where: { url.path.hasPrefix($0) })
             let allowedSearch = host == "www.google.com" && url.path == "/search" &&
-                (url.query?.contains("site%3Agta5-mods.com") == true)
+                (url.query?.contains("gta5-mods.com") == true)
             decisionHandler((allowedCategory || allowedSearch) ? .allow : .cancel)
         }
     }
