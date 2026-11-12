@@ -171,6 +171,102 @@ fn collect_files(
     Ok(())
 }
 
+
+fn extract_rpf_to_directory(input: &Path, output: &Path) -> Result<(usize, u64, String), String> {
+    let metadata = fs::metadata(input)
+        .map_err(|error| format!("تعذر قراءة بيانات RPF: {error}"))?;
+    if metadata.len() > MAX_INPUT_BYTES {
+        return Err("حجم RPF يتجاوز حد المعالجة المحلي (512MB).".to_string());
+    }
+    if !input.is_file() {
+        return Err("المصدر المحدد ليس ملفاً.".to_string());
+    }
+    let bytes = fs::read(input)
+        .map_err(|error| format!("تعذرت قراءة RPF: {error}"))?;
+    let name = input.file_name().and_then(|v| v.to_str()).unwrap_or("archive.rpf");
+    let archive = RpfArchive::parse(&bytes, name, None)
+        .map_err(|error| format!("تعذر تحليل RPF: {error:#}"))?;
+    if archive.encryption.is_encrypted() {
+        return Err("هذا الأرشيف مشفر. فك التشفير يحتاج مفاتيح اللعبة الأصلية، ولم يتم تخمينها أو تجاوزها.".to_string());
+    }
+    if output.starts_with(input) {
+        return Err("مجلد الاستخراج لا يمكن أن يكون داخل ملف المصدر.".to_string());
+    }
+    fs::create_dir_all(output)
+        .map_err(|error| format!("تعذر إنشاء مجلد الاستخراج: {error}"))?;
+
+    let mut count = 0usize;
+    let mut total = 0u64;
+    let mut failure: Option<String> = None;
+    archive.walk_files(&bytes, None, "", &mut |relative, data| {
+        if failure.is_some() { return; }
+        if count >= MAX_FILES {
+            failure = Some(format!("عدد الملفات تجاوز الحد المسموح ({MAX_FILES})."));
+            return;
+        }
+        if relative.is_empty() || relative.starts_with('/') || relative.contains('\\')
+            || relative.contains(':') || relative.split('/').any(|part| part.is_empty() || part == "." || part == "..") {
+            failure = Some(format!("تم رفض مسار داخل RPF غير آمن: {relative}"));
+            return;
+        }
+        total = total.saturating_add(data.len() as u64);
+        if total > MAX_INPUT_BYTES {
+            failure = Some("حجم الملفات بعد الاستخراج تجاوز 512MB.".to_string());
+            return;
+        }
+        let destination = output.join(relative);
+        if !destination.starts_with(output) {
+            failure = Some(format!("مسار استخراج خرج عن المجلد: {relative}"));
+            return;
+        }
+        if let Some(parent) = destination.parent() {
+            if let Err(error) = fs::create_dir_all(parent) {
+                failure = Some(format!("تعذر إنشاء مجلد {}: {error}", parent.display()));
+                return;
+            }
+        }
+        if let Err(error) = fs::write(&destination, &data) {
+            failure = Some(format!("تعذرت كتابة {}: {error}", destination.display()));
+            return;
+        }
+        count += 1;
+    }).map_err(|error| format!("فشل استخراج RPF: {error:#}"))?;
+
+    if let Some(error) = failure {
+        return Err(error);
+    }
+    if count == 0 {
+        return Err("لم يتم استخراج ملفات. قد يكون الأرشيف فارغاً أو غير مدعوم.".to_string());
+    }
+    Ok((count, total, format!("{:?}", archive.version)))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_engine_extract_rpf(
+    input_file: *const c_char,
+    output_directory: *const c_char,
+) -> *mut c_char {
+    let input = match read_c_path(input_file) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    let output = match read_c_path(output_directory) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    match extract_rpf_to_directory(&input, &output) {
+        Ok((files, output_bytes, version)) => result_ok(json!({
+            "ok": true,
+            "format": version,
+            "files": files,
+            "output_bytes": output_bytes,
+            "output": output.to_string_lossy(),
+            "warning": "الاستخراج يدعم الأرشيفات غير المشفرة فقط. لم يتم تعديل محتوى الموارد."
+        })),
+        Err(error) => result_error(error),
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn gta_engine_build_rpf7(
     input_directory: *const c_char,
@@ -703,6 +799,25 @@ mod tests {
         let meta = parsed.entries.iter().find(|entry| entry.name_lower == "vehicles.meta").expect("metadata entry");
         let extracted = parsed.extract_entry(&bytes, meta, None).expect("extract metadata");
         assert_eq!(extracted.as_slice(), expected);
+    }
+
+    #[test]
+    fn extracts_open_rpf7_to_safe_directory() {
+        let root = std::env::temp_dir().join(format!("gta-engine-rpf-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let input = root.join("input");
+        let output = root.join("output");
+        fs::create_dir_all(&input).unwrap();
+        fs::write(input.join("vehicles.meta"), b"<vehicles/>").unwrap();
+        let mut builder = RpfBuilder::new(RpfEncryption::Open);
+        builder.add_file("common/data/vehicles.meta", b"<vehicles/>".to_vec());
+        let bytes = builder.build(None).unwrap();
+        let archive_path = root.join("test.rpf");
+        fs::write(&archive_path, bytes).unwrap();
+        let result = extract_rpf_to_directory(&archive_path, &output).unwrap();
+        assert!(result.0 >= 1);
+        assert!(output.exists());
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
