@@ -1,5 +1,4 @@
 import SwiftUI
-import Network
 import UniformTypeIdentifiers
 
 private enum FTPFailure: LocalizedError {
@@ -33,307 +32,68 @@ private final class FTPResumeGate: @unchecked Sendable {
 }
 
 private final class INRPFtpClient {
-    private let queue = DispatchQueue(label: "com.tmoath07.inrpf.ftp")
-    private var control: NWConnection?
     private var host = ""
     private var port: UInt16 = 2121
+    private var username = "anonymous"
+    private var password = ""
 
     func connect(host: String, port: UInt16, username: String, password: String) async throws {
-        disconnect()
         self.host = host
         self.port = port
-        let connection = makeConnection(host: host, port: port)
-        control = connection
-
-        do {
-            do {
-                try await waitUntilReady(connection)
-            } catch {
-                throw FTPFailure.stage("إنشاء اتصال TCP مع \(host):\(port)", error.localizedDescription)
-            }
-
-            let greeting: String
-            do {
-                greeting = try await readReply(connection)
-                try Self.expectSuccess(greeting, codes: [220])
-            } catch {
-                throw FTPFailure.stage("انتظار ترحيب خادم FTP (220)", error.localizedDescription)
-            }
-
-            let userReply: String
-            do {
-                userReply = try await command("USER \(username)")
-            } catch {
-                throw FTPFailure.stage("إرسال اسم المستخدم USER", error.localizedDescription)
-            }
-
-            if userReply.hasPrefix("331") {
-                do {
-                    let passReply = try await command("PASS \(password)")
-                    try Self.expectSuccess(passReply, codes: [230, 202])
-                } catch {
-                    throw FTPFailure.stage("تسجيل الدخول PASS", error.localizedDescription)
-                }
-            } else {
-                do {
-                    try Self.expectSuccess(userReply, codes: [230, 202])
-                } catch {
-                    throw FTPFailure.stage("قبول تسجيل الدخول USER", error.localizedDescription)
-                }
-            }
-
-            do {
-                let typeReply = try await command("TYPE I")
-                try Self.expectSuccess(typeReply, codes: [200])
-            } catch {
-                throw FTPFailure.stage("تفعيل نقل الملفات الثنائي TYPE I", error.localizedDescription)
-            }
-        } catch {
-            connection.cancel()
-            control = nil
-            throw error
-        }
+        self.username = username
+        self.password = password
+        _ = try await Task.detached(priority: .userInitiated) {
+            try LocalEngineBridge.ftpConnect(host: host, port: port, username: username, password: password)
+        }.value
     }
 
     func disconnect() {
-        control?.cancel()
-        control = nil
+        host = ""
+        port = 2121
+        username = "anonymous"
+        password = ""
     }
 
     func list(path: String) async throws -> [(name: String, isDirectory: Bool, size: String)] {
-        do {
-            let dataConnection = try await openPassiveConnection()
-            let reply = try await command("MLSD \(path.isEmpty ? "." : path)")
-            try Self.expectPreliminary(reply)
-            let data = try await receiveAll(dataConnection)
-            dataConnection.cancel()
-            let completion = try await readReply(try requireControl())
-            try Self.expectSuccess(completion, codes: [226, 250])
-            let text = String(decoding: data, as: UTF8.self)
-            let entries = text.split(whereSeparator: \.isNewline).compactMap { raw -> (String, Bool, String)? in
-                let line = String(raw)
-                guard let separator = line.firstIndex(of: " ") else { return nil }
-                let facts = line[..<separator].lowercased()
-                let name = String(line[line.index(after: separator)...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !name.isEmpty, name != ".", name != ".." else { return nil }
-                let isDirectory = facts.contains("type=dir")
-                let size = facts.split(separator: ";").first(where: { $0.hasPrefix("size=") }).map { String($0.dropFirst(5)) } ?? ""
-                return (name, isDirectory, size)
-            }
-            if !entries.isEmpty { return entries.map { (name: $0.0, isDirectory: $0.1, size: $0.2) } }
-        } catch let failure as FTPFailure {
-            // Only fall back when the server explicitly does not support MLSD.
-            // Network, authentication, and passive-mode failures must remain visible.
-            if case .response(let response) = failure {
-                let code = Int(response.prefix(3)) ?? -1
-                guard [500, 501, 502, 504].contains(code) else { throw failure }
-            } else {
-                throw failure
-            }
-        }
-        return try await listFallback(path: path)
-    }
-
-    private func listFallback(path: String) async throws -> [(name: String, isDirectory: Bool, size: String)] {
-        let dataConnection = try await openPassiveConnection()
-        let reply = try await command("LIST \(path.isEmpty ? "." : path)")
-        try Self.expectPreliminary(reply)
-        let data = try await receiveAll(dataConnection)
-        dataConnection.cancel()
-        let completion = try await readReply(try requireControl())
-        try Self.expectSuccess(completion, codes: [226, 250])
-        return String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline).compactMap { raw in
-            let parts = String(raw).split(whereSeparator: \.isWhitespace).map(String.init)
-            guard parts.count >= 9 else { return nil }
-            let name = parts.dropFirst(8).joined(separator: " ")
-            guard name != ".", name != ".." else { return nil }
-            let isDirectory = parts[0].hasPrefix("d")
-            return (name: name, isDirectory: isDirectory, size: isDirectory ? "" : parts[4])
+        let host = self.host, port = self.port, username = self.username, password = self.password
+        let result = try await Task.detached(priority: .userInitiated) {
+            try LocalEngineBridge.ftpList(host: host, port: port, username: username, password: password, path: path)
+        }.value
+        let values = result["entries"] as? [[String: Any]] ?? []
+        return values.compactMap { item in
+            guard let name = item["name"] as? String else { return nil }
+            return (name: name, isDirectory: item["isDirectory"] as? Bool ?? false,
+                    size: item["size"] as? String ?? "")
         }
     }
 
-    func makeDirectory(_ name: String) async throws {
-        let reply = try await command("MKD \(name)")
-        try Self.expectSuccess(reply, codes: [257, 250])
+    func changeDirectory(path: String) async throws {
+        _ = try await list(path: path)
     }
 
-    func changeDirectory(_ path: String) async throws {
-        let reply = try await command("CWD \(path)")
-        try Self.expectSuccess(reply, codes: [250])
+    func makeDirectory(_ name: String, path: String) async throws {
+        let host = self.host, port = self.port, username = self.username, password = self.password
+        _ = try await Task.detached(priority: .userInitiated) {
+            try LocalEngineBridge.ftpMakeDirectory(host: host, port: port, username: username,
+                                                    password: password, path: path, name: name)
+        }.value
     }
 
-    func upload(data: Data, remoteName: String) async throws {
-        let dataConnection = try await openPassiveConnection()
-        let reply = try await command("STOR \(remoteName)")
-        try Self.expectPreliminary(reply)
-        // Mark the data stream complete so the FTP server receives EOF cleanly.
-        try await sendFinal(data, on: dataConnection)
-        let completion = try await readReply(try requireControl())
-        dataConnection.cancel()
-        try Self.expectSuccess(completion, codes: [226, 250])
+    func upload(fileURL: URL, remoteName: String, path: String) async throws {
+        let host = self.host, port = self.port, username = self.username, password = self.password
+        _ = try await Task.detached(priority: .userInitiated) {
+            try LocalEngineBridge.ftpUpload(host: host, port: port, username: username,
+                                            password: password, path: path, name: remoteName, localFile: fileURL)
+        }.value
     }
 
-    func download(remoteName: String) async throws -> Data {
-        let dataConnection = try await openPassiveConnection()
-        let reply = try await command("RETR \(remoteName)")
-        try Self.expectPreliminary(reply)
-        let data = try await receiveAll(dataConnection)
-        dataConnection.cancel()
-        let completion = try await readReply(try requireControl())
-        try Self.expectSuccess(completion, codes: [226, 250])
-        return data
-    }
-
-    private func requireControl() throws -> NWConnection {
-        guard let control else { throw FTPFailure.disconnected }
-        return control
-    }
-
-    private func command(_ value: String) async throws -> String {
-        let connection = try requireControl()
-        try await send(Data((value + "\r\n").utf8), on: connection)
-        return try await readReply(connection)
-    }
-
-    private func openPassiveConnection() async throws -> NWConnection {
-        // EPSV is preferable on a local network because it reuses the control
-        // connection's host and avoids broken/private addresses in PASV replies.
-        let extended = try await command("EPSV")
-        if (Int(extended.prefix(3)) ?? -1) == 229,
-           let open = extended.firstIndex(of: "("),
-           let close = extended[open...].firstIndex(of: ")") {
-            let tuple = extended[extended.index(after: open)..<close]
-            let ports = tuple.split(separator: "|").compactMap { UInt16($0) }
-            if let dataPort = ports.last, dataPort > 0 {
-                let connection = makeConnection(host: host, port: dataPort)
-                try await waitUntilReady(connection)
-                return connection
-            }
-        }
-
-        // GoldHEN and older console FTP servers commonly use PASV.
-        let response = try await command("PASV")
-        try Self.expectSuccess(response, codes: [227])
-        guard let open = response.firstIndex(of: "("), let close = response[open...].firstIndex(of: ")") else {
-            throw FTPFailure.invalidPassiveResponse
-        }
-        let numbers = response[response.index(after: open)..<close]
-            .split(separator: ",")
-            .compactMap { UInt16($0.trimmingCharacters(in: .whitespaces)) }
-        guard numbers.count == 6, numbers.allSatisfy({ $0 <= 255 }) else {
-            throw FTPFailure.invalidPassiveResponse
-        }
-        // Ignore the advertised PASV host: many console servers return 0.0.0.0
-        // or an unreachable interface address. The control host is the correct
-        // peer for a same-LAN PS4 session; only the negotiated data port is used.
-        let dataPort = numbers[4] * 256 + numbers[5]
-        guard dataPort > 0 else { throw FTPFailure.invalidPassiveResponse }
-        let connection = makeConnection(host: host, port: dataPort)
-        try await waitUntilReady(connection)
-        return connection
-    }
-
-    private func makeConnection(host: String, port: UInt16) -> NWConnection {
-        NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port)!, using: .tcp)
-    }
-
-    private func waitUntilReady(_ connection: NWConnection) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let gate = FTPResumeGate()
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    guard gate.claim() else { return }
-                    continuation.resume()
-                case .failed(let error):
-                    guard gate.claim() else { return }
-                    continuation.resume(throwing: error)
-                case .cancelled:
-                    guard gate.claim() else { return }
-                    continuation.resume(throwing: FTPFailure.disconnected)
-                default:
-                    break
-                }
-            }
-            connection.start(queue: self.queue)
-        }
-    }
-
-    private func send(_ data: Data, on connection: NWConnection) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            connection.send(content: data, completion: .contentProcessed { error in
-                if let error { continuation.resume(throwing: error) }
-                else { continuation.resume() }
-            })
-        }
-    }
-
-    private func sendFinal(_ data: Data, on connection: NWConnection) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            connection.send(content: data, contentContext: .defaultMessage, isComplete: true,
-                            completion: .contentProcessed { error in
-                if let error { continuation.resume(throwing: error) }
-                else { continuation.resume() }
-            })
-        }
-    }
-
-    private func readReply(_ connection: NWConnection) async throws -> String {
-        var buffer = Data()
-        while true {
-            let chunk = try await receiveChunk(connection)
-            buffer.append(chunk)
-            guard let text = String(data: buffer, encoding: .utf8) else { continue }
-            let lines = text.components(separatedBy: "\r\n")
-            if let first = lines.first, first.count >= 3 {
-                let code = String(first.prefix(3))
-                if first.count >= 4 && first[first.index(first.startIndex, offsetBy: 3)] == "-" {
-                    if lines.dropFirst().contains(where: { $0.hasPrefix(code + " ") }) {
-                        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    }
-                } else if lines.count > 1 {
-                    return text.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-            }
-        }
-    }
-
-    private func receiveChunk(_ connection: NWConnection) async throws -> Data {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, complete, error in
-                if let error { continuation.resume(throwing: error) }
-                else if let data, !data.isEmpty { continuation.resume(returning: data) }
-                else if complete { continuation.resume(throwing: FTPFailure.disconnected) }
-                else { continuation.resume(throwing: FTPFailure.disconnected) }
-            }
-        }
-    }
-
-    private func receiveAll(_ connection: NWConnection) async throws -> Data {
-        var result = Data()
-        while true {
-            let chunk: Data? = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
-                connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, complete, error in
-                    if let error { continuation.resume(throwing: error) }
-                    else if let data, !data.isEmpty { continuation.resume(returning: data) }
-                    else if complete { continuation.resume(returning: nil) }
-                    else { continuation.resume(returning: nil) }
-                }
-            }
-            guard let chunk else { break }
-            result.append(chunk)
-        }
-        return result
-    }
-
-    private static func expectSuccess(_ response: String, codes: [Int]) throws {
-        let code = Int(response.prefix(3)) ?? -1
-        guard codes.contains(code) else { throw FTPFailure.response(response) }
-    }
-
-    private static func expectPreliminary(_ response: String) throws {
-        let code = Int(response.prefix(3)) ?? -1
-        guard code == 125 || code == 150 else { throw FTPFailure.response(response) }
+    func download(remoteName: String, path: String, to destination: URL) async throws {
+        let host = self.host, port = self.port, username = self.username, password = self.password
+        _ = try await Task.detached(priority: .userInitiated) {
+            try LocalEngineBridge.ftpDownload(host: host, port: port, username: username,
+                                              password: password, path: path, name: remoteName,
+                                              destination: destination)
+        }.value
     }
 }
 
@@ -391,8 +151,9 @@ private final class FTPBrowserModel: ObservableObject {
         Task {
             isBusy = true
             do {
-                try await client.changeDirectory(entry.name)
-                currentPath = currentPath == "/" ? "/" + entry.name : currentPath + "/" + entry.name
+                let nextPath = currentPath == "/" ? "/" + entry.name : currentPath + "/" + entry.name
+                try await client.changeDirectory(path: nextPath)
+                currentPath = nextPath
                 try await refresh()
                 error = ""
             } catch let caughtError { self.error = caughtError.localizedDescription }
@@ -404,9 +165,10 @@ private final class FTPBrowserModel: ObservableObject {
         Task {
             isBusy = true
             do {
-                try await client.changeDirectory("..")
                 let parts = currentPath.split(separator: "/")
-                currentPath = parts.dropLast().isEmpty ? "/" : "/" + parts.dropLast().joined(separator: "/")
+                let parentPath = parts.dropLast().isEmpty ? "/" : "/" + parts.dropLast().joined(separator: "/")
+                try await client.changeDirectory(path: parentPath)
+                currentPath = parentPath
                 try await refresh()
                 error = ""
             } catch let caughtError { self.error = caughtError.localizedDescription }
@@ -418,11 +180,11 @@ private final class FTPBrowserModel: ObservableObject {
         Task {
             isBusy = true
             error = ""
-            let access = url.startAccessingSecurityScopedResource()
-            defer { if access { url.stopAccessingSecurityScopedResource() } }
             do {
-                let data = try Data(contentsOf: url)
-                try await client.upload(data: data, remoteName: url.lastPathComponent)
+                let localURL = try await Task.detached(priority: .userInitiated) {
+                    try FileImportService.importItem(from: url, category: "Imports")
+                }.value
+                try await client.upload(fileURL: localURL, remoteName: url.lastPathComponent, path: currentPath)
                 try await refresh()
                 status = "تم رفع \(url.lastPathComponent)"
             } catch let caughtError { self.error = caughtError.localizedDescription }
@@ -435,12 +197,12 @@ private final class FTPBrowserModel: ObservableObject {
             isBusy = true
             error = ""
             do {
-                let data = try await client.download(remoteName: name)
-                let folder = FileManager.default.temporaryDirectory.appendingPathComponent("INRPF-FTP", isDirectory: true)
+                let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let folder = documents.appendingPathComponent("GTA Converter/Downloads", isDirectory: true)
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                 let safeName = URL(fileURLWithPath: name).lastPathComponent
                 let file = folder.appendingPathComponent(safeName)
-                try data.write(to: file, options: .atomic)
+                try await client.download(remoteName: name, path: currentPath, to: file)
                 downloadedFile = file
                 status = "تم تنزيل \(safeName)"
             } catch let caughtError { self.error = caughtError.localizedDescription }
@@ -452,7 +214,7 @@ private final class FTPBrowserModel: ObservableObject {
         Task {
             isBusy = true
             do {
-                try await client.makeDirectory(name)
+                try await client.makeDirectory(name, path: currentPath)
                 try await refresh()
                 error = ""
             } catch let caughtError { self.error = caughtError.localizedDescription }
