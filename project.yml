@@ -1,21 +1,28 @@
 name: GTAConverter
 options:
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "17.0"
   createIntermediateGroups: true
 packages:
   libarchive-for-swift:
     url: https://github.com/matteo-pacini/libarchive-for-swift.git
     exactVersion: 1.0.0
+  SwiftLlama:
+    url: https://github.com/pgorzelany/swift-llama-cpp.git
+    revision: 0afc721b11e24c619229ee191edd7c5fde003b9c
 targets:
   GTAConverter:
     type: application
     platform: iOS
     sources:
       - GTAConverter
+    resources:
+      - path: GTAConverter/Resources
     dependencies:
       - package: libarchive-for-swift
         product: SwiftArchive
+      - package: SwiftLlama
+        product: SwiftLlama
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tmoath07.gta-converter
