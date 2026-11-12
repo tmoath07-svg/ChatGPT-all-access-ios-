@@ -94,6 +94,23 @@ enum ModAnalyzer {
             }
         }
 
+        guard !vehicleMetaFiles.isEmpty else {
+            return ModAnalysisReport(
+                fileCount: 0,
+                totalBytes: 0,
+                dlcFiles: [],
+                packNames: [],
+                readmeFiles: [],
+                duplicatePackNames: [],
+                yftFiles: [],
+                ytdFiles: [],
+                vehicleMetaFiles: [],
+                manifestFiles: [],
+                isFiveMVehicleResource: false,
+                reportText: "INRPF يدعم تحليل مودات المركبات فقط. لم يتم العثور على ملفات بيانات مركبة."
+            )
+        }
+
         let counts = Dictionary(grouping: allNames, by: { $0.lowercased() })
         let duplicates = counts.values.filter { $0.count > 1 }.compactMap { $0.first }.sorted()
         let names = Array(Set(allNames)).sorted()

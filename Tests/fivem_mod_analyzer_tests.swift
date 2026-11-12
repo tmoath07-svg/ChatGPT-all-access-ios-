@@ -22,14 +22,16 @@ struct FiveMModAnalyzerTests {
         let plain = root.appendingPathComponent("plain", isDirectory: true)
         try write("readme", to: plain.appendingPathComponent("readme.txt"))
         let nonFiveM = try ModAnalyzer.analyze(at: plain)
-        precondition(!nonFiveM.isFiveMVehicleResource, "Plain folder was incorrectly detected as FiveM")
+        precondition(!nonFiveM.isFiveMVehicleResource && nonFiveM.fileCount == 0 && nonFiveM.dlcFiles.isEmpty,
+                     "Non-vehicle folder was not safely rejected")
 
         let dlc = root.appendingPathComponent("dlc_pack", isDirectory: true)
         try write("rpf", to: dlc.appendingPathComponent("dlc.rpf"))
+        try write("<CVehicleModelInfo__InitDataList/>", to: dlc.appendingPathComponent("vehicles.meta"))
         let dlcReport = try ModAnalyzer.analyze(at: dlc)
         precondition(dlcReport.dlcFiles.count == 1, "dlc.rpf was not detected")
 
-        print("FiveM ModAnalyzer tests passed: vehicle resource, non-FiveM folder, DLC inventory.")
+        print("FiveM ModAnalyzer tests passed: vehicle resource, non-vehicle rejection, vehicle DLC inventory.")
     }
 
     private static func write(_ text: String, to url: URL) throws {
