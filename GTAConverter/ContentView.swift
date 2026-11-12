@@ -359,11 +359,21 @@ struct ContentView: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
                 analysisMetric("الملفات", value: "\(report.fileCount)", icon: "doc")
                 analysisMetric("ملفات DLC", value: "\(report.dlcFiles.count)", icon: "shippingbox")
+                analysisMetric("ملفات YFT", value: "\(report.yftFiles.count)", icon: "car.side")
+                analysisMetric("ملفات YTD", value: "\(report.ytdFiles.count)", icon: "photo")
+                analysisMetric("ملفات META", value: "\(report.vehicleMetaFiles.count)", icon: "doc.text")
+                analysisMetric("FiveM Manifest", value: "\(report.manifestFiles.count)", icon: "curlybraces")
                 analysisMetric("أسماء الحزم", value: "\(report.packNames.count)", icon: "tag")
                 analysisMetric("ملفات Readme", value: "\(report.readmeFiles.count)", icon: "text.book.closed")
             }
-            Text(report.dlcFiles.isEmpty ? "ما لقينا dlc.rpf. راجع بنية المود قبل التحويل." : "تم العثور على ملفات DLC. تقدر تستخدم أسماءها لإنشاء dlclist.xml.")
-                .font(.caption).foregroundStyle(.white.opacity(0.72))
+            Text(
+                report.isFiveMVehicleResource
+                    ? "تم التعرف على مورد سيارة FiveM. ملفات الموديل والخامات وبيانات المركبة موجودة، لكن يلزم تحويلها إلى DLC متوافق مع PS4."
+                    : (report.dlcFiles.isEmpty
+                        ? "ما لقينا dlc.rpf أو بنية سيارة FiveM مكتملة."
+                        : "تم العثور على ملفات DLC. تقدر تستخدم أسماءها لإنشاء dlclist.xml.")
+            )
+            .font(.caption).foregroundStyle(.white.opacity(0.72))
             if !report.packNames.isEmpty {
                 Button {
                     packNames = report.packNames.joined(separator: "\n")
@@ -376,7 +386,7 @@ struct ContentView: View {
                         .foregroundStyle(.white)
                 }.buttonStyle(.plain)
             }
-            if let outputFolder {
+            if let outputFolder, !report.dlcFiles.isEmpty {
                 NavigationLink(destination: DLCPS4PreparationView(
                     root: outputFolder,
                     dlcFiles: report.dlcFiles,
@@ -687,7 +697,11 @@ struct ContentView: View {
                 outputFolder = root
                 incompleteRoot = nil
                 modAnalysis = analysis
-                status = "اكتمل فك الملفات. المسار المختار: \(resolvedMode(for: analysis)). تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf. هذا تجهيز وفحص، وليس تحويل PC إلى PS4 تلقائياً."
+                if analysis.isFiveMVehicleResource {
+                    status = "تم التعرف على مورد سيارة FiveM. ملفات YFT: \(analysis.yftFiles.count)، ملفات YTD: \(analysis.ytdFiles.count)، ملفات META: \(analysis.vehicleMetaFiles.count). تم الفحص فقط؛ تحويل PS4 يحتاج بناء DLC."
+                } else {
+                    status = "اكتمل فك الملفات. المسار المختار: \(resolvedMode(for: analysis)). تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf. هذا تجهيز وفحص، وليس تحويل PC إلى PS4 تلقائياً."
+                }
                 isError = false
             } catch {
                 fail("تعذر تجهيز الأرشيف عند العنصر «\(currentArchivePath)»: \(error.localizedDescription)", underlyingError: error)
@@ -737,10 +751,11 @@ struct ContentView: View {
             default: return "ملفات عامة"
             }
         }
-        let paths = report.dlcFiles.joined(separator: " ").lowercased()
+        if report.isFiveMVehicleResource { return "سيارات FiveM (Auto)" }
         if !report.dlcFiles.isEmpty { return "سيارات (Auto)" }
-        if paths.contains(".ymap") || paths.contains("map") { return "خرائط (Auto)" }
-        if paths.contains(".ydd") || paths.contains(".yft") || paths.contains("ped") || paths.contains("character") { return "شخصيات (Auto)" }
+        if report.yftFiles.isEmpty == false || report.ytdFiles.isEmpty == false {
+            return "ملفات مركبة تحتاج مراجعة (Auto)"
+        }
         return "ملفات عامة (Auto)"
     }
 
