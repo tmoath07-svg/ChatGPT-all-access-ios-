@@ -166,7 +166,7 @@ struct ContentView: View {
     }
 
     private func menuLink<Destination: View>(_ title: String, icon: String, destination: Destination) -> some View {
-        NavigationLink(destination: destination) {
+        NavigationLink(destination: destination.gtaMotionEntrance()) {
             Label(title, systemImage: icon)
                 .font(.caption.weight(.bold)).foregroundStyle(.white)
                 .padding(.horizontal, 13).padding(.vertical, 11)
