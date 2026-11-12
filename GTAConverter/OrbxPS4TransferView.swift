@@ -33,9 +33,9 @@ struct OrbxPS4TransferView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 9) {
-                        Label("إرسال حزمة Orbx إلى PS4", systemImage: "gamecontroller.fill")
+                        Label("تركيب Auto لحزم Orbx على PS4", systemImage: "gamecontroller.fill")
                             .font(.title2.bold()).foregroundStyle(.white)
-                        Text("يرفع ملفات الحزم إلى dlc_addon، ثم يدمج أسماءها داخل dlclist.xml الموجود على الجهاز بدلاً من استبدال محتواه.")
+                        Text("زر واحد يفحص الحزم، يرفعها إلى dlc_addon، يدمج مساراتها في dlclist.xml ويحفظ نسخة احتياطية من القائمة القديمة قبل تحديثها.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(17).frame(maxWidth: .infinity, alignment: .leading)
@@ -95,7 +95,7 @@ struct OrbxPS4TransferView: View {
                     Button(action: sendPackage) {
                         HStack(spacing: 9) {
                             if isBusy { ProgressView().tint(.white) }
-                            Label(isBusy ? "جاري الإرسال..." : "إرسال المود إلى السوني", systemImage: "arrow.up.to.line")
+                            Label(isBusy ? "جاري تركيب Auto..." : "تركيب Auto بنقرة واحدة", systemImage: "bolt.fill")
                                 .font(.headline.bold())
                         }
                         .frame(maxWidth: .infinity).padding(16)
@@ -149,46 +149,84 @@ struct OrbxPS4TransferView: View {
             isError = true
             return
         }
-        let names = packNames
+        let addon = package.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+        let names: [String]
+        do {
+            names = try INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)
+        } catch {
+            status = error.localizedDescription
+            isError = true
+            return
+        }
+
         let portValue = portNumber
         isBusy = true
         isError = false
         uploadedFiles = 0
-        status = "جارٍ الاتصال بجهاز PS4..."
+        status = "فحص الحزم وملف dlclist.xml قبل الرفع..."
         Task.detached(priority: .userInitiated) {
+            let fm = FileManager.default
+            let remoteRPF = INRPFOrbxAutoInstallPlanner.remoteRoot
+            let remoteAddon = INRPFOrbxAutoInstallPlanner.remoteAddon
+            let listTemp = fm.temporaryDirectory.appendingPathComponent("inrpf-dlclist-original-\(UUID().uuidString).xml")
+            let outputXML = fm.temporaryDirectory.appendingPathComponent("inrpf-dlclist-merged-\(UUID().uuidString).xml")
+            let verifyXML = fm.temporaryDirectory.appendingPathComponent("inrpf-dlclist-verify-\(UUID().uuidString).xml")
+
             do {
                 _ = try LocalEngineBridge.ftpConnect(host: base, port: portValue, username: user, password: pass)
-                let fm = FileManager.default
-                let addon = package.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
-                var isDirectory: ObjCBool = false
-                guard fm.fileExists(atPath: addon.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-                    throw NSError(domain: "INRPF.Transfer", code: 1,
-                                  userInfo: [NSLocalizedDescriptionKey: "مجلد dlc_addon غير موجود داخل الحزمة."])
+                try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: remoteRPF)
+                try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: remoteAddon)
+
+                let remoteEntries = try LocalEngineBridge.ftpList(host: base, port: portValue,
+                    username: user, password: pass, path: remoteRPF)["entries"] as? [[String: Any]] ?? []
+                let hasExistingList = remoteEntries.contains {
+                    ($0["name"] as? String)?.caseInsensitiveCompare("dlclist.xml") == .orderedSame
                 }
 
-                try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: "/data")
-                try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: "/data/orbx")
-                try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: "/data/orbx/gta")
-                try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: "/data/orbx/gta/rpf")
-                try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: "/data/orbx/gta/rpf/dlc_addon")
+                let originalXML: String?
+                if hasExistingList {
+                    _ = try LocalEngineBridge.ftpDownload(host: base, port: portValue, username: user,
+                        password: pass, path: remoteRPF, name: "dlclist.xml", destination: listTemp)
+                    originalXML = try String(contentsOf: listTemp, encoding: .utf8)
+                } else {
+                    originalXML = nil
+                }
+
+                // Validate and merge before uploading any DLC files.
+                let merged = try INRPFOrbxAutoInstallPlanner.mergedDLClist(existing: originalXML, packageNames: names)
+                if hasExistingList {
+                    let backupName = "dlclist.xml.inrpf-backup-\(Int(Date().timeIntervalSince1970))"
+                    _ = try LocalEngineBridge.ftpUpload(host: base, port: portValue, username: user,
+                        password: pass, path: remoteRPF, name: backupName, localFile: listTemp)
+                }
 
                 var count = 0
                 for name in names {
                     let localPack = addon.appendingPathComponent(name, isDirectory: true)
+                    var isDirectory: ObjCBool = false
                     guard fm.fileExists(atPath: localPack.path, isDirectory: &isDirectory), isDirectory.boolValue else {
                         throw NSError(domain: "INRPF.Transfer", code: 2,
                                       userInfo: [NSLocalizedDescriptionKey: "مجلد الحزمة غير موجود: \(name)"])
                     }
-                    let remotePack = "/data/orbx/gta/rpf/dlc_addon/\(name)"
+                    let remotePack = remoteAddon + "/" + name
                     try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: remotePack)
-                    guard let enumerator = fm.enumerator(at: localPack, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
+                    guard let enumerator = fm.enumerator(at: localPack,
+                        includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                        options: [.skipsHiddenFiles]) else {
                         throw NSError(domain: "INRPF.Transfer", code: 3,
                                       userInfo: [NSLocalizedDescriptionKey: "تعذر قراءة مجلد \(name)"])
                     }
+
                     for case let file as URL in enumerator {
-                        let values = try file.resourceValues(forKeys: [.isDirectoryKey])
-                        let relative = String(file.path.dropFirst(localPack.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                        let values = try file.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                        if values.isSymbolicLink == true { continue }
+                        let relative = String(file.path.dropFirst(localPack.path.count))
+                            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                         let components = relative.split(separator: "/").map(String.init)
+                        guard !components.contains(".."), !components.contains(".") else {
+                            throw NSError(domain: "INRPF.Transfer", code: 5,
+                                userInfo: [NSLocalizedDescriptionKey: "مسار داخلي غير صالح داخل الحزمة: \(relative)"])
+                        }
                         if values.isDirectory == true {
                             let remote = components.reduce(remotePack) { $0 + "/" + $1 }
                             try Self.ensureRemoteDirectory(host: base, port: portValue, username: user, password: pass, fullPath: remote)
@@ -204,56 +242,37 @@ struct OrbxPS4TransferView: View {
                     }
                 }
 
-                let temp = fm.temporaryDirectory.appendingPathComponent("inrpf-dlclist-\(UUID().uuidString).xml")
-                let remoteRPF = "/data/orbx/gta/rpf"
-                let remoteEntries = try LocalEngineBridge.ftpList(host: base, port: portValue,
-                    username: user, password: pass, path: remoteRPF)["entries"] as? [[String: Any]] ?? []
-                let hasExistingList = remoteEntries.contains {
-                    ($0["name"] as? String)?.caseInsensitiveCompare("dlclist.xml") == .orderedSame
-                }
-                var merged: String
-                if hasExistingList {
-                    _ = try LocalEngineBridge.ftpDownload(host: base, port: portValue, username: user,
-                        password: pass, path: remoteRPF, name: "dlclist.xml", destination: temp)
-                    merged = try String(contentsOf: temp, encoding: .utf8)
-                    guard merged.range(of: "</Paths>", options: .caseInsensitive) != nil else {
-                        throw NSError(domain: "INRPF.Transfer", code: 4,
-                            userInfo: [NSLocalizedDescriptionKey: "تعذر قراءة dlclist.xml الموجود أو لا يحتوي على </Paths>. لم نستبدله حفاظاً على قائمتك."])
-                    }
-                } else {
-                    merged = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<SMandatoryPacksData>\n  <Paths>\n  </Paths>\n</SMandatoryPacksData>"
-                }
-                try? fm.removeItem(at: temp)
-                for name in names {
-                    let entry = "<Item>/data/orbx/gta/rpf/dlc_addon/\(name)/</Item>"
-                    if !merged.localizedCaseInsensitiveContains(entry) {
-                        guard let close = merged.range(of: "</Paths>", options: .caseInsensitive) else {
-                            throw NSError(domain: "INRPF.Transfer", code: 4,
-                                userInfo: [NSLocalizedDescriptionKey: "ملف dlclist.xml الموجود لا يحتوي على عنصر </Paths>، أوقفنا الرفع حتى لا نتلفه."])
-                        }
-                        merged.insert(contentsOf: "    \(entry)\n  ", at: close.lowerBound)
-                    }
-                }
-                let outputXML = fm.temporaryDirectory.appendingPathComponent("dlclist-\(UUID().uuidString).xml")
                 try merged.write(to: outputXML, atomically: true, encoding: .utf8)
                 _ = try LocalEngineBridge.ftpUpload(host: base, port: portValue, username: user,
                     password: pass, path: remoteRPF, name: "dlclist.xml", localFile: outputXML)
-                try? fm.removeItem(at: outputXML)
+
+                // Verify the deployed list by downloading it again.
+                _ = try LocalEngineBridge.ftpDownload(host: base, port: portValue, username: user,
+                    password: pass, path: remoteRPF, name: "dlclist.xml", destination: verifyXML)
+                let deployed = try String(contentsOf: verifyXML, encoding: .utf8)
+                let verified = try INRPFOrbxAutoInstallPlanner.mergedDLClist(existing: deployed, packageNames: names)
+                guard verified == deployed else {
+                    throw NSError(domain: "INRPF.Transfer", code: 6,
+                        userInfo: [NSLocalizedDescriptionKey: "فشل التحقق من وجود جميع مسارات DLC داخل dlclist.xml بعد الرفع."])
+                }
 
                 let completedFileCount = count
                 await MainActor.run {
                     uploadedFiles = completedFileCount
-                    status = "اكتمل رفع \(names.count) حزمة و\(completedFileCount) ملف، وتم دمج dlclist.xml دون حذف المسارات السابقة."
+                    status = "اكتمل تركيب Auto: \(names.count) حزمة و\(completedFileCount) ملف. تم التحقق من dlclist.xml."
                     isBusy = false
                     isError = false
                 }
             } catch {
                 await MainActor.run {
-                    status = "توقف الإرسال: \(error.localizedDescription)"
+                    status = "توقف تركيب Auto: \(error.localizedDescription)"
                     isBusy = false
                     isError = true
                 }
             }
+            try? fm.removeItem(at: listTemp)
+            try? fm.removeItem(at: outputXML)
+            try? fm.removeItem(at: verifyXML)
         }
     }
 
@@ -296,16 +315,7 @@ struct OrbxPS4TransferView: View {
 
     private func loadSelectedPackageNames() {
         guard let selectedPackageURL else { packNames = []; return }
-        if !initialPackNames.isEmpty, packageURL?.path == selectedPackageURL.path {
-            packNames = initialPackNames
-            return
-        }
         let addon = selectedPackageURL.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
-        let folders = (try? FileManager.default.contentsOfDirectory(at: addon,
-            includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
-        packNames = folders.filter {
-            ((try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true) &&
-            $0.lastPathComponent.range(of: #"^[A-Za-z0-9_-]{1,64}$"#, options: .regularExpression) != nil
-        }.map(\.lastPathComponent).sorted()
+        packNames = (try? INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)) ?? []
     }
 }
