@@ -900,22 +900,11 @@ struct ContentView: View {
 }
 
 private extension View {
-    @ViewBuilder
+    // Keep this modifier type-simple. The previous scrollTransition builder caused
+    // recursive SwiftUI generic metadata expansion and a main-thread stack overflow
+    // during the first ContentView render on iOS 27.
     func gtaScrollGlassMotion(_ enabled: Bool) -> some View {
-        if enabled {
-            if #available(iOS 17.0, *) {
-                self.scrollTransition(.interactive, axis: .vertical) { content, phase in
-                    content
-                        .blur(radius: phase.isIdentity ? 0 : 5)
-                        .scaleEffect(phase.isIdentity ? 1 : 0.965)
-                        .opacity(phase.isIdentity ? 1 : 0.82)
-                }
-            } else {
-                self
-            }
-        } else {
-            self
-        }
+        self
     }
 
     @ViewBuilder
