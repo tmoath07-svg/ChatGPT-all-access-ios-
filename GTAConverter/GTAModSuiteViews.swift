@@ -42,15 +42,15 @@ struct GTAAppBackground: View {
 // MARK: - Motion blur entrance
 
 struct GTAMotionEntrance: ViewModifier {
-    @AppStorage("gta_motion_blur_enabled") private var enabled = true
+    @AppStorage("gta_motion_enabled") private var enabled = true
     @State private var appeared = false
 
     func body(content: Content) -> some View {
         content
-            .opacity(appeared ? 1 : 0.72)
+            .opacity(enabled && !appeared ? 0.72 : 1)
             .blur(radius: enabled && !appeared ? 13 : 0)
-            .scaleEffect(appeared ? 1 : 0.985)
-            .animation(.spring(response: 0.48, dampingFraction: 0.86), value: appeared)
+            .scaleEffect(enabled && !appeared ? 0.985 : 1)
+            .animation(enabled ? .spring(response: 0.48, dampingFraction: 0.86) : .linear(duration: 0), value: appeared)
             .onAppear { appeared = true }
     }
 }
