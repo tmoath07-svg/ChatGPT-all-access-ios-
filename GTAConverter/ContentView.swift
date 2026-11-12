@@ -19,8 +19,19 @@ struct ContentView: View {
     @State private var isDropTargeted = false
     @State private var lastErrorDetails = ""
     @State private var modAnalysis: ModAnalysisReport?
+    @AppStorage("gta_conversion_mode") private var conversionMode = "auto"
+    @AppStorage("gta_cover_style") private var coverStyle = "neon"
+    @AppStorage("gta_accent_color") private var accentColor = "purple"
 
-    private let purple = Color(red: 0.57, green: 0.30, blue: 0.98)
+    private var purple: Color {
+        switch accentColor {
+        case "blue": return Color(red: 0.20, green: 0.52, blue: 1.0)
+        case "green": return Color(red: 0.18, green: 0.72, blue: 0.48)
+        case "orange": return Color(red: 1.0, green: 0.48, blue: 0.16)
+        case "red": return Color(red: 0.94, green: 0.22, blue: 0.32)
+        default: return Color(red: 0.57, green: 0.30, blue: 0.98)
+        }
+    }
     private let background = Color(red: 0.035, green: 0.025, blue: 0.065)
 
     private enum ImportKind: String, CaseIterable, Identifiable {
@@ -42,6 +53,8 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         header
+                        topMenu
+                        conversionCard
                         importCard
                         directLinkCard
                         packCard
@@ -118,7 +131,11 @@ struct ContentView: View {
                 Text("iOS APP").font(.system(size: 10, weight: .heavy, design: .rounded)).tracking(1.1).foregroundStyle(purple.opacity(0.95))
             }
         }.padding(20)
-         .background(LinearGradient(colors: [purple.opacity(0.25), Color.white.opacity(0.045)], startPoint: .topLeading, endPoint: .bottomTrailing))
+         .background(coverStyle == "minimal"
+            ? LinearGradient(colors: [Color.white.opacity(0.10), Color.white.opacity(0.025)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            : coverStyle == "dark"
+                ? LinearGradient(colors: [Color.black.opacity(0.55), purple.opacity(0.12)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                : LinearGradient(colors: [purple.opacity(0.30), Color.white.opacity(0.045)], startPoint: .topLeading, endPoint: .bottomTrailing))
          .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
          .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(.white.opacity(0.09)))
     }
@@ -127,6 +144,62 @@ struct ContentView: View {
             .padding(.horizontal, 9).padding(.vertical, 6)
             .background(.white.opacity(0.09)).clipShape(Capsule())
             .foregroundStyle(.white.opacity(0.8))
+    }
+
+    private var topMenu: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 9) {
+                menuLink("التصميم", icon: "paintpalette.fill", destination: AppearanceSettingsView())
+                menuLink("الميزات", icon: "square.grid.2x2.fill", destination: FeatureHubView())
+                menuLink("ملفاتي", icon: "folder.fill", destination: AppFilesView())
+                menuLink("الإعدادات", icon: "gearshape.fill", destination: AppSettingsView())
+                menuLink("التشخيص", icon: "waveform.path.ecg", destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails))
+            }
+        }
+    }
+
+    private func menuLink<Destination: View>(_ title: String, icon: String, destination: Destination) -> some View {
+        NavigationLink(destination: destination) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.bold)).foregroundStyle(.white)
+                .padding(.horizontal, 13).padding(.vertical, 11)
+                .background(.white.opacity(0.075))
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(purple.opacity(0.25)))
+        }.buttonStyle(.plain)
+    }
+
+    private var conversionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("نوع التحويل والتجهيز", icon: "arrow.triangle.2.circlepath")
+            Text("اختر Auto ليحدد التطبيق المسار من الملفات، أو حدد النوع يدوياً.")
+                .font(.caption).foregroundStyle(.white.opacity(0.58))
+            Picker("نوع التجهيز", selection: $conversionMode) {
+                Text("Auto").tag("auto")
+                Text("سيارات").tag("vehicle")
+                Text("خرائط").tag("map")
+                Text("شخصيات").tag("character")
+                Text("ملفات عامة").tag("files")
+            }
+            .pickerStyle(.menu).tint(.white)
+            .padding(11).frame(maxWidth: .infinity, alignment: .leading)
+            .background(purple.opacity(0.22)).clipShape(RoundedRectangle(cornerRadius: 13))
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles").foregroundStyle(purple)
+                Text(conversionModeDescription).font(.caption).foregroundStyle(.white.opacity(0.7))
+            }
+        }
+        .padding(16).panel()
+    }
+
+    private var conversionModeDescription: String {
+        switch conversionMode {
+        case "vehicle": return "مسار تجهيز مودات السيارات وملفات DLC."
+        case "map": return "مسار تجهيز الخرائط وملفات YMAP."
+        case "character": return "مسار تجهيز الشخصيات وملفات PED."
+        case "files": return "فك وفحص الملفات بدون تصنيف خاص."
+        default: return "يحلل أسماء الملفات والمسارات ويختار التصنيف الأقرب تلقائياً."
+        }
     }
 
     private var importCard: some View {
@@ -555,7 +628,7 @@ struct ContentView: View {
                 }.value
                 outputFolder = root
                 modAnalysis = analysis
-                status = "اكتمل فك الملفات وتحليل بنية المود. تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf."
+                status = "اكتمل فك الملفات. المسار المختار: \(resolvedMode(for: analysis)). تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf. هذا تجهيز وفحص، وليس تحويل PC إلى PS4 تلقائياً."
                 isError = false
             } catch {
                 fail("تعذر تجهيز الأرشيف: \(error.localizedDescription)", underlyingError: error)
@@ -594,6 +667,22 @@ struct ContentView: View {
                 try fm.copyItem(at: item, to: target)
             }
         }
+    }
+
+    private func resolvedMode(for report: ModAnalysisReport) -> String {
+        if conversionMode != "auto" {
+            switch conversionMode {
+            case "vehicle": return "سيارات"
+            case "map": return "خرائط"
+            case "character": return "شخصيات"
+            default: return "ملفات عامة"
+            }
+        }
+        let paths = report.dlcFiles.joined(separator: " ").lowercased()
+        if !report.dlcFiles.isEmpty { return "سيارات (Auto)" }
+        if paths.contains(".ymap") || paths.contains("map") { return "خرائط (Auto)" }
+        if paths.contains(".ydd") || paths.contains(".yft") || paths.contains("ped") || paths.contains("character") { return "شخصيات (Auto)" }
+        return "ملفات عامة (Auto)"
     }
 
     private func generateXML() {
@@ -857,7 +946,7 @@ private struct AppSettingsView: View {
 
                     group("حول التطبيق", icon: "info.circle") {
                         settingRow("اسم التطبيق", "GTA Converter")
-                        settingRow("الإصدار", "1.2.0")
+                        settingRow("الإصدار", "1.4.0")
                         settingRow("النظام الأدنى", "iOS 16 أو أحدث")
                     }
 
