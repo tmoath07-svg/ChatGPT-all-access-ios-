@@ -55,9 +55,11 @@ The new `LocalEngine` Rust static library currently provides:
 
 - RPF header/table inspection for supported unencrypted archives.
 - Generic unencrypted RPF7 building from a selected directory.
+- Recursive extraction of supported unencrypted RPF archives, with output path validation, file-count and total-size limits.
 - Re-parse validation of the generated archive.
 - Native structural conversion for the observed Y* to O* extension map: RSC7 header preservation, raw/zlib/gzip DEFLATE detection, PC-to-PS4 marker replacement, and raw-DEFLATE recompression.
 - YTD parsing and DDS export through the pure-Rust `rage-formats` crate, with texture name, dimensions, format and mip-level reporting.
+- PC-format YTD dictionary construction from DDS and common image formats, with a parse-back validation pass.
 - Extension-only conversion for the non-patched types observed in the source scripts.
 - File count, recursion depth, and total input-size limits (512MB).
 - Symlink skipping and path traversal checks.
@@ -67,6 +69,7 @@ The SwiftUI local engine screen is wired to these functions. The build workflow 
 ## Explicitly not complete yet
 
 - The structural RSC7 patch has only unit-level synthetic tests so far; it still needs real, legally supplied fixture files and byte-for-byte comparison against the reference converter.
-- YTD-to-DDS extraction is implemented, but the PS4 OTD compiler has not been implemented yet.
+- YTD-to-DDS extraction and PC-format YTD building are implemented. The PS4 OTD compiler is still not implemented: the reference pipeline calls `ragebuilder.exe` with `set_platform("orbis")`, and the supplied toolkit's required Windows PE runtime/DLLs cannot run as native iOS ARM64. The current public `rage-formats` YTD serializer explicitly targets Gen8/PC, so it is not a valid OTD substitute.
 - Generic RPF7 creation is not equivalent to a validated PS4 DLC build.
+- RPF extraction refuses encrypted archives when the required game keys are unavailable; it does not attempt to bypass or guess encryption.
 - Cloud conversion remains available as a temporary fallback until local outputs pass fixture tests and in-game validation.
