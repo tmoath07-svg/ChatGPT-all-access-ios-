@@ -4,6 +4,8 @@ import SwiftArchive
 import UIKit
 
 struct ContentView: View {
+    let initialSourceURL: URL?
+    @State private var didApplyInitialSource = false
     @State private var showingImporter = false
     @State private var sourceURL: URL?
     @State private var selectedFileName = "ما تم اختيار ملف"
@@ -29,6 +31,12 @@ struct ContentView: View {
     @AppStorage("gta_background_color") private var backgroundStyle = "midnight"
     @AppStorage("gta_onboarding_complete") private var onboardingComplete = false
     @State private var showOnboarding = false
+
+    init(initialSourceURL: URL? = nil) {
+        self.initialSourceURL = initialSourceURL
+        _sourceURL = State(initialValue: initialSourceURL)
+        _selectedFileName = State(initialValue: initialSourceURL?.lastPathComponent ?? "ما تم اختيار ملف")
+    }
 
     private var purple: Color {
         switch accentColor {
@@ -128,7 +136,16 @@ struct ContentView: View {
         }
         .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
         .environment(\.locale, Locale(identifier: appLanguage))
-        .onAppear { showOnboarding = !onboardingComplete }
+        .onAppear {
+            showOnboarding = !onboardingComplete
+            if let initialSourceURL, !didApplyInitialSource {
+                didApplyInitialSource = true
+                sourceURL = initialSourceURL
+                selectedFileName = initialSourceURL.lastPathComponent
+                status = "تم تحديد الملف من مستكشف الملفات. اضغط فك الملفات وتجهيز نسخة احتياطية."
+                isError = false
+            }
+        }
         .fullScreenCover(isPresented: $showOnboarding) {
             GTAOnboardingView { onboardingComplete = true; showOnboarding = false }
         }
