@@ -375,6 +375,21 @@ struct ContentView: View {
                         .foregroundStyle(.white)
                 }.buttonStyle(.plain)
             }
+            if let outputFolder {
+                NavigationLink(destination: DLCPS4PreparationView(
+                    root: outputFolder,
+                    dlcFiles: report.dlcFiles,
+                    packNames: report.packNames
+                )) {
+                    Label("تجهيز حزم DLC للـPS4 (Orbx)", systemImage: "shippingbox.and.arrow.down.fill")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity).padding(13)
+                        .background(Color.purple.opacity(0.28))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+            }
             if !report.duplicatePackNames.isEmpty {
                 Text("تنبيه: أسماء متكررة: " + report.duplicatePackNames.joined(separator: "، "))
                     .font(.caption2).foregroundStyle(.orange)
