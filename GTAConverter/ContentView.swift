@@ -992,26 +992,29 @@ private struct AppFilesView: View {
 
     @ViewBuilder private func fileRow(_ url: URL) -> some View {
         let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-        HStack(spacing: 11) {
-            Image(systemName: isDirectory ? "folder.fill" : icon(for: url))
-                .font(.title3).foregroundStyle(isDirectory ? Color.purple : .white.opacity(0.75))
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(url.lastPathComponent).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
-                Text(isDirectory ? "مجلد" : fileSize(url)).font(.caption2).foregroundStyle(.white.opacity(0.45))
-            }
-            Spacer()
+        NavigationLink {
             if isDirectory {
-                NavigationLink(destination: AppFilesView(directory: url)) {
-                    Image(systemName: "chevron.left").font(.caption.bold()).foregroundStyle(.white.opacity(0.5))
-                }
+                AppFilesView(directory: url)
             } else {
-                ShareLink(item: url) {
-                    Image(systemName: "square.and.arrow.up").foregroundStyle(.white.opacity(0.75)).padding(7)
-                }
+                AppFileDetailView(url: url)
             }
+        } label: {
+            HStack(spacing: 11) {
+                Image(systemName: isDirectory ? "folder.fill" : icon(for: url))
+                    .font(.title3).foregroundStyle(isDirectory ? Color.purple : .white.opacity(0.75))
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(url.lastPathComponent).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                    Text(isDirectory ? "مجلد • اضغط للفتح" : fileSize(url) + " • اضغط لعرض الإجراءات")
+                        .font(.caption2).foregroundStyle(.white.opacity(0.5))
+                }
+                Spacer()
+                Image(systemName: "chevron.left").font(.caption.bold()).foregroundStyle(.white.opacity(0.5))
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 3)
         }
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
         .contextMenu {
             ShareLink(item: url) { Label("مشاركة", systemImage: "square.and.arrow.up") }
             Button(role: .destructive) { remove(url) } label: { Label("حذف", systemImage: "trash") }
