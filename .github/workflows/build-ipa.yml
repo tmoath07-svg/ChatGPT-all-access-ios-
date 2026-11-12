@@ -1,4 +1,4 @@
-name: Build GTA Converter IPA
+name: Build INRPF IPA
 
 on:
   push:
@@ -97,42 +97,42 @@ jobs:
       - name: Package and validate IPA
         run: |
           set -euo pipefail
-          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/GTA Converter.app"
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/INRPF.app"
           test -d "$APP_PATH"
           test -f "$APP_PATH/Info.plist"
 
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          zip -qry GTA-Converter-1.80-unsigned.ipa Payload
 
-          unzip -t GTA-Converter-1.80-unsigned.ipa
-          INFO="Payload/GTA Converter.app/Info.plist"
+          INFO="Payload/INRPF.app/Info.plist"
           # XcodeGen may omit version keys from the generated plist on some runner/Xcode combinations.
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 1.80' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 1.80' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 19' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 13' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 1.90' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 1.90' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 20' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 13' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
           BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")
 
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
-          test "$VERSION" = "1.80"
-          test "$BUILD" = "19"
-          test -x "Payload/GTA Converter.app/$EXECUTABLE"
-          nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_build_rpf7"
-          nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_extract_rpf"
-          nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_convert_folder"
-          nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_extract_ytd"
-          nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_build_ytd"
+          test "$VERSION" = "1.90"
+          test "$BUILD" = "20"
+          zip -qry INRPF-1.90-unsigned.ipa Payload
+          unzip -t INRPF-1.90-unsigned.ipa
+          test -x "Payload/INRPF.app/$EXECUTABLE"
+          nm -g "Payload/INRPF.app/$EXECUTABLE" | grep -q "_gta_engine_build_rpf7"
+          nm -g "Payload/INRPF.app/$EXECUTABLE" | grep -q "_gta_engine_extract_rpf"
+          nm -g "Payload/INRPF.app/$EXECUTABLE" | grep -q "_gta_engine_convert_folder"
+          nm -g "Payload/INRPF.app/$EXECUTABLE" | grep -q "_gta_engine_extract_ytd"
+          nm -g "Payload/INRPF.app/$EXECUTABLE" | grep -q "_gta_engine_build_ytd"
 
           mkdir -p release-package
-          cp GTA-Converter-1.80-unsigned.ipa release-package/GTA-Converter-1.80-unsigned.ipa
+          cp INRPF-1.90-unsigned.ipa release-package/INRPF-1.90-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
-          GTA Converter 1.80 - IPA غير موقّع
+          INRPF 1.90 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
-          2) استخرج ملف GTA-Converter-1.80-unsigned.ipa.
+          2) استخرج ملف INRPF-1.90-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
           يتضمن هذا الإصدار محرك RPF محلياً، واستخراج الأرشيفات غير المشفرة، وتحويلاً بنيوياً لبعض موارد Y*، واستخراج وبناء قواميس YTD بصيغة PC.
@@ -148,7 +148,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: GTA-Converter-1.80-Install-Package
+          name: INRPF-1.90-Install-Package
           path: release-package/
           if-no-files-found: error
           retention-days: 14
