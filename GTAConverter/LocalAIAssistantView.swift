@@ -194,6 +194,7 @@ private struct OnDeviceAIAssistantView: View {
                 let result = try await session.respond(to: prompt)
                 answer = result.content
                 status = "اكتمل التوليد محلياً. لم يتم تعديل أي ملف."
+                INRPFLocalTimeline.record(title, details: cleanRequest)
             } catch {
                 status = "تعذر تشغيل النموذج: \(error.localizedDescription)"
             }

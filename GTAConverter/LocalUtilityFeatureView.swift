@@ -11,6 +11,7 @@ struct LocalUtilityFeatureView: View {
     @State private var hexText = ""
     @State private var nameInput = ""
     @State private var existingNames = ""
+    @State private var templateType = "fivem"
     @State private var shareURL: URL?
     @State private var isBusy = false
 
@@ -22,6 +23,7 @@ struct LocalUtilityFeatureView: View {
         case 33: "Mod Report PDF"
         case 34: "مؤشر جاهزية PS4"
         case 35: "Mod Backup"
+        case 36: "Project Templates"
         case 37: "Dependency Checker"
         case 40: "دليل التركيب"
         default: "أدوات INRPF"
@@ -91,6 +93,8 @@ struct LocalUtilityFeatureView: View {
                 description: "ينشئ نسخة مؤرخة من المجلد في مساحة التطبيق المؤقتة. لا يغيّر المصدر.",
                 button: "اختر مجلد المود لنسخه احتياطياً"
             )
+        case 36:
+            templateTool
         case 37:
             folderTool(
                 description: "يفحص dependency وملفات manifest ومراجع الملفات المحلية الشائعة.",
@@ -167,6 +171,39 @@ struct LocalUtilityFeatureView: View {
             if !selectedName.isEmpty {
                 Text(selectedName).font(.caption.monospaced()).foregroundStyle(.purple)
             }
+        }
+    }
+
+    private var templateTool: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("اختر نوع القالب").font(.caption.bold()).foregroundStyle(.purple)
+            Picker("نوع القالب", selection: $templateType) {
+                Text("مورد FiveM").tag("fivem")
+                Text("حزمة Orbx").tag("orbx")
+                Text("مساحة عمل عامة").tag("workspace")
+            }
+            .pickerStyle(.segmented)
+            TextField("اسم المشروع", text: $nameInput)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                .padding(12).background(.white.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(.white)
+            Button(action: createTemplate) {
+                Label("إنشاء القالب ومشاركته", systemImage: "square.grid.2x2")
+                    .frame(maxWidth: .infinity).padding(12).background(.purple)
+                    .foregroundStyle(.white).clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+        }
+    }
+
+    private func createTemplate() {
+        do {
+            let safeName = INRPFLocalUtilityCore.safePackageName(nameInput, existingNames: [])
+            let output = try INRPFLocalUtilities.createProjectTemplate(name: safeName, kind: templateType)
+            shareURL = output
+            resultText = "تم إنشاء قالب \(templateType) باسم \(safeName). القالب هيكل بداية ولا يحتوي ملفات لعبة أصلية أو dlc.rpf صالح."
+            INRPFLocalTimeline.record("إنشاء قالب مشروع", details: "\(templateType): \(safeName)")
+        } catch {
+            resultText = "تعذر إنشاء القالب: \(error.localizedDescription)"
         }
     }
 
@@ -261,6 +298,7 @@ struct LocalUtilityFeatureView: View {
                         return try INRPFLocalUtilities.dependencyReport(at: url)
                     }.value
                     resultText = report
+                    INRPFLocalTimeline.record("فحص الاعتماديات", details: selectedName)
                 }
             } catch {
                 resultText = "تعذر إكمال العملية: \(error.localizedDescription)"
@@ -358,6 +396,35 @@ private enum INRPFLocalUtilities {
 
     static func dependencyReport(at root: URL) throws -> String {
         try INRPFLocalUtilityCore.dependencyReport(at: root)
+    }
+
+    static func createProjectTemplate(name: String, kind: String) throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("INRPF-Template-\(name)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fm = FileManager.default
+        func make(_ path: String) throws {
+            try fm.createDirectory(at: root.appendingPathComponent(path, isDirectory: true), withIntermediateDirectories: true)
+        }
+        func write(_ path: String, _ content: String) throws {
+            try Data(content.utf8).write(to: root.appendingPathComponent(path), options: .atomic)
+        }
+        switch kind {
+        case "fivem":
+            try make("stream")
+            try make("data")
+            try write("fxmanifest.lua", "fx_version 'cerulean'\ngame 'gta5'\n\nfiles { }\n")
+            try write("README.txt", "FiveM vehicle resource template\nPlace vehicle models in stream/ and metadata in data/.\nReview fxmanifest.lua before use.\n")
+        case "orbx":
+            try make("dlc_addon/\(name)")
+            try write("README.txt", "Orbx DLC folder template\nPlace a valid dlc.rpf directly inside dlc_addon/\(name)/ before installation.\nThis template does not contain a valid game archive.\n")
+        default:
+            try make("input")
+            try make("output")
+            try make("reports")
+            try write("README.txt", "INRPF project workspace\nInput files: input/\nGenerated files: output/\nAnalysis reports: reports/\n")
+        }
+        return root
     }
 
 }

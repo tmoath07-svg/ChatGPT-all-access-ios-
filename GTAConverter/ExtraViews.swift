@@ -139,7 +139,7 @@ struct FeatureHubView: View {
         .init(id:7,title:"فاحص ملفات السيارة",category:"السيارات",icon:"car.rear.fill",status:"جزئي",detail:"فحص وجود الملفات المعروفة ممكن ضمن التحليل. التحقق من صحة كل بنية YFT/YTD يحتاج محللات متخصصة."),
         .init(id:8,title:"استوديو ألوان السيارات",category:"السيارات",icon:"paintpalette.fill",status:"مخطط",detail:"معاينة وتعديل ألوان الخامات تتطلب فك YTD ومحرر خامات."),
         .init(id:9,title:"محلل Handling",category:"السيارات",icon:"gauge.with.dots.needle.67percent",status:"متاح",detail:"قراءة قيم handling.meta من النص وخصائص value في XML، مع دعم تكرار الحقول لعدة مركبات. العرض للقراءة فقط.",route:"handling"),
-        .init(id:10,title:"معرض موداتك",category:"السيارات",icon:"rectangle.stack.fill",status:"مخطط",detail:"مكتبة منظمة للسيارات والمودات مع صور وأسماء وبيانات كل مشروع."),
+        .init(id:10,title:"معرض موداتك",category:"السيارات",icon:"rectangle.stack.fill",status:"متاح",route:"library",detail:"استعراض وتحليل ومشاركة المودات التي استوردتها داخل مساحة INRPF المحلية."),
         .init(id:11,title:"AI Mod Scanner",category:"الذكاء الاصطناعي",icon:"sparkles",status:"محلي",detail:"افحص تقرير المود محلياً واكتشف الملفات الناقصة والتعارضات المحتملة، مع توضيح الأدلة."",route:"ai"),
         .init(id:12,title:"AI Error Fixer",category:"الذكاء الاصطناعي",icon:"wrench.and.screwdriver.fill",status:"محلي",detail:"حلّل سجل الخطأ واقترح خطوات إصلاح قابلة للمراجعة. لا تعدّل الملفات تلقائياً."",route:"ai"),
         .init(id:13,title:"AI XML Builder",category:"الذكاء الاصطناعي",icon:"curlybraces",status:"محلي",detail:"أنشئ مسودة XML بناءً على الطلب والبيانات، ثم تحقق من صلاحية XML قبل استخدامه."",route:"ai"),
@@ -148,16 +148,16 @@ struct FeatureHubView: View {
         .init(id:16,title:"AI Texture Inspector",category:"الذكاء الاصطناعي",icon:"eye.fill",status:"محلي",detail:"فسّر تقرير الخامات والامتدادات والأحجام، ولا تخمّن خصائص غير موجودة."",route:"ai"),
         .init(id:17,title:"AI Mod Translator",category:"الذكاء الاصطناعي",icon:"character.bubble",status:"محلي",detail:"ترجم نصوص README والأوصاف مع إبقاء أسماء الملفات والمسارات كما هي."",route:"ai"),
         .init(id:18,title:"AI Compatibility",category:"الذكاء الاصطناعي",icon:"checkmark.shield.fill",status:"محلي",detail:"قيّم مؤشرات التوافق مع PS4 اعتماداً على الأدلة، ولا تدّعِ ضمان التشغيل."",route:"ai"),
-        .init(id:19,title:"PS4 Package Studio",category:"PS4",icon:"shippingbox",status:"مخطط",detail:"تنظيم مخرجات التحويل في حزم واضحة مع تقرير محتوياتها."),
+        .init(id:19,title:"PS4 Package Studio",category:"PS4",icon:"shippingbox",status:"جزئي",route:"dlc",detail:"تجهيز ونقل حزم Orbx ودمج dlclist.xml. لا ينشئ هذا وحده محتوى DLC متوافقاً مع PS4."),
         .init(id:20,title:"XML Studio",category:"PS4",icon:"list.bullet.rectangle",status:"جزئي",detail:"محرر XML محلي مع فحص الصياغة وحفظ نسخة جديدة من dlclist.xml.",route:"xml"),
         .init(id:21,title:"Cloud Converter",category:"PS4",icon:"cloud.gear.fill",status:"متاح يدوياً",detail:"محرك Ps4tools موجود في GitHub Actions. تشغيله حالياً يتم من GitHub يدوياً برابط تنزيل مباشر.",route:"cloud"),
         .init(id:22,title:"مقارنة إصدارات المود",category:"الملفات",icon:"arrow.left.arrow.right",status:"متاح",detail:"مقارنة مجلدين محلياً ببصمات SHA-256 وكشف الملفات الجديدة والمحذوفة والمتغيرة والمتطابقة.",route:"compare"),
         .init(id:23,title:"مدير DLC",category:"PS4",icon:"folder.badge.gearshape",status:"تجهيز متاح",detail:"إدارة مخرجات DLC ومسارات Orbx وملف dlclist.",route:"dlc"),
         .init(id:24,title:"Mod Marketplace",category:"الإدارة",icon:"storefront",status:"مخطط",detail:"كتالوج مودات وروابطها ومعلومات التوافق. لن يستضيف ملفات محمية أو يعيد توزيعها دون إذن."),
-        .init(id:25,title:"Mod Cloud Library",category:"الإدارة",icon:"cloud.fill",status:"مخطط",detail:"مزامنة مكتبة المشاريع والملفات عبر تخزين سحابي يختاره المستخدم."),
+        .init(id:25,title:"Mod Library المحلية",category:"الإدارة",icon:"cloud.fill",status:"متاح",route:"library",detail:"مكتبة ملفات محلية تعمل دون سيرفر أو مزامنة سحابية، مع استعراض وتحليل ومشاركة العناصر المستوردة."),
         .init(id:26,title:"One Click Build",category:"PS4",icon:"bolt.fill",status:"مخطط",detail:"تشغيل سلسلة فحوص وتجهيز وتحويل وتغليف بعد ربط كل مراحل المحرك."),
-        .init(id:27,title:"Mod Timeline",category:"الإدارة",icon:"timeline.selection",status:"مخطط",detail:"سجل زمني لكل تعديل وعملية تحويل ونتيجة بناء."),
-        .init(id:28,title:"Batch Converter",category:"PS4",icon:"square.stack.3d.up.fill",status:"مخطط",detail:"إرسال عدة مودات إلى طابور معالجة سحابي مع تقرير منفصل لكل مود."),
+        .init(id:27,title:"Mod Timeline",category:"الإدارة",icon:"timeline.selection",status:"متاح",route:"timeline",detail:"سجل محلي لعمليات التحليل والتجهيز والنسخ والذكاء الاصطناعي على هذا الجهاز."),
+        .init(id:28,title:"Batch Converter",category:"PS4",icon:"square.stack.3d.up.fill",status:"جزئي",route:"rpf",detail:"تحويل مجلد موارد Y* المدعومة دفعة واحدة عبر المحرك المحلي. لا يعني ذلك إنشاء DLC PS4 كامل."),
         .init(id:29,title:"Mod Preview",category:"الملفات",icon:"play.rectangle",status:"جزئي",detail:"معاينة الصور والملفات المدعومة. معاينة المجسمات تتطلب عارضاً ثلاثي الأبعاد."),
         .init(id:30,title:"Auto DLC Naming",category:"PS4",icon:"tag.fill",status:"متاح",route:"utility",detail:"توليد اسم مجلد DLC آمن وفريد بصيغة ASCII مع فحص التعارض."),
         .init(id:31,title:"Smart Folder",category:"الملفات",icon:"folder.badge.plus",status:"متاح",route:"utility",detail:"نسخ ملفات المود إلى مجلدات مصنفة حسب الامتداد مع الحفاظ على بنية المسارات والمصدر دون تغيير."),
@@ -165,7 +165,7 @@ struct FeatureHubView: View {
         .init(id:33,title:"Mod Report PDF",category:"الإدارة",icon:"doc.richtext",status:"متاح",route:"utility",detail:"إنشاء تقرير PDF محلي من تحليل المود ومشاركته من الجهاز."),
         .init(id:34,title:"PS4 Compatibility Score",category:"PS4",icon:"chart.bar.xaxis",status:"متاح",route:"utility",detail:"حساب مؤشر جاهزية بنيوي من الملفات المكتشفة، وليس ضمان توافق أو تشغيل على PS4."),
         .init(id:35,title:"Mod Backup",category:"الإدارة",icon:"externaldrive.fill",status:"متاح",route:"utility",detail:"إنشاء نسخة احتياطية مؤرخة من مجلد المود دون تعديل المصدر."),
-        .init(id:36,title:"Project Templates",category:"الإدارة",icon:"square.grid.2x2.fill",status:"مخطط",detail:"قوالب جاهزة لمشاريع السيارات والخرائط والشخصيات والملفات العامة."),
+        .init(id:36,title:"Project Templates",category:"الإدارة",icon:"square.grid.2x2.fill",status:"متاح",route:"utility",detail:"إنشاء قوالب مشاريع FiveM وOrbx ومساحة عمل عامة محلياً."),
         .init(id:37,title:"Dependency Checker",category:"الملفات",icon:"point.3.connected.trianglepath.dotted",status:"متاح",route:"utility",detail:"قراءة اعتماديات FiveM وملفات manifest والتحقق من مراجع الملفات المحلية."),
         .init(id:38,title:"RPF Explorer",category:"الملفات",icon:"archivebox.fill",status:"متاح",route:"rpf",detail:"فحص أرشيفات RPF7 واستخراج الأرشيفات غير المشفرة عبر المحرك المحلي."),
         .init(id:39,title:"Texture Converter",category:"الملفات",icon:"photo.artframe",status:"جزئي",route:"ytd",detail:"استخراج خامات YTD المدعومة إلى DDS وبناء بعض القواميس. التحويل الكامل بين كل الصيغ غير متاح."),
@@ -277,6 +277,8 @@ struct FeatureHubView: View {
         case "compare": ModComparisonView()
         case "ai": LocalAIAssistantView(featureID: item.id)
         case "utility": LocalUtilityFeatureView(featureID: item.id)
+        case "library": LocalModLibraryView(featureID: item.id)
+        case "timeline": LocalTimelineView()
         case "xml": DLClistEditorView()
         case "rpf": LocalEngineView()
         case "cloud": CloudConversionView()
