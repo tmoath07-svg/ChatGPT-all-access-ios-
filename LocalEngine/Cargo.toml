@@ -13,6 +13,7 @@ rage-formats = { version = "0.5.1", default-features = false, features = ["encod
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "bmp", "tga"] }
 serde_json = "1.0"
 flate2 = "1.0"
+suppaftp = { version = "=12.2.1", default-features = false }
 
 [profile.release]
 lto = true
