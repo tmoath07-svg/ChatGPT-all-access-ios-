@@ -47,25 +47,29 @@ private final class INRPFtpClient {
     }
 
     func list(path: String) async throws -> [(name: String, isDirectory: Bool, size: String)] {
-        let dataConnection = try await openPassiveConnection()
-        let reply = try await command("MLSD \(path.isEmpty ? "." : path)")
-        try Self.expectPreliminary(reply)
-        let data = try await receiveAll(dataConnection)
-        dataConnection.cancel()
-        let completion = try await readReply(try requireControl())
-        try Self.expectSuccess(completion, codes: [226, 250])
-        let text = String(decoding: data, as: UTF8.self)
-        let entries = text.split(whereSeparator: \.isNewline).compactMap { raw -> (String, Bool, String)? in
-            let line = String(raw)
-            guard let separator = line.firstIndex(of: " ") else { return nil }
-            let facts = line[..<separator].lowercased()
-            let name = String(line[line.index(after: separator)...]).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty, name != ".", name != ".." else { return nil }
-            let isDirectory = facts.contains("type=dir")
-            let size = facts.split(separator: ";").first(where: { $0.hasPrefix("size=") }).map { String($0.dropFirst(5)) } ?? ""
-            return (name, isDirectory, size)
+        do {
+            let dataConnection = try await openPassiveConnection()
+            let reply = try await command("MLSD \(path.isEmpty ? "." : path)")
+            try Self.expectPreliminary(reply)
+            let data = try await receiveAll(dataConnection)
+            dataConnection.cancel()
+            let completion = try await readReply(try requireControl())
+            try Self.expectSuccess(completion, codes: [226, 250])
+            let text = String(decoding: data, as: UTF8.self)
+            let entries = text.split(whereSeparator: \.isNewline).compactMap { raw -> (String, Bool, String)? in
+                let line = String(raw)
+                guard let separator = line.firstIndex(of: " ") else { return nil }
+                let facts = line[..<separator].lowercased()
+                let name = String(line[line.index(after: separator)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty, name != ".", name != ".." else { return nil }
+                let isDirectory = facts.contains("type=dir")
+                let size = facts.split(separator: ";").first(where: { $0.hasPrefix("size=") }).map { String($0.dropFirst(5)) } ?? ""
+                return (name, isDirectory, size)
+            }
+            if !entries.isEmpty { return entries.map { (name: $0.0, isDirectory: $0.1, size: $0.2) } }
+        } catch {
+            // Older PS4 FTP servers may not implement MLSD; retry with classic LIST.
         }
-        if !entries.isEmpty { return entries.map { (name: $0.0, isDirectory: $0.1, size: $0.2) } }
         return try await listFallback(path: path)
     }
 
