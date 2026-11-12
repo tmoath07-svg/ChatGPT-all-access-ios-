@@ -214,9 +214,9 @@ struct FeatureHubView: View {
                         .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
 
                     HStack(spacing: 8) {
-                        catalogStat("جاهز", value: "\(items.filter { $0.status == \"متاح\" || $0.status == \"تجهيز متاح\" }.count)", color: .green)
-                        catalogStat("جزئي / تجريبي", value: "\(items.filter { [\"فحص متاح\", \"متاح يدوياً\", \"جزئي\", \"دليل وتجهيز\", \"تحليل محلي\"].contains($0.status) }.count)", color: .orange)
-                        catalogStat("مخطط", value: "\(items.filter { $0.status == \"مخطط\" }.count)", color: .gray)
+                        catalogStat("جاهز", value: String(readyCount), color: .green)
+                        catalogStat("جزئي / تجريبي", value: String(partialCount), color: .orange)
+                        catalogStat("مخطط", value: String(plannedCount), color: .gray)
                     }
 
                     HStack(spacing: 9) {
