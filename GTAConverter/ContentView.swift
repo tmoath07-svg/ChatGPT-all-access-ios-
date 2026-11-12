@@ -839,6 +839,20 @@ private extension View {
     }
 }
 
+extension ArchiveError: LocalizedError {
+    public var errorDescription: String? {
+        description
+    }
+
+    public var failureReason: String? {
+        message.isEmpty ? "libarchive لم يقدّم وصفاً إضافياً للخطأ." : message
+    }
+
+    public var recoverySuggestion: String? {
+        "تحقق من سلامة ملف RAR، وكلمة المرور إن كان محمياً، ودعم طريقة الضغط المستخدمة."
+    }
+}
+
 private extension UTType {
     static let rar = UTType(filenameExtension: "rar") ?? .archive
 }
