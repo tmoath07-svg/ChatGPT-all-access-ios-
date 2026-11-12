@@ -432,6 +432,7 @@ struct CreatorPageView: View {
     @State private var showAssistantProfile = false
     @State private var assistantPhotoItem: PhotosPickerItem?
     @State private var assistantPhoto: UIImage?
+    @AppStorage("gta_assistant_avatar_path") private var assistantAvatarPath = ""
 
     private let creatorHandle = "Moa_sa7"
     private let assistantName = "q.wq9"
@@ -544,7 +545,17 @@ struct CreatorPageView: View {
                                 Task {
                                     if let data = try? await newItem.loadTransferable(type: Data.self),
                                        let image = UIImage(data: data) {
-                                        assistantPhoto = image
+                                        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                                            .appendingPathComponent("GTA Converter", isDirectory: true)
+                                        do {
+                                            try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+                                            let imageURL = support.appendingPathComponent("assistant-profile-avatar.jpg")
+                                            try data.write(to: imageURL, options: .atomic)
+                                            assistantAvatarPath = imageURL.path
+                                            assistantPhoto = image
+                                        } catch {
+                                            assistantPhoto = image
+                                        }
                                     }
                                 }
                             }
@@ -566,6 +577,11 @@ struct CreatorPageView: View {
                 }
                 .navigationTitle(appLanguage == "ar" ? "ملف المساعد" : "Assistant profile")
                 .navigationBarTitleDisplayMode(.inline)
+                .onAppear {
+                    if !assistantAvatarPath.isEmpty {
+                        assistantPhoto = UIImage(contentsOfFile: assistantAvatarPath)
+                    }
+                }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(appLanguage == "ar" ? "إغلاق" : "Close") { showAssistantProfile = false }
