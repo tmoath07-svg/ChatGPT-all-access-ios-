@@ -49,7 +49,7 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                background.ignoresSafeArea()
+                GTAAppBackground()
                 ScrollView {
                     VStack(spacing: 16) {
                         header
@@ -150,9 +150,13 @@ struct ContentView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 9) {
                 menuLink("التحويل السحابي", icon: "cloud.gear.fill", destination: CloudConversionView())
+                menuLink("متصفح المودات", icon: "globe", destination: GTAModBrowserView())
+                menuLink("مكتبة المودات", icon: "square.grid.2x2.fill", destination: GTAModsLibraryView())
+                menuLink("التنزيلات", icon: "arrow.down.circle.fill", destination: GTADownloadsView())
+                menuLink("سجل العمليات", icon: "clock.arrow.circlepath", destination: GTATransferHistoryView())
                 menuLink("مختبر YTD", icon: "photo.stack.fill", destination: YTDTextureLabView())
-                menuLink("التصميم", icon: "paintpalette.fill", destination: AppearanceSettingsView())
-                menuLink("الميزات", icon: "square.grid.2x2.fill", destination: FeatureHubView())
+                menuLink("التخصيص", icon: "paintpalette.fill", destination: GTAAppearanceSettingsView())
+                menuLink("الميزات", icon: "square.grid.2x2", destination: FeatureHubView())
                 menuLink("ملفاتي", icon: "folder.fill", destination: AppFilesView())
                 menuLink("الإعدادات", icon: "gearshape.fill", destination: AppSettingsView())
                 menuLink("التشخيص", icon: "waveform.path.ecg", destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails))
