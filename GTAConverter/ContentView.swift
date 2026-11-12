@@ -606,20 +606,46 @@ struct ContentView: View {
                     for try await item in reader {
                         let raw = item.entry.path
                         let relative = try Self.safeRelativePath(raw)
-                        let destination = root.appendingPathComponent(relative)
-                        if raw.hasSuffix("/") {
+                        let destination = root.appendingPathComponent(relative, isDirectory: item.entry.fileType == .directory)
+
+                        // Do not infer directory status from a trailing slash. RAR archives
+                        // commonly store directory entries without one.
+                        switch item.entry.fileType {
+                        case .directory:
                             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
                             continue
+
+                        case .regular:
+                            // Hardlinks carry no payload. Skip them rather than writing an empty
+                            // file that could collide with a real directory or file.
+                            if item.entry.hardlinkTarget != nil { continue }
+
+                            try FileManager.default.createDirectory(
+                                at: destination.deletingLastPathComponent(),
+                                withIntermediateDirectories: true
+                            )
+                            var existingIsDirectory: ObjCBool = false
+                            if FileManager.default.fileExists(atPath: destination.path, isDirectory: &existingIsDirectory),
+                               existingIsDirectory.boolValue {
+                                throw ImportError.archivePathConflict(relative)
+                            }
+
+                            let data = Data(item.bytes)
+                            totalBytes += Int64(data.count)
+                            count += 1
+                            guard totalBytes <= 1_500_000_000, count <= 20_000 else {
+                                throw ImportError.archiveTooLarge
+                            }
+                            try data.write(to: destination, options: .atomic)
+
+                        case .symlink:
+                            // Never create links from untrusted archives on the app filesystem.
+                            continue
+
+                        default:
+                            // Ignore sockets, devices, FIFOs and other non-regular entries.
+                            continue
                         }
-                        let data = Data(item.bytes)
-                        totalBytes += Int64(data.count)
-                        count += 1
-                        guard totalBytes <= 1_500_000_000, count <= 20_000 else {
-                            throw ImportError.archiveTooLarge
-                        }
-                        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(),
-                                                                withIntermediateDirectories: true)
-                        try data.write(to: destination, options: .atomic)
                     }
                     await reader.close()
                     guard count > 0 else { throw ImportError.emptyArchive }
@@ -725,7 +751,7 @@ struct ContentView: View {
     }
 
     private enum ImportError: LocalizedError {
-        case http(Int), unsupported, archiveTooLarge, emptyArchive, unsafePath, folderRead
+        case http(Int), unsupported, archiveTooLarge, emptyArchive, unsafePath, folderRead, archivePathConflict(String)
         var errorDescription: String? {
             switch self {
             case .http(let code): return "استجابة الموقع: HTTP \(code)"
@@ -734,6 +760,7 @@ struct ContentView: View {
             case .emptyArchive: return "الأرشيف فارغ أو تنسيقه غير مدعوم."
             case .unsafePath: return "الأرشيف يحتوي مسار ملفات غير آمن وتم إيقاف الفك."
             case .folderRead: return "تعذرت قراءة محتويات المجلد."
+            case .archivePathConflict(let path): return "تعارض مسار داخل الأرشيف: \(path). يوجد مجلد في مكان ملف أو العكس."
             }
         }
     }
