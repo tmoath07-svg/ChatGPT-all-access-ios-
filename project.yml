@@ -20,7 +20,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tmoath07.gta-converter
         PRODUCT_NAME: GTA Converter
-        PRODUCT_BUNDLE_VERSION: "2"
+        PRODUCT_BUNDLE_VERSION: "3"
         MARKETING_VERSION: "1.2.0"
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
