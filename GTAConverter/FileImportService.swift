@@ -27,8 +27,11 @@ enum FileImportService {
         defer {
             if access { source.stopAccessingSecurityScopedResource() }
         }
-        let sourcePath = source.standardizedFileURL.path
-        let sandboxPath = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).standardizedFileURL.path
+        // Resolve symlinks before comparing paths. iOS may expose the same
+        // app-container location through /var or /private/var depending on provider.
+        let sourcePath = source.standardizedFileURL.resolvingSymlinksInPath().path
+        let sandboxPath = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .standardizedFileURL.resolvingSymlinksInPath().path
         let isInsideAppSandbox = sourcePath == sandboxPath || sourcePath.hasPrefix(sandboxPath + "/")
         guard securityScopeAlreadyStarted || access || isInsideAppSandbox else {
             throw ImportFailure.accessDenied
