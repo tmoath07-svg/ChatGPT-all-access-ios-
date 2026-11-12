@@ -573,13 +573,6 @@ fn extract_rpf_to_directory(input: &Path, output: &Path) -> Result<(usize, u64, 
     Ok((files_written, total_bytes, "RPF7".to_string()))
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn gta_engine_extract_rpf(
-    _input_file: *const c_char,
-    _output_directory: *const c_char,
-) -> *mut c_char {
-    result_error("استخراج الأرشيف الكامل غير متاح. فاحص RPF يعرض بيانات المركبات المعروفة فقط.")
-}
 
 #[no_mangle]
 pub unsafe extern "C" fn gta_engine_build_rpf7(

@@ -170,8 +170,7 @@ jobs:
           test -x "Payload/INRPF.app/$EXECUTABLE"
           nm -g "Payload/INRPF.app/$EXECUTABLE" > build/exported-symbols.txt
           grep -q "_gta_engine_build_rpf7" build/exported-symbols.txt
-          grep -q "_gta_engine_extract_rpf" build/exported-symbols.txt
-          grep -q "_gta_engine_convert_folder" build/exported-symbols.txt
+                    grep -q "_gta_engine_convert_folder" build/exported-symbols.txt
           grep -q "_gta_engine_extract_ytd" build/exported-symbols.txt
           grep -q "_gta_engine_build_ytd" build/exported-symbols.txt
 
@@ -184,7 +183,7 @@ jobs:
           2) استخرج ملف INRPF-3.30-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
-          يتضمن هذا الإصدار محرك RPF محلياً، واستخراج الأرشيفات غير المشفرة، وتحويلاً بنيوياً لبعض موارد Y*، واستخراج وبناء قواميس YTD بصيغة PC.
+          يتضمن هذا الإصدار محركاً محلياً لموارد المركبات، وفاحص RPF يعرض بيانات META الخاصة بالمركبات فقط، وتحليلاً وتحويلاً بنيوياً للموارد المدعومة، واستخراج وبناء قواميس YTD بصيغتها المدعومة. لا يتضمن استخراجاً عاماً لأرشيف RPF.
           تنبيه: هذا لا يعني أن OTD أو DLC الناتج متوافق مع PS4 حتى تكتمل اختبارات الموارد.
           EOF
           echo "IPA package: valid"
