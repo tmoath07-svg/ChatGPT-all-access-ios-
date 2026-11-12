@@ -155,6 +155,7 @@ struct ContentView: View {
                 menuLink("ملفاتي", icon: "folder.fill", destination: AppFilesView())
                 menuLink("الإعدادات", icon: "gearshape.fill", destination: AppSettingsView())
                 menuLink("التشخيص", icon: "waveform.path.ecg", destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails))
+                menuLink("المبدع", icon: "person.crop.circle.fill", destination: CreatorPageView())
             }
         }
     }
@@ -432,7 +433,7 @@ struct ContentView: View {
     }
 
     private var footer: some View {
-        Text("تنبيه: تجهيز الملفات لا يحوّل مودات PC إلى صيغة PS4 تلقائياً، ولا يثبتها على الجهاز.")
+        Text("© 2026 Moa_sa7 • GTA Converter")
             .font(.system(size: 10)).foregroundStyle(.white.opacity(0.35))
             .multilineTextAlignment(.center).padding(.horizontal, 8)
     }
