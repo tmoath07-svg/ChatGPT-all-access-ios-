@@ -150,6 +150,7 @@ struct ContentView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 9) {
                 menuLink("التحويل السحابي", icon: "cloud.gear.fill", destination: CloudConversionView())
+                menuLink("مختبر YTD", icon: "photo.stack.fill", destination: YTDTextureLabView())
                 menuLink("التصميم", icon: "paintpalette.fill", destination: AppearanceSettingsView())
                 menuLink("الميزات", icon: "square.grid.2x2.fill", destination: FeatureHubView())
                 menuLink("ملفاتي", icon: "folder.fill", destination: AppFilesView())
