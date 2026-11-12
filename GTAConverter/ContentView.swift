@@ -57,9 +57,17 @@ struct ContentView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .fileImporter(isPresented: $showingImporter,
-                          allowedContentTypes: importKind == .folder ? [.folder] : [.zip, .rar, .archive],
+                          allowedContentTypes: importKind == .folder ? [.folder] : [.item],
                           allowsMultipleSelection: false,
-                          onCompletion: handleImport)
+                          onCompletion: handleImport,
+                          onCancellation: {
+                              status = "تم إلغاء اختيار الملف."
+                              isError = false
+                          })
+            .fileDialogBrowserOptions(.displayFileExtensions)
+            .fileDialogMessage(importKind == .folder
+                               ? "اختر مجلد المود من تطبيق الملفات."
+                               : "اختر ملف المود أو الأرشيف. يمكن اختيار ZIP وRAR وRPF وYFT وYTD وغيرها.")
             .disabled(isBusy)
             .overlay {
                 if isBusy {
@@ -289,15 +297,75 @@ struct ContentView: View {
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
-        do {
-            guard let url = try result.get().first else { return }
-            sourceURL = url
-            selectedFileName = url.lastPathComponent
-            status = "تم تحديد المصدر. اضغط «فك الملفات» للبدء."
-            isError = false
-        } catch {
+        switch result {
+        case .success(let urls):
+            guard let pickedURL = urls.first else {
+                fail("ما تم اختيار أي ملف.")
+                return
+            }
+            isBusy = true
+            progressText = "جاري استيراد الملف إلى التطبيق..."
+            Task {
+                do {
+                    let importedURL = try await Task.detached(priority: .userInitiated) {
+                        try Self.copyPickedItemIntoAppStorage(pickedURL)
+                    }.value
+                    sourceURL = importedURL
+                    selectedFileName = pickedURL.lastPathComponent
+                    status = "تم استيراد الملف وحفظ نسخة داخل التطبيق. صار جاهز للمعالجة."
+                    isError = false
+                } catch {
+                    fail("تعذر استيراد الملف: \(error.localizedDescription)")
+                }
+                isBusy = false
+            }
+        case .failure(let error):
             fail("تعذر اختيار الملف: \(error.localizedDescription)")
         }
+    }
+
+    private static func copyPickedItemIntoAppStorage(_ source: URL) throws -> URL {
+        let hasAccess = source.startAccessingSecurityScopedResource()
+        defer {
+            if hasAccess { source.stopAccessingSecurityScopedResource() }
+        }
+
+        let fm = FileManager.default
+        let appSupport = try fm.url(for: .applicationSupportDirectory,
+                                    in: .userDomainMask,
+                                    appropriateFor: nil,
+                                    create: true)
+        let imports = appSupport.appendingPathComponent("GTAConverter/Imports", isDirectory: true)
+        try fm.createDirectory(at: imports, withIntermediateDirectories: true)
+        let destinationRoot = imports.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fm.createDirectory(at: destinationRoot, withIntermediateDirectories: true)
+
+        var copiedURL: URL?
+        var coordinationError: NSError?
+        var copyError: Error?
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        coordinator.coordinate(readingItemAt: source, options: [], error: &coordinationError) { readableURL in
+            do {
+                var isDirectory: ObjCBool = false
+                guard fm.fileExists(atPath: readableURL.path, isDirectory: &isDirectory) else {
+                    throw ImportError.folderRead
+                }
+                if isDirectory.boolValue {
+                    try Self.copyFolderSafely(from: readableURL, to: destinationRoot)
+                    copiedURL = destinationRoot
+                } else {
+                    let destination = destinationRoot.appendingPathComponent(source.lastPathComponent)
+                    try fm.copyItem(at: readableURL, to: destination)
+                    copiedURL = destination
+                }
+            } catch {
+                copyError = error
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        if let copyError { throw copyError }
+        guard let copiedURL else { throw ImportError.folderRead }
+        return copiedURL
     }
 
     private func downloadFromLink() {
@@ -343,8 +411,6 @@ struct ContentView: View {
             progressText = "نسخ وفك الملفات بأمان..."
             defer { isBusy = false }
             do {
-                let access = sourceURL.startAccessingSecurityScopedResource()
-                defer { if access { sourceURL.stopAccessingSecurityScopedResource() } }
                 let root = FileManager.default.temporaryDirectory
                     .appendingPathComponent("GTA-Prepared-\(UUID().uuidString)", isDirectory: true)
                 try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -352,14 +418,14 @@ struct ContentView: View {
                 var isDirectory: ObjCBool = false
                 FileManager.default.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory)
                 if isDirectory.boolValue {
-                    try copyFolderSafely(from: sourceURL, to: root)
+                    try Self.copyFolderSafely(from: sourceURL, to: root)
                 } else {
                     let reader = try await ArchiveReader(reading: .fileURL(sourceURL))
                     var totalBytes: Int64 = 0
                     var count = 0
                     for try await item in reader {
                         let raw = item.entry.path
-                        let relative = try safeRelativePath(raw)
+                        let relative = try Self.safeRelativePath(raw)
                         let destination = root.appendingPathComponent(relative)
                         if raw.hasSuffix("/") {
                             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
@@ -387,7 +453,7 @@ struct ContentView: View {
         }
     }
 
-    private func safeRelativePath(_ raw: String) throws -> String {
+    private static func safeRelativePath(_ raw: String) throws -> String {
         let normalized = raw.replacingOccurrences(of: "\\", with: "/")
         let parts = normalized.split(separator: "/", omittingEmptySubsequences: true)
         guard !parts.isEmpty, !normalized.hasPrefix("/"),
@@ -397,7 +463,7 @@ struct ContentView: View {
         return parts.map(String.init).joined(separator: "/")
     }
 
-    private func copyFolderSafely(from source: URL, to destination: URL) throws {
+    private static func copyFolderSafely(from source: URL, to destination: URL) throws {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: source, includingPropertiesForKeys: [.isDirectoryKey],
                                              options: [.skipsHiddenFiles]) else {
@@ -406,7 +472,7 @@ struct ContentView: View {
         var count = 0
         for case let item as URL in enumerator {
             let relative = String(item.path.dropFirst(source.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            let safe = try safeRelativePath(relative)
+            let safe = try Self.safeRelativePath(relative)
             let target = destination.appendingPathComponent(safe)
             let values = try item.resourceValues(forKeys: [.isDirectoryKey])
             if values.isDirectory == true {
