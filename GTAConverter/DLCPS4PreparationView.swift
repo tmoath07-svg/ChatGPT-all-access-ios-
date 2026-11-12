@@ -14,7 +14,7 @@ struct DLCPS4PreparationView: View {
 
     var body: some View {
         ZStack {
-            background.ignoresSafeArea()
+            GTAAppBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     VStack(alignment: .leading, spacing: 8) {
