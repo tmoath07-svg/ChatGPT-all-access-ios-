@@ -110,12 +110,12 @@ struct ContentView: View {
                     }
                 }
             }
-            .fileImporter(
-                isPresented: $showingImporter,
-                allowedContentTypes: importKind == .folder ? [.folder] : [.data, .archive, .zip, .rar],
-                allowsMultipleSelection: false
-            ) { result in
-                handleImport(result)
+            .background {
+                INRPFDocumentPickerPresenter(
+                    isPresented: $showingImporter,
+                    contentTypes: importKind == .folder ? [.folder] : [.data, .archive, .zip, .rar],
+                    onCompletion: handleImport
+                )
             }
             .disabled(isBusy)
             .overlay {
