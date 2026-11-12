@@ -31,14 +31,26 @@ struct AppFileDetailView: View {
                     .background(.white.opacity(0.055))
                     .clipShape(RoundedRectangle(cornerRadius: 20))
 
-                    NavigationLink(destination: LocalEngineView(initialFile: url)) {
-                        Label("فتح الملف في المحرك المحلي", systemImage: "cpu.fill")
-                            .font(.headline.bold())
-                            .frame(maxWidth: .infinity)
-                            .padding(15)
-                            .background(Color.purple.opacity(0.82))
-                            .clipShape(RoundedRectangle(cornerRadius: 13))
-                            .foregroundStyle(.white)
+                    NavigationLink {
+                        if ["zip", "rar"].contains(url.pathExtension.lowercased()) {
+                            ContentView(initialSourceURL: url)
+                        } else {
+                            LocalEngineView(initialFile: url)
+                        }
+                    } label: {
+                        Label(
+                            ["zip", "rar"].contains(url.pathExtension.lowercased())
+                                ? "إرسال إلى تجهيز المود"
+                                : "فتح الملف في المحرك المحلي",
+                            systemImage: ["zip", "rar"].contains(url.pathExtension.lowercased())
+                                ? "shippingbox.fill" : "cpu.fill"
+                        )
+                        .font(.headline.bold())
+                        .frame(maxWidth: .infinity)
+                        .padding(15)
+                        .background(Color.purple.opacity(0.82))
+                        .clipShape(RoundedRectangle(cornerRadius: 13))
+                        .foregroundStyle(.white)
                     }
                     .buttonStyle(.plain)
 
