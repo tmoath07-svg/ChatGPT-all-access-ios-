@@ -591,6 +591,7 @@ struct ContentView: View {
             isBusy = true
             progressText = "نسخ وفك الملفات بأمان..."
             defer { isBusy = false }
+            var currentArchivePath = "لم يبدأ استخراج أي عنصر"
             do {
                 let root = try Self.appManagedFolder("Ready")
                     .appendingPathComponent("GTA-Prepared-\(UUID().uuidString)", isDirectory: true)
@@ -606,6 +607,7 @@ struct ContentView: View {
                     var count = 0
                     for try await item in reader {
                         let raw = item.entry.path
+                        currentArchivePath = raw
                         let relative = try Self.safeRelativePath(raw)
                         let destination = root.appendingPathComponent(relative, isDirectory: item.entry.fileType == .directory)
 
@@ -659,7 +661,7 @@ struct ContentView: View {
                 status = "اكتمل فك الملفات. المسار المختار: \(resolvedMode(for: analysis)). تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf. هذا تجهيز وفحص، وليس تحويل PC إلى PS4 تلقائياً."
                 isError = false
             } catch {
-                fail("تعذر تجهيز الأرشيف: \(error.localizedDescription)", underlyingError: error)
+                fail("تعذر تجهيز الأرشيف عند العنصر «\(currentArchivePath)»: \(error.localizedDescription)", underlyingError: error)
             }
         }
     }
@@ -744,6 +746,8 @@ struct ContentView: View {
         الوقت: \(ISO8601DateFormatter().string(from: Date()))
         الخطأ: \(message)
         السبب: \(reason)
+        نطاق الخطأ: \(nsError.domain)
+        رمز الخطأ: \(nsError.code)
         اقتراح النظام: \(suggestion)
         الملف: \(sourceURL?.lastPathComponent ?? selectedFileName)
         المسار: \(sourceURL?.path ?? "غير متوفر")
