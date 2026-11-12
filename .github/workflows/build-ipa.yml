@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: xcode-28
+    runs-on: xcode-27
     steps:
       - name: Checkout
         uses: actions/checkout@v4
