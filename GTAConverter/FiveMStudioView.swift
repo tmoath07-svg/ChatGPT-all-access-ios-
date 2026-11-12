@@ -1,8 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Local FiveM resource inspection. Conversion is delegated to the existing
-/// verified-toolkit workflow and is never presented as a local PS4 conversion.
+/// Local FiveM resource inspection. Conversion is only reported when a real
+/// conversion workflow has produced and validated a package.
 struct FiveMStudioView: View {
     @State private var showingFolderPicker = false
     @State private var report: ModAnalysisReport?
@@ -20,13 +20,16 @@ struct FiveMStudioView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Image(systemName: "car.side.3.fill").font(.system(size: 34)).foregroundStyle(.purple)
                         Text("FiveM Resource Studio").font(.title2.bold()).foregroundStyle(.white)
-                        Text("فحص محلي لبنية موارد FiveM. هذا الفحص لا يحوّل ملفات الكمبيوتر إلى PS4 بحد ذاته.")
+                        Text("فحص محلي لبنية موارد FiveM. الفحص لا يحوّل ملفات الكمبيوتر إلى PS4 بحد ذاته.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
                     .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
 
-                    Button(action: { showingFolderPicker = true }) {
+                    Button {
+                        errorText = nil
+                        showingFolderPicker = true
+                    } label: {
                         Label(isBusy ? "جاري الفحص..." : "اختيار مجلد مورد FiveM", systemImage: "folder.badge.plus")
                             .font(.headline.bold()).foregroundStyle(.white)
                             .frame(maxWidth: .infinity).padding(15)
@@ -86,12 +89,12 @@ struct FiveMStudioView: View {
         .navigationTitle("FiveM Studio")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.layoutDirection, .rightToLeft)
-        .background {
-            INRPFDocumentPickerPresenter(
-                isPresented: $showingFolderPicker,
-                contentTypes: [.folder],
-                onCompletion: handleFolderSelection
-            )
+        .fileImporter(
+            isPresented: $showingFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFolderSelection(result)
         }
     }
 
@@ -106,32 +109,36 @@ struct FiveMStudioView: View {
     private func handleFolderSelection(_ result: Result<[URL], Error>) {
         switch result {
         case .failure(let error):
-            errorText = error.localizedDescription
+            errorText = "تعذر اختيار المجلد: \(error.localizedDescription)"
+            status = "لم يتم استيراد أي مجلد."
         case .success(let urls):
-            guard let source = urls.first else { return }
-            do {
-                let copy = try FileImportService.importItem(from: source, category: "FiveM")
-                analyze(copy)
-            } catch {
-                errorText = error.localizedDescription
+            guard let source = urls.first else {
+                status = "لم يتم اختيار مجلد."
+                return
             }
+            importAndAnalyze(source)
         }
     }
 
-    private func analyze(_ folder: URL) {
+    private func importAndAnalyze(_ source: URL) {
         isBusy = true
         errorText = nil
-        status = "يتم فحص ملفات المورد محلياً..."
+        report = nil
+        status = "يتم نسخ مجلد المورد إلى مساحة INRPF..."
         Task {
             do {
+                let copy = try await Task.detached(priority: .userInitiated) {
+                    try FileImportService.importItem(from: source, category: "FiveM")
+                }.value
+                status = "تم الاستيراد. يتم تحليل ملفات المورد..."
                 let result = try await Task.detached(priority: .userInitiated) {
-                    try ModAnalyzer.analyze(at: folder)
+                    try ModAnalyzer.analyze(at: copy)
                 }.value
                 report = result
-                status = "اكتمل الفحص: \(folder.lastPathComponent)"
+                status = "اكتمل الفحص: \(copy.lastPathComponent)"
             } catch {
                 errorText = error.localizedDescription
-                status = "تعذر فحص المجلد."
+                status = "تعذر استيراد أو فحص المجلد."
             }
             isBusy = false
         }
