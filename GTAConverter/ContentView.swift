@@ -788,7 +788,7 @@ struct ContentView: View {
     }
 
     private enum ImportError: LocalizedError {
-        case http(Int), unsupported, archiveTooLarge, emptyArchive, unsafePath, folderRead, archivePathConflict(String)
+        case http(Int), unsupported, archiveTooLarge, emptyArchive, unsafePath, folderRead, archivePathConflict(String), fileWrite(String)
         var errorDescription: String? {
             switch self {
             case .http(let code): return "استجابة الموقع: HTTP \(code)"
