@@ -54,13 +54,13 @@ struct ContentView: View {
                 GTAAppBackground()
                 ScrollView {
                     VStack(spacing: homeDensity == "compact" ? 10 : 16) {
-                        header
-                        topMenu
-                        conversionCard
-                        importCard
-                        directLinkCard
-                        packCard
-                        actionButtons
+                        header.gtaScrollGlassMotion(motionEnabled)
+                        topMenu.gtaScrollGlassMotion(motionEnabled)
+                        conversionCard.gtaScrollGlassMotion(motionEnabled)
+                        importCard.gtaScrollGlassMotion(motionEnabled)
+                        directLinkCard.gtaScrollGlassMotion(motionEnabled)
+                        packCard.gtaScrollGlassMotion(motionEnabled)
+                        actionButtons.gtaScrollGlassMotion(motionEnabled)
                         if let outputFolder { outputCard(outputFolder) }
                         if let modAnalysis { modAnalysisCard(modAnalysis) }
                         if let generatedURL { xmlShareCard(generatedURL) }
@@ -849,6 +849,24 @@ struct ContentView: View {
 }
 
 private extension View {
+    @ViewBuilder
+    func gtaScrollGlassMotion(_ enabled: Bool) -> some View {
+        if enabled {
+            if #available(iOS 17.0, *) {
+                self.scrollTransition(.interactive, axis: .vertical) { content, phase in
+                    content
+                        .blur(radius: phase.isIdentity ? 0 : 5)
+                        .scaleEffect(phase.isIdentity ? 1 : 0.965)
+                        .opacity(phase.isIdentity ? 1 : 0.82)
+                }
+            } else {
+                self
+            }
+        } else {
+            self
+        }
+    }
+
     func panel() -> some View {
         self.background(.ultraThinMaterial)
             .background(Color.white.opacity(0.045))
