@@ -701,6 +701,7 @@ struct ContentView: View {
                 outputFolder = root
                 incompleteRoot = nil
                 modAnalysis = analysis
+                GTATransferHistoryStore.record(title: "فك وتحليل مود", detail: "\(analysis.fileCount) ملف • \(resolvedMode(for: analysis))")
                 if analysis.isFiveMVehicleResource {
                     status = "تم التعرف على مورد سيارة FiveM. ملفات YFT: \(analysis.yftFiles.count)، ملفات YTD: \(analysis.ytdFiles.count)، ملفات META: \(analysis.vehicleMetaFiles.count). تم الفحص فقط؛ تحويل PS4 يحتاج بناء DLC."
                 } else {
