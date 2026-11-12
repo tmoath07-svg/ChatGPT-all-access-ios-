@@ -7,6 +7,7 @@ enum INRPFOrbxAutoInstallPlanner {
     enum PlanError: LocalizedError {
         case missingAddonFolder
         case noPackages
+        case missingDlcRPF(String)
         case invalidPackageName(String)
         case malformedXML(String)
         case missingPathsElement
@@ -15,6 +16,7 @@ enum INRPFOrbxAutoInstallPlanner {
             switch self {
             case .missingAddonFolder: return "مجلد data/orbx/gta/rpf/dlc_addon غير موجود."
             case .noPackages: return "لم يتم العثور على مجلدات DLC صالحة داخل dlc_addon."
+            case .missingDlcRPF(let name): return "الحزمة \(name) لا تحتوي على ملف dlc.rpf مباشرة داخل مجلدها."
             case .invalidPackageName(let name): return "اسم حزمة غير صالح: \(name)"
             case .malformedXML(let detail): return "ملف dlclist.xml غير صالح: \(detail)"
             case .missingPathsElement: return "ملف dlclist.xml لا يحتوي على عنصر Paths صالح."
@@ -40,6 +42,16 @@ enum INRPFOrbxAutoInstallPlanner {
         let values = try only.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard values.isDirectory == true, values.isSymbolicLink != true else { return packageFolder }
         return only
+    }
+
+    /// Orbx expects one RPF archive directly inside each addon package folder.
+    static func validateDlcRPF(in packageFolder: URL) throws {
+        let root = try packageContentRoot(for: packageFolder)
+        let archive = root.appendingPathComponent("dlc.rpf", isDirectory: false)
+        let values = try? archive.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey])
+        guard values?.isRegularFile == true, values?.isDirectory != true, values?.isSymbolicLink != true else {
+            throw PlanError.missingDlcRPF(packageFolder.lastPathComponent)
+        }
     }
 
     static func isValidPackageName(_ name: String) -> Bool {
@@ -74,7 +86,11 @@ enum INRPFOrbxAutoInstallPlanner {
                   values.isDirectory == true, values.isSymbolicLink != true else { return nil }
             return child.lastPathComponent
         }
-        return try validatePackageNames(names)
+        let validated = try validatePackageNames(names)
+        for name in validated {
+            try validateDlcRPF(in: addonFolder.appendingPathComponent(name, isDirectory: true))
+        }
+        return validated
     }
 
     static func mergedDLClist(existing: String?, packageNames: [String]) throws -> String {
