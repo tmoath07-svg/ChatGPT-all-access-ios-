@@ -55,7 +55,8 @@ The new `LocalEngine` Rust static library currently provides:
 
 - RPF header/table inspection for supported unencrypted archives.
 - Generic unencrypted RPF7 building from a selected directory.
-- Recursive extraction of supported unencrypted RPF archives, with output path validation, file-count and total-size limits.
+- Recursive extraction of supported unencrypted RPF7 archives, preserving directory hierarchy and nested RPF7 contents with output path validation, file-count and total-size limits.
+- Batch folder conversion for supported Y* resources, preserving folder structure and copying non-resource metadata; it aborts atomically if it encounters YTD until the Orbis OTD builder is available.
 - Re-parse validation of the generated archive.
 - Native structural conversion for the observed Y* to O* extension map: RSC7 header preservation, raw/zlib/gzip DEFLATE detection, PC-to-PS4 marker replacement, and raw-DEFLATE recompression.
 - YTD parsing and DDS export through the pure-Rust `rage-formats` crate, with texture name, dimensions, format and mip-level reporting.
