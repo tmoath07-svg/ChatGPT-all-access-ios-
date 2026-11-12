@@ -404,7 +404,7 @@ private enum INRPFLocalUtilities {
             let text = try String(contentsOf: manifest, encoding: .utf8)
             dependencies.formUnion(captures(#"dependency\s*\(?\s*['"]([^'"]+)['"]"#, in: text))
             for block in captures(#"dependencies\s*\{([^}]*)\}"#, in: text) {
-                localReferences.formUnion(captures(#"['"]([^'"]+)['"]"#, in: block))
+                dependencies.formUnion(captures(#"['"]([^'"]+)['"]"#, in: block))
             }
             for block in captures(#"(?:files|client_scripts|server_scripts|shared_scripts)\s*\{([^}]*)\}"#, in: text) {
                 localReferences.formUnion(captures(#"['"]([^'"]+)['"]"#, in: block))
