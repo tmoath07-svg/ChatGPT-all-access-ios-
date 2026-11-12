@@ -6,12 +6,15 @@ private enum FTPFailure: LocalizedError {
     case response(String)
     case invalidPassiveResponse
     case disconnected
+    case stage(String, String)
 
     var errorDescription: String? {
         switch self {
         case .response(let value): return value
         case .invalidPassiveResponse: return "تعذر قراءة عنوان اتصال FTP السلبي."
         case .disconnected: return "انقطع اتصال FTP."
+        case .stage(let name, let detail):
+            return "فشل الاتصال في مرحلة: \(name)\nالتفاصيل: \(detail)"
         }
     }
 }
@@ -41,17 +44,55 @@ private final class INRPFtpClient {
         self.port = port
         let connection = makeConnection(host: host, port: port)
         control = connection
-        try await waitUntilReady(connection)
-        let greeting = try await readReply(connection)
-        try Self.expectSuccess(greeting, codes: [220])
-        let userReply = try await command("USER \(username)")
-        if userReply.hasPrefix("331") {
-            let passReply = try await command("PASS \(password)")
-            try Self.expectSuccess(passReply, codes: [230, 202])
-        } else {
-            try Self.expectSuccess(userReply, codes: [230, 202])
+
+        do {
+            do {
+                try await waitUntilReady(connection)
+            } catch {
+                throw FTPFailure.stage("إنشاء اتصال TCP مع \(host):\(port)", error.localizedDescription)
+            }
+
+            let greeting: String
+            do {
+                greeting = try await readReply(connection)
+                try Self.expectSuccess(greeting, codes: [220])
+            } catch {
+                throw FTPFailure.stage("انتظار ترحيب خادم FTP (220)", error.localizedDescription)
+            }
+
+            let userReply: String
+            do {
+                userReply = try await command("USER \(username)")
+            } catch {
+                throw FTPFailure.stage("إرسال اسم المستخدم USER", error.localizedDescription)
+            }
+
+            if userReply.hasPrefix("331") {
+                do {
+                    let passReply = try await command("PASS \(password)")
+                    try Self.expectSuccess(passReply, codes: [230, 202])
+                } catch {
+                    throw FTPFailure.stage("تسجيل الدخول PASS", error.localizedDescription)
+                }
+            } else {
+                do {
+                    try Self.expectSuccess(userReply, codes: [230, 202])
+                } catch {
+                    throw FTPFailure.stage("قبول تسجيل الدخول USER", error.localizedDescription)
+                }
+            }
+
+            do {
+                let typeReply = try await command("TYPE I")
+                try Self.expectSuccess(typeReply, codes: [200])
+            } catch {
+                throw FTPFailure.stage("تفعيل نقل الملفات الثنائي TYPE I", error.localizedDescription)
+            }
+        } catch {
+            connection.cancel()
+            control = nil
+            throw error
         }
-        _ = try await command("TYPE I")
     }
 
     func disconnect() {
