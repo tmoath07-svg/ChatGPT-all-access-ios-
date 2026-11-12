@@ -759,6 +759,9 @@ struct ContentView: View {
                 }
                 isError = false
             } catch {
+                if let incompleteRoot {
+                    try? FileManager.default.removeItem(at: incompleteRoot)
+                }
                 fail("تعذر تجهيز الأرشيف عند العنصر «\(currentArchivePath)»: \(error.localizedDescription)", underlyingError: error)
             }
         }
@@ -914,7 +917,7 @@ private extension View {
     }
 }
 
-extension ArchiveError: LocalizedError {
+extension ArchiveError: @retroactive LocalizedError {
     public var errorDescription: String? {
         description
     }
