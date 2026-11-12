@@ -7,7 +7,7 @@ on:
         description: "وش تبي تسوي بالمود؟ اختر نوع التحويل"
         required: true
         type: choice
-        default: فحص الأدوات
+        default: تحويل ملفات PC إلى PS4
         options:
           - فحص الأدوات
           - تحويل ملفات PC إلى PS4
