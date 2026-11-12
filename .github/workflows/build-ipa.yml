@@ -117,6 +117,7 @@ jobs:
           test "$BUILD" = "13"
           test -x "Payload/GTA Converter.app/$EXECUTABLE"
           nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_build_rpf7"
+          nm -g "Payload/GTA Converter.app/$EXECUTABLE" | grep -q "_gta_engine_extract_ytd"
 
           mkdir -p release-package
           cp GTA-Converter-1.6.0-unsigned.ipa release-package/GTA-Converter-1.6.0-unsigned.ipa
@@ -127,8 +128,8 @@ jobs:
           2) استخرج ملف GTA-Converter-1.6.0-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
-          يتضمن هذا الإصدار أساس محرك RPF7 محلياً.
-          تنبيه: بناء RPF7 العام لا يعني تحويل موارد PC إلى PS4.
+          يتضمن هذا الإصدار محرك RPF7 محلياً، وتحويلاً بنيوياً لبعض موارد Y*، واستخراج خامات YTD إلى DDS.
+          تنبيه: هذا لا يعني أن OTD أو DLC الناتج متوافق مع PS4 حتى تكتمل اختبارات الموارد.
           EOF
           echo "IPA package: valid"
           echo "Bundle ID: $BUNDLE_ID"
