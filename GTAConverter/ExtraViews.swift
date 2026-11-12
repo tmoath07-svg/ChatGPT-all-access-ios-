@@ -163,7 +163,7 @@ struct CloudConversionView: View {
                         .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 20))
 
                     cloudStep("1", title: "جهّز رابط المود", detail: "ارفع ملف ZIP أو RAR إلى مساحة ملفات تعطيك رابط تنزيل مباشر يمكن للخادم الوصول إليه.")
-                    cloudStep("2", title: "اختر نوع التحويل", detail: "من صفحة GitHub اختر Run workflow، ثم حدد Auto/نوع العملية المناسب والصق رابط الملف في خانة URL.")
+                    cloudStep("2", title: "اختر نوع التحويل", detail: "من صفحة GitHub اختر Run workflow، ثم حدد نوع العملية المناسب والصق رابط الملف في خانة URL.")
                     cloudStep("3", title: "نزّل الناتج", detail: "بعد انتهاء التشغيل افتح Artifacts ونزّل ملف النتيجة. ستجد ملفات PS4 والتقرير إذا نجحت العملية.")
 
                     Link(destination: workflowURL) {
