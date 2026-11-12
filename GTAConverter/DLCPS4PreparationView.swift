@@ -68,6 +68,15 @@ struct DLCPS4PreparationView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                                     .foregroundStyle(.white)
                             }
+
+                            NavigationLink(destination: OrbxPS4TransferView(packageURL: packageURL, packNames: packNames)) {
+                                Label("إرسال المود إلى السوني عبر FTP", systemImage: "gamecontroller.fill")
+                                    .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(14)
+                                    .background(Color.purple.opacity(0.82))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .foregroundStyle(.white)
+                            }
+                            .buttonStyle(.plain)
                         }
                         .padding(15).background(.white.opacity(0.06))
                         .clipShape(RoundedRectangle(cornerRadius: 16))
