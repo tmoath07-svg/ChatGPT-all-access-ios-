@@ -19,6 +19,9 @@ struct OrbxAutoInstallTests {
         let names = try INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)
         precondition(names == ["alpha_pack", "car_2026"], "DLC folder discovery did not return expected names")
 
+        let rpfRoot = root.appendingPathComponent("data/orbx/gta/rpf", isDirectory: true)
+        try FileManager.default.createDirectory(at: rpfRoot, withIntermediateDirectories: true)
+        let dlclistFile = rpfRoot.appendingPathComponent("dlclist.xml")
         let original = """
         <?xml version="1.0" encoding="UTF-8"?>
         <SMandatoryPacksData>
@@ -27,7 +30,12 @@ struct OrbxAutoInstallTests {
           </Paths>
         </SMandatoryPacksData>
         """
-        let merged = try INRPFOrbxAutoInstallPlanner.mergedDLClist(existing: original, packageNames: names)
+        try original.write(to: dlclistFile, atomically: true, encoding: .utf8)
+        let onDiskOriginal = try String(contentsOf: dlclistFile, encoding: .utf8)
+        let merged = try INRPFOrbxAutoInstallPlanner.mergedDLClist(existing: onDiskOriginal, packageNames: names)
+        try merged.write(to: dlclistFile, atomically: true, encoding: .utf8)
+        let onDiskMerged = try String(contentsOf: dlclistFile, encoding: .utf8)
+        precondition(onDiskMerged == merged, "dlclist.xml fixture was not written correctly")
         precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/old_pack/"), "Existing XML entries were not preserved")
         precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/alpha_pack/"), "First package path missing")
         precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/car_2026/"), "Second package path missing")
@@ -54,7 +62,8 @@ struct OrbxAutoInstallTests {
         }
 
         print("ORBX AUTO INSTALL TESTS: PASS")
-        print("Fixture: data/orbx/gta/rpf/dlc_addon/")
+        print("Fixture folder: data/orbx/gta/rpf/dlc_addon/")
+        print("Fixture file: data/orbx/gta/rpf/dlclist.xml")
         print("Packages: \(names.joined(separator: ", "))")
         print("XML: existing entries preserved, paths merged, duplicate-safe, malformed XML rejected.")
     }
