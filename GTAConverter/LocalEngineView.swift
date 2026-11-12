@@ -15,7 +15,7 @@ struct LocalEngineView: View {
     @State private var showingFileImporter = false
     @AppStorage("gta_language") private var appLanguage = "ar"
     private enum EnginePicker {
-        case sourceFolder, buildYTD, inspectRPF, listRPF, extractRPF, convertResource, convertFolder, extractYTD
+        case sourceFolder, buildYTD, inspectRPF, listRPF, convertResource, convertFolder, extractYTD
         var contentTypes: [UTType] {
             switch self {
             case .sourceFolder, .buildYTD, .convertFolder: return [.folder]
@@ -49,7 +49,7 @@ struct LocalEngineView: View {
                         Text("محرر ومحرك الملفات المحلي").font(.title2.bold()).foregroundStyle(.white)
                         Text(LocalEngineBridge.version)
                             .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.55))
-                        Text("افتح أرشيف حزمة مركبات مدعومة، استعرض بنيته أو استخرج ملفاته، ثم أعد بناء RPF7 محلياً. يدعم أيضاً فحص موارد المركبات واستخراج وبناء YTD ضمن الصيغ المدعومة.")
+                        Text("افحص ترويسة أرشيف المركبات واعرض ملفات META الخاصة بالمركبات فقط، ثم جهّز RPF7 من مجلد مود مركبة. يدعم أيضاً فحص الموارد واستخراج وبناء YTD ضمن الصيغ المدعومة.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.72))
                     }
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
@@ -97,14 +97,6 @@ struct LocalEngineView: View {
 
                     Button { openPicker(.listRPF) } label: {
                         Label("استعراض شجرة أرشيف المركبات", systemImage: "list.bullet.indent")
-                            .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
-                            .background(.white.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
-                    }
-                    .buttonStyle(.plain).disabled(isBusy)
-
-                    Button { openPicker(.extractRPF) } label: {
-                        Label("استخراج أرشيف المركبات محلياً", systemImage: "archivebox")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
                             .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
@@ -174,21 +166,7 @@ struct LocalEngineView: View {
                         .padding(15).localEnginePanel()
                     }
 
-                    if let extractedRpfFolder {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Label("تم استخراج ملفات RPF", systemImage: "checkmark.seal.fill")
-                                .font(.headline).foregroundStyle(.green)
-                            Text(extractedRpfFolder.lastPathComponent)
-                                .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7))
-                            ShareLink(item: extractedRpfFolder) {
-                                Label("مشاركة مجلد الملفات المستخرجة", systemImage: "square.and.arrow.up")
-                                    .frame(maxWidth: .infinity).padding(13)
-                                    .background(.white.opacity(0.1))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
-                            }
-                        }
-                        .padding(15).localEnginePanel()
-                    }
+
 
                     if let builtYtdURL {
                         VStack(alignment: .leading, spacing: 10) {
@@ -254,7 +232,7 @@ struct LocalEngineView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Label("حدود المرحلة الحالية", systemImage: "info.circle.fill")
                             .font(.subheadline.bold()).foregroundStyle(.orange)
-                        Text("فحص واستعراض واستخراج RPF محصور بحزم المركبات التي تحتوي بيانات المركبة المعروفة. تحويل الموارد واستخراج YTD يعملان ضمن الصيغ المدعومة فقط. بناء OTD بصيغة Orbis وتجميع DLC متوافق بالكامل مع PS4 ما زالا قيد النقل والاختبار. حد المعالجة 512MB.")
+                        Text("فحص RPF يعرض بيانات META الخاصة بالمركبات فقط، ولا يستخرج الأرشيف كاملاً. تحويل الموارد واستخراج YTD يعملان ضمن الصيغ المدعومة فقط. بناء OTD بصيغة Orbis وتجميع DLC متوافق بالكامل مع PS4 ما زالا قيد النقل والاختبار. حد المعالجة 512MB.")
                             .font(.caption).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(14).background(.orange.opacity(0.07))
@@ -323,7 +301,6 @@ struct LocalEngineView: View {
                     case .buildYTD: buildYTD(from: localURL)
                     case .inspectRPF: inspect(localURL)
                     case .listRPF: listRPF(localURL)
-                    case .extractRPF: extractRPF(localURL)
                     case .convertResource: convertResource(localURL)
                     case .convertFolder: convertFolder(localURL)
                     case .extractYTD: extractYTD(localURL)
@@ -375,40 +352,6 @@ struct LocalEngineView: View {
                 }
             }
             if access { folder.stopAccessingSecurityScopedResource() }
-        }
-    }
-
-    private func extractRPF(_ file: URL) {
-        let access = file.startAccessingSecurityScopedResource()
-        isBusy = true
-        errorText = ""
-        extractedRpfFolder = nil
-        report = "يتم استخراج الملفات وفك الأرشيفات الداخلية..."
-        Task.detached(priority: .userInitiated) {
-            do {
-                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
-                                                            appropriateFor: nil, create: true)
-                let base = documents.appendingPathComponent("GTA Converter/Local Engine/Extracted RPF", isDirectory: true)
-                let folderName = file.deletingPathExtension().lastPathComponent
-                let outputDirectory = base.appendingPathComponent(folderName, isDirectory: true)
-                let result = try LocalEngineBridge.extractRPF(at: file, to: outputDirectory)
-                await MainActor.run {
-                    extractedRpfFolder = outputDirectory
-                    report = """
-                    الصيغة: \(result["format"] as? String ?? "RPF")
-                    الملفات المستخرجة: \(result["files"] as? Int ?? 0)
-                    الحجم المستخرج: \(ByteCountFormatter.string(fromByteCount: Int64(result["output_bytes"] as? Int64 ?? 0), countStyle: .file))
-                    \(result["warning"] as? String ?? "")
-                    """
-                    isBusy = false
-                }
-            } catch {
-                await MainActor.run {
-                    errorText = error.localizedDescription
-                    isBusy = false
-                }
-            }
-            if access { file.stopAccessingSecurityScopedResource() }
         }
     }
 

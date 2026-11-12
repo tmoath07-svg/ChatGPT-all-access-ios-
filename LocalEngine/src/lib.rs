@@ -300,25 +300,17 @@ fn collect_rpf_listing(
         let path = if prefix.is_empty() { name.to_string() } else { format!("{prefix}/{name}") };
         match &entry.kind {
             RpfEntryKind::Directory { entries_index, entries_count } => {
-                if items.len() >= MAX_FILES {
-                    return Err(format!("تجاوز عدد عناصر RPF الحد المسموح ({MAX_FILES})."));
-                }
-                items.push(json!({"path": path, "kind": "directory"}));
                 collect_rpf_listing(
                     archive, *entries_index, *entries_count, &path, depth + 1, items,
                 )?;
             }
-            RpfEntryKind::BinaryFile { .. } => {
-                if items.len() >= MAX_FILES {
-                    return Err(format!("تجاوز عدد عناصر RPF الحد المسموح ({MAX_FILES})."));
+            RpfEntryKind::BinaryFile { .. } | RpfEntryKind::ResourceFile { .. } => {
+                if is_vehicle_metadata_name(name) {
+                    if items.len() >= MAX_FILES {
+                        return Err(format!("تجاوز عدد ملفات META الحد المسموح ({MAX_FILES})."));
+                    }
+                    items.push(json!({"path": path, "kind": "vehicle_metadata"}));
                 }
-                items.push(json!({"path": path, "kind": "binary"}));
-            }
-            RpfEntryKind::ResourceFile { .. } => {
-                if items.len() >= MAX_FILES {
-                    return Err(format!("تجاوز عدد عناصر RPF الحد المسموح ({MAX_FILES})."));
-                }
-                items.push(json!({"path": path, "kind": "resource"}));
             }
         }
     }
@@ -383,7 +375,7 @@ pub unsafe extern "C" fn gta_engine_list_rpf(path: *const c_char) -> *mut c_char
         "encryption": format!("{:?}", archive.encryption),
         "count": items.len(),
         "items": items,
-        "warning": "استعراض الشجرة يعرض أسماء العناصر وأنواعها فقط، ولا يفك تشفير الملفات."
+        "warning": "يعرض فاحص RPF ملفات بيانات المركبات المعروفة فقط. لا يتيح استخراج محتويات الأرشيف العامة."
     }))
 }
 
@@ -583,28 +575,10 @@ fn extract_rpf_to_directory(input: &Path, output: &Path) -> Result<(usize, u64, 
 
 #[no_mangle]
 pub unsafe extern "C" fn gta_engine_extract_rpf(
-    input_file: *const c_char,
-    output_directory: *const c_char,
+    _input_file: *const c_char,
+    _output_directory: *const c_char,
 ) -> *mut c_char {
-    let input = match read_c_path(input_file) {
-        Ok(value) => PathBuf::from(value),
-        Err(error) => return result_error(error),
-    };
-    let output = match read_c_path(output_directory) {
-        Ok(value) => PathBuf::from(value),
-        Err(error) => return result_error(error),
-    };
-    match extract_rpf_to_directory(&input, &output) {
-        Ok((files, output_bytes, version)) => result_ok(json!({
-            "ok": true,
-            "format": version,
-            "files": files,
-            "output_bytes": output_bytes,
-            "output": output.to_string_lossy(),
-            "warning": "الاستخراج يدعم الأرشيفات غير المشفرة فقط. لم يتم تعديل محتوى الموارد."
-        })),
-        Err(error) => result_error(error),
-    }
+    result_error("استخراج الأرشيف الكامل غير متاح. فاحص RPF يعرض بيانات المركبات المعروفة فقط.")
 }
 
 #[no_mangle]

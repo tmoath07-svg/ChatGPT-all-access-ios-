@@ -167,7 +167,7 @@ struct FeatureHubView: View {
         .init(id:35,title:"Mod Backup",category:"الإدارة",icon:"externaldrive.fill",status:"متاح",route:"utility",detail:"إنشاء نسخة احتياطية مؤرخة من مجلد المود دون تعديل المصدر."),
         .init(id:36,title:"Project Templates",category:"الإدارة",icon:"square.grid.2x2.fill",status:"متاح",route:"utility",detail:"إنشاء قوالب مشاريع FiveM وOrbx ومساحة عمل عامة محلياً."),
         .init(id:37,title:"Dependency Checker",category:"الملفات",icon:"point.3.connected.trianglepath.dotted",status:"متاح",route:"utility",detail:"قراءة اعتماديات FiveM وملفات manifest والتحقق من مراجع الملفات المحلية."),
-        .init(id:38,title:"Vehicle RPF Explorer",category:"الملفات",icon:"archivebox.fill",status:"متاح",route:"rpf",detail:"فحص واستعراض واستخراج أرشيفات RPF لحزم المركبات المدعومة فقط عبر المحرك المحلي."),
+        .init(id:38,title:"Vehicle RPF Explorer",category:"الملفات",icon:"archivebox.fill",status:"جزئي",route:"rpf",detail:"فحص ترويسة RPF وعرض ملفات META الخاصة بالمركبات المدعومة فقط. لا يتيح استخراج الأرشيف كاملاً."),
         .init(id:39,title:"Texture Converter",category:"الملفات",icon:"photo.artframe",status:"جزئي",route:"ytd",detail:"استخراج خامات YTD المدعومة إلى DDS وبناء بعض القواميس. التحويل الكامل بين كل الصيغ غير متاح."),
         .init(id:40,title:"Mod Installer Guide",category:"PS4",icon:"book.closed.fill",status:"متاح",route:"utility",detail:"دليل خطوات Orbx وPS4 مع تنبيهات المسارات والنسخ الاحتياطي والتحقق."),
         .init(id:41,title:"Chiaki Remote Play",category:"PlayStation",icon:"gamecontroller.fill",status:"دليل وتجهيز",detail:"مركز Chiaki لمشروع Remote Play ومعلومات دعم iOS وروابط المشروع الرسمية.",route:"chiaki"),
