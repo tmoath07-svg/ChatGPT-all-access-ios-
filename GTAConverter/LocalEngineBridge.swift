@@ -64,6 +64,70 @@ enum LocalEngineBridge {
         return try decode(pointer)
     }
 
+
+    static func ftpConnect(host: String, port: UInt16, username: String, password: String) throws -> [String: Any] {
+        let pointer = host.withCString { h in
+            username.withCString { u in
+                password.withCString { p in gta_ftp_connect(h, port, u, p) }
+            }
+        }
+        return try decode(pointer)
+    }
+
+    static func ftpList(host: String, port: UInt16, username: String, password: String, path: String) throws -> [String: Any] {
+        let pointer = host.withCString { h in
+            username.withCString { u in
+                password.withCString { p in
+                    path.withCString { remote in gta_ftp_list(h, port, u, p, remote) }
+                }
+            }
+        }
+        return try decode(pointer)
+    }
+
+    static func ftpMakeDirectory(host: String, port: UInt16, username: String, password: String, path: String, name: String) throws -> [String: Any] {
+        let pointer = host.withCString { h in
+            username.withCString { u in
+                password.withCString { p in
+                    path.withCString { remote in
+                        name.withCString { folder in gta_ftp_mkdir(h, port, u, p, remote, folder) }
+                    }
+                }
+            }
+        }
+        return try decode(pointer)
+    }
+
+    static func ftpUpload(host: String, port: UInt16, username: String, password: String, path: String, name: String, localFile: URL) throws -> [String: Any] {
+        let pointer = host.withCString { h in
+            username.withCString { u in
+                password.withCString { p in
+                    path.withCString { remote in
+                        name.withCString { fileName in
+                            localFile.path.withCString { local in gta_ftp_upload(h, port, u, p, remote, fileName, local) }
+                        }
+                    }
+                }
+            }
+        }
+        return try decode(pointer)
+    }
+
+    static func ftpDownload(host: String, port: UInt16, username: String, password: String, path: String, name: String, destination: URL) throws -> [String: Any] {
+        let pointer = host.withCString { h in
+            username.withCString { u in
+                password.withCString { p in
+                    path.withCString { remote in
+                        name.withCString { fileName in
+                            destination.path.withCString { local in gta_ftp_download(h, port, u, p, remote, fileName, local) }
+                        }
+                    }
+                }
+            }
+        }
+        return try decode(pointer)
+    }
+
     private static func decode(_ pointer: UnsafeMutablePointer<CChar>?) throws -> [String: Any] {
         guard let pointer else {
             throw NSError(domain: "GTALocalEngine", code: 1,
