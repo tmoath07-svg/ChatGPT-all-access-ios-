@@ -49,8 +49,8 @@ struct FeatureAnalysisTests {
         try write("nested", to: right.appendingPathComponent("nested/keep.txt"))
 
         let changes = try INRPFFileComparison.compare(left: left, right: right)
-        precondition(changes.count == 5, "Comparison expected 4 paths, got \(changes.count): \(changes.map(\.path))")
-        precondition(changes.filter { $0.change == .unchanged }.map(\.path) == ["same.txt"], "Unchanged file classification failed")
+        precondition(changes.count == 5, "Comparison expected 5 paths, got \(changes.count): \(changes.map(\.path))")
+        precondition(changes.filter { $0.change == .unchanged }.map(\.path) == ["nested/keep.txt", "same.txt"], "Unchanged file classification failed: \(changes.filter { $0.change == .unchanged }.map(\.path))")
         precondition(changes.filter { $0.change == .changed }.map(\.path) == ["changed.txt"], "Changed file classification failed")
         precondition(changes.filter { $0.change == .removed }.map(\.path) == ["removed.txt"], "Removed file classification failed")
         precondition(changes.filter { $0.change == .added }.map(\.path) == ["added.txt"], "Added file classification failed")
