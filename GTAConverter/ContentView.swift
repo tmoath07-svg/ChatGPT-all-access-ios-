@@ -1053,7 +1053,6 @@ private struct AppSettingsView: View {
 
                     group("حول التطبيق", icon: "info.circle") {
                         settingRow("اسم التطبيق", "GTA Converter")
-                        settingRow("الإصدار", "1.4.0")
                         settingRow("النظام الأدنى", "iOS 16 أو أحدث")
                     }
 
@@ -1061,6 +1060,18 @@ private struct AppSettingsView: View {
                         Text("ملفاتك تحفظ محلياً داخل التطبيق ولا يتم رفعها إلى خادم خارجي.")
                             .font(.caption).foregroundStyle(.white.opacity(0.62))
                     }
+
+                    HStack {
+                        Text("الفيرجن").foregroundStyle(.white.opacity(0.65))
+                        Spacer()
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.5.1")
+                            .font(.system(.subheadline, design: .rounded).weight(.bold))
+                            .foregroundStyle(.white)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+                    .background(.white.opacity(0.07))
+                    .clipShape(RoundedRectangle(cornerRadius: 15))
                 }.padding(16)
             }
         }
