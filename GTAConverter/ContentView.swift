@@ -550,7 +550,7 @@ struct ContentView: View {
                 do {
                     let importedURL = try await Task.detached(priority: .userInitiated) {
                         try FileImportService.importItem(from: pickedURL, category: "Imports",
-                                                          securityScopeAlreadyStarted: true)
+                                                          securityScopeAlreadyStarted: scopeStarted)
                     }.value
                     sourceURL = importedURL
                     selectedFileName = pickedURL.lastPathComponent
