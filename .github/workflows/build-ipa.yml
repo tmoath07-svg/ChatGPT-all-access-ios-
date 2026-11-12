@@ -47,6 +47,12 @@ jobs:
           grep -q 'MARKETING_VERSION: "3.20"' project.yml
           grep -q 'CURRENT_PROJECT_VERSION: "33"' project.yml
 
+      - name: Test feature analysis core
+        run: |
+          set -euo pipefail
+          swiftc GTAConverter/FeatureAnalysisCore.swift Tests/feature_analysis_tests.swift -o /tmp/feature-analysis-tests
+          /tmp/feature-analysis-tests
+
       - name: Test Orbx auto installer with local DLC fixture
         run: |
           set -euo pipefail

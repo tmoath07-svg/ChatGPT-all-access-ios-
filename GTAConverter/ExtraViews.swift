@@ -138,7 +138,7 @@ struct FeatureHubView: View {
         .init(id:6,title:"منشئ DLC سيارات",category:"السيارات",icon:"car.side.fill",status:"تجهيز متاح",detail:"تجهيز هيكل DLC ومسارات Orbx وملف dlclist. تحويل محتوى PC نفسه يحتاج محرك التحويل السحابي.",route:"dlc"),
         .init(id:7,title:"فاحص ملفات السيارة",category:"السيارات",icon:"car.rear.fill",status:"جزئي",detail:"فحص وجود الملفات المعروفة ممكن ضمن التحليل. التحقق من صحة كل بنية YFT/YTD يحتاج محللات متخصصة."),
         .init(id:8,title:"استوديو ألوان السيارات",category:"السيارات",icon:"paintpalette.fill",status:"مخطط",detail:"معاينة وتعديل ألوان الخامات تتطلب فك YTD ومحرر خامات."),
-        .init(id:9,title:"محلل Handling",category:"السيارات",icon:"gauge.with.dots.needle.67percent",status:"مخطط",detail:"قراءة وعرض قيم handling.meta مع مقارنة القيم وتفسيرها."),
+        .init(id:9,title:"محلل Handling",category:"السيارات",icon:"gauge.with.dots.needle.67percent",status:"متاح",detail:"قراءة قيم handling.meta من النص وخصائص value في XML، مع دعم تكرار الحقول لعدة مركبات. العرض للقراءة فقط.",route:"handling"),
         .init(id:10,title:"معرض موداتك",category:"السيارات",icon:"rectangle.stack.fill",status:"مخطط",detail:"مكتبة منظمة للسيارات والمودات مع صور وأسماء وبيانات كل مشروع."),
         .init(id:11,title:"AI Mod Scanner",category:"الذكاء الاصطناعي",icon:"sparkles",status:"مخطط",detail:"تحليل وصف المود وملفاته وتقديم تقرير مفهوم. يحتاج ربط خدمة ذكاء اصطناعي وموافقة المستخدم على إرسال الملفات."),
         .init(id:12,title:"AI Error Fixer",category:"الذكاء الاصطناعي",icon:"wrench.and.screwdriver.fill",status:"مخطط",detail:"تحليل سجلات الأخطاء واقتراح إصلاحات قابلة للمراجعة قبل تطبيقها."),
@@ -151,7 +151,7 @@ struct FeatureHubView: View {
         .init(id:19,title:"PS4 Package Studio",category:"PS4",icon:"shippingbox",status:"مخطط",detail:"تنظيم مخرجات التحويل في حزم واضحة مع تقرير محتوياتها."),
         .init(id:20,title:"XML Studio",category:"PS4",icon:"list.bullet.rectangle",status:"جزئي",detail:"مولد dlclist موجود ضمن تجهيز Orbx. محرر XML تفاعلي شامل ما زال يحتاج بناء.",route:"dlc"),
         .init(id:21,title:"Cloud Converter",category:"PS4",icon:"cloud.gear.fill",status:"متاح يدوياً",detail:"محرك Ps4tools موجود في GitHub Actions. تشغيله حالياً يتم من GitHub يدوياً برابط تنزيل مباشر.",route:"cloud"),
-        .init(id:22,title:"مقارنة إصدارات المود",category:"الملفات",icon:"arrow.left.arrow.right",status:"مخطط",detail:"مقارنة قائمتين من الملفات وإظهار الملفات الجديدة والمعدلة والمحذوفة."),
+        .init(id:22,title:"مقارنة إصدارات المود",category:"الملفات",icon:"arrow.left.arrow.right",status:"متاح",detail:"مقارنة مجلدين محلياً ببصمات SHA-256 وكشف الملفات الجديدة والمحذوفة والمتغيرة والمتطابقة.",route:"compare"),
         .init(id:23,title:"مدير DLC",category:"PS4",icon:"folder.badge.gearshape",status:"تجهيز متاح",detail:"إدارة مخرجات DLC ومسارات Orbx وملف dlclist.",route:"dlc"),
         .init(id:24,title:"Mod Marketplace",category:"الإدارة",icon:"storefront",status:"مخطط",detail:"كتالوج مودات وروابطها ومعلومات التوافق. لن يستضيف ملفات محمية أو يعيد توزيعها دون إذن."),
         .init(id:25,title:"Mod Cloud Library",category:"الإدارة",icon:"cloud.fill",status:"مخطط",detail:"مزامنة مكتبة المشاريع والملفات عبر تخزين سحابي يختاره المستخدم."),
@@ -273,6 +273,8 @@ struct FeatureHubView: View {
     @ViewBuilder private func destination(for item: FeatureCatalogItem) -> some View {
         switch item.route {
         case "ytd": YTDTextureLabView()
+        case "handling": HandlingAnalyzerView()
+        case "compare": ModComparisonView()
         case "cloud": CloudConversionView()
         case "chiaki": ChiakiRemotePlayView()
         case "hash": FileHashInspectorView()

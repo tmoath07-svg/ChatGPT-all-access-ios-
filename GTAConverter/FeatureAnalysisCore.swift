@@ -14,7 +14,7 @@ enum INRPFFileComparison {
         let lhs = try inventory(left)
         let rhs = try inventory(right)
         let paths = Set(lhs.keys).union(rhs.keys).sorted()
-        return try paths.map { path in
+        return paths.map { path in
             let a = lhs[path], b = rhs[path]
             let change: INRPFComparedFile.Change
             if a == nil { change = .added }
@@ -65,6 +65,7 @@ enum INRPFHandlingParser {
         let delegate = HandlingXMLDelegate()
         let parser = XMLParser(data: data)
         parser.delegate = delegate
+        parser.shouldResolveExternalEntities = false
         guard parser.parse(), delegate.fields.isEmpty == false else {
             throw NSError(domain: "INRPF.Handling", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: parser.parserError?.localizedDescription ?? "لم يتم العثور على حقول Handling صالحة."])
@@ -74,26 +75,43 @@ enum INRPFHandlingParser {
 }
 
 private final class HandlingXMLDelegate: NSObject, XMLParserDelegate {
+    private struct ElementFrame {
+        let name: String
+        let valueAttribute: String?
+        var text: String
+        var hasChild: Bool
+    }
+
     var fields: [INRPFHandlingField] = []
-    private var currentName: String?
-    private var text = ""
+    private var stack: [ElementFrame] = []
     private let ignored: Set<String> = ["Item", "HandlingData", "HandlingDataMgr", "CHandlingData"]
 
     func parser(_ parser: XMLParser, didStartElement elementName: String,
                 namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
-        currentName = elementName
-        text = ""
+        if !stack.isEmpty {
+            stack[stack.count - 1].hasChild = true
+        }
+        stack.append(ElementFrame(
+            name: elementName,
+            valueAttribute: attributeDict["value"],
+            text: "",
+            hasChild: false
+        ))
     }
 
-    func parser(_ parser: XMLParser, foundCharacters string: String) { text += string }
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        guard !stack.isEmpty else { return }
+        stack[stack.count - 1].text += string
+    }
 
     func parser(_ parser: XMLParser, didEndElement elementName: String,
                 namespaceURI: String?, qualifiedName qName: String?) {
-        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !value.isEmpty && !ignored.contains(elementName) {
-            fields.append(INRPFHandlingField(name: elementName, value: value))
-        }
-        currentName = nil
-        text = ""
+        guard let frame = stack.popLast() else { return }
+        guard !frame.hasChild, !ignored.contains(frame.name) else { return }
+
+        let textValue = frame.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = (frame.valueAttribute ?? textValue).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        fields.append(INRPFHandlingField(name: frame.name, value: value))
     }
 }

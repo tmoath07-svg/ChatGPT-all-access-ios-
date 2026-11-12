@@ -82,18 +82,20 @@ struct ModComparisonView: View {
         guard let left, let right else { return }
         isBusy = true
         errorText = nil
-        Task.detached(priority: .userInitiated) {
-            let leftAccess = left.startAccessingSecurityScopedResource()
-            let rightAccess = right.startAccessingSecurityScopedResource()
-            defer {
-                if leftAccess { left.stopAccessingSecurityScopedResource() }
-                if rightAccess { right.stopAccessingSecurityScopedResource() }
-            }
-            return try INRPFFileComparison.compare(left: left, right: right)
-        }.valueOnMain { result in
-            switch result {
-            case .success(let value): results = value
-            case .failure(let error): errorText = error.localizedDescription
+        Task { @MainActor in
+            do {
+                let value = try await Task.detached(priority: .userInitiated) {
+                    let leftAccess = left.startAccessingSecurityScopedResource()
+                    let rightAccess = right.startAccessingSecurityScopedResource()
+                    defer {
+                        if leftAccess { left.stopAccessingSecurityScopedResource() }
+                        if rightAccess { right.stopAccessingSecurityScopedResource() }
+                    }
+                    return try INRPFFileComparison.compare(left: left, right: right)
+                }.value
+                results = value
+            } catch {
+                errorText = error.localizedDescription
             }
             isBusy = false
         }
@@ -128,7 +130,7 @@ struct HandlingAnalyzerView: View {
                     }
                     if !fileName.isEmpty { Text(fileName).font(.caption.monospaced()).foregroundStyle(.purple) }
                     if let errorText { Text(errorText).font(.caption).foregroundStyle(.red) }
-                    ForEach(fields, id: \.name) { field in
+                    ForEach(Array(fields.enumerated()), id: \.offset) { _, field in
                         HStack {
                             Text(field.name).font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7))
                             Spacer()
