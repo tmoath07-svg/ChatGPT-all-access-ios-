@@ -428,26 +428,37 @@ struct CloudConversionView: View {
 
 struct CreatorPageView: View {
     @AppStorage("gta_language") private var appLanguage = "ar"
+    @State private var showAssistantProfile = false
+
     private let creatorHandle = "Moa_sa7"
-    private let contributorHandle = "q.wq9@tik"
-    private let tiktokURL = URL(string: "https://www.tiktok.com/@Moa_sa7")!
+    private let assistantName = "q.wq9"
+    private let assistantURL = URL(string: "https://www.tiktok.com/@q.wq9")!
+    private let creatorURL = URL(string: "https://www.tiktok.com/@Moa_sa7")!
 
     var body: some View {
         ZStack {
-            extraBackground.ignoresSafeArea()
+            GTAAppBackground()
             ScrollView {
                 VStack(spacing: 18) {
                     VStack(alignment: .leading, spacing: 13) {
                         Text(appLanguage == "ar" ? "فريق التطوير" : "Development team")
                             .font(.title2.bold()).foregroundStyle(.white)
                         HStack(alignment: .top, spacing: 12) {
-                            creatorCard(handle: creatorHandle, role: appLanguage == "ar" ? "المطوّر وصاحب المشروع" : "Founder & Developer", icon: "crown.fill", primary: true)
-                            creatorCard(handle: contributorHandle, role: appLanguage == "ar" ? "مساهم في المشروع" : "Project Contributor", icon: "person.fill", primary: false)
+                            Link(destination: creatorURL) {
+                                creatorCard(handle: creatorHandle, role: appLanguage == "ar" ? "المطوّر وصاحب المشروع" : "Founder & Developer", icon: "crown.fill", primary: true)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button { showAssistantProfile = true } label: {
+                                creatorCard(handle: assistantName, role: appLanguage == "ar" ? "مساعد المشروع" : "Project Assistant", icon: "person.fill", primary: false)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(16).background(.white.opacity(0.055))
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    Link(destination: tiktokURL) {
+
+                    Link(destination: creatorURL) {
                         HStack(spacing: 12) {
                             Image(systemName: "music.note").font(.title2)
                             VStack(alignment: .leading, spacing: 3) {
@@ -460,6 +471,7 @@ struct CreatorPageView: View {
                             .background(Color.purple.opacity(0.28))
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
+
                     VStack(alignment: .leading, spacing: 8) {
                         Label(appLanguage == "ar" ? "حقوق التطبيق" : "App credits", systemImage: "c.circle.fill")
                             .font(.headline).foregroundStyle(.white)
@@ -474,10 +486,77 @@ struct CreatorPageView: View {
                 }.padding(16)
             }
         }
-        .navigationTitle(appLanguage == "ar" ? "المبدع" : "Creators")
+        .navigationTitle(appLanguage == "ar" ? "المبدعين" : "Creators")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
-        .environment(\.locale, Locale(identifier: appLanguage))
+        .environment(\\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\\.locale, Locale(identifier: appLanguage))
+        .sheet(isPresented: $showAssistantProfile) {
+            NavigationStack {
+                ZStack {
+                    GTAAppBackground()
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(LinearGradient(colors: [.blue, Color(red: 0.08, green: 0.18, blue: 0.42)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                    .frame(width: 112, height: 112)
+                                Text("q")
+                                    .font(.system(size: 54, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+                            }
+                            .padding(.top, 22)
+
+                            Text(assistantName)
+                                .font(.title2.bold()).foregroundStyle(.white)
+                            Text(appLanguage == "ar" ? "مساعد المشروع" : "Project Assistant")
+                                .font(.subheadline).foregroundStyle(.cyan)
+
+                            VStack(spacing: 12) {
+                                profileInfoRow(appLanguage == "ar" ? "الاسم الظاهر" : "Display name", value: assistantName)
+                                Divider().overlay(.white.opacity(0.12))
+                                profileInfoRow(appLanguage == "ar" ? "اسم المستخدم" : "Username", value: "@\\(assistantName)")
+                                Divider().overlay(.white.opacity(0.12))
+                                profileInfoRow(appLanguage == "ar" ? "المنصة" : "Platform", value: "TikTok")
+                            }
+                            .padding(16)
+                            .background(.white.opacity(0.07))
+                            .clipShape(RoundedRectangle(cornerRadius: 18))
+
+                            Link(destination: assistantURL) {
+                                Label(appLanguage == "ar" ? "فتح حساب TikTok" : "Open TikTok profile", systemImage: "arrow.up.right")
+                                    .font(.headline).foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity).padding(15)
+                                    .background(Color.cyan.opacity(0.22))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                            }
+
+                            Text(appLanguage == "ar" ? "صورة الحساب ستظهر هنا عند إضافة ملف الصورة الأصلي." : "The account photo can be added here when its original image file is available.")
+                                .font(.caption).foregroundStyle(.white.opacity(0.5))
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(20)
+                    }
+                }
+                .navigationTitle(appLanguage == "ar" ? "ملف المساعد" : "Assistant profile")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(appLanguage == "ar" ? "إغلاق" : "Close") { showAssistantProfile = false }
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    private func profileInfoRow(_ title: String, value: String) -> some View {
+        HStack {
+            Text(title).foregroundStyle(.white.opacity(0.62))
+            Spacer()
+            Text(value).fontWeight(.semibold).foregroundStyle(.white)
+        }
+        .font(.subheadline)
     }
 
     private func creatorCard(handle: String, role: String, icon: String, primary: Bool) -> some View {
@@ -499,7 +578,6 @@ struct CreatorPageView: View {
         .overlay(RoundedRectangle(cornerRadius: 17).stroke(primary ? .purple.opacity(0.35) : .cyan.opacity(0.25)))
     }
 }
-
 struct ChiakiRemotePlayView: View {
     private let projectURL = URL(string: "https://github.com/chiaki-ng/chiaki-ng")!
     private let releaseURL = URL(string: "https://github.com/chiaki-ng/chiaki-ng/releases")!
