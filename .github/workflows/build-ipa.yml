@@ -145,7 +145,7 @@ jobs:
           mkdir -p release-package
           cp INRPF-3.20-unsigned.ipa release-package/INRPF-3.20-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
-          INRPF 3.10 - IPA غير موقّع
+          INRPF 3.20 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
           2) استخرج ملف INRPF-3.20-unsigned.ipa.
