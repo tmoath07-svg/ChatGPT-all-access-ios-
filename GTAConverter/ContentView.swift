@@ -25,6 +25,7 @@ struct ContentView: View {
     @AppStorage("gta_home_density") private var homeDensity = "comfortable"
     @AppStorage("gta_motion_enabled") private var motionEnabled = true
     @AppStorage("gta_language") private var appLanguage = "ar"
+    @AppStorage("gta_welcome_message") private var welcomeMessage = "حيّاك في GTA Converter"
     @AppStorage("gta_onboarding_complete") private var onboardingComplete = false
     @State private var showOnboarding = false
 
@@ -130,7 +131,8 @@ struct ContentView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("GTA CONVERTER").font(.system(size: 25, weight: .black, design: .rounded)).tracking(-0.5).foregroundStyle(.white)
-                    Text("مركز تجهيز مودات قراند").font(.subheadline.weight(.medium)).foregroundStyle(.white.opacity(0.65))
+                    Text(welcomeMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? (appLanguage == "ar" ? "مركز تجهيز مودات قراند" : "GTA V mod preparation center") : welcomeMessage)
+                        .font(.subheadline.weight(.medium)).foregroundStyle(.white.opacity(0.65)).lineLimit(2)
                 }
                 Spacer()
                 ZStack {
