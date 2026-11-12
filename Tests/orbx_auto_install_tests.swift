@@ -32,7 +32,7 @@ struct OrbxAutoInstallTests {
         do {
             try INRPFOrbxAutoInstallPlanner.validateDlcRPF(in: missingArchive)
             fatalError("Package without dlc.rpf was incorrectly accepted")
-        } catch INRPFOrbxAutoInstallPlanner.PlanError.missingDlcRPF {
+        } catch INRPFOrbxAutoInstallPlanner.PlanError.missingDlcRPF(_) {
             // Expected: package must contain dlc.rpf at its root.
         }
 
