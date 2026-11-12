@@ -27,7 +27,7 @@ struct OrbxAutoInstallTests {
         try INRPFOrbxAutoInstallPlanner.validateDlcRPF(in: alpha)
         try INRPFOrbxAutoInstallPlanner.validateDlcRPF(in: beta)
 
-        let missingArchive = addon.appendingPathComponent("missing_rpf", isDirectory: true)
+        let missingArchive = root.appendingPathComponent("missing_rpf", isDirectory: true)
         try FileManager.default.createDirectory(at: missingArchive, withIntermediateDirectories: true)
         do {
             try INRPFOrbxAutoInstallPlanner.validateDlcRPF(in: missingArchive)
