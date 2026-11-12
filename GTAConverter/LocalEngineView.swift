@@ -294,7 +294,7 @@ struct LocalEngineView: View {
                     do {
                         let localURL = try await Task.detached(priority: .userInitiated) {
                             try FileImportService.importItem(from: selectedURL, category: "Imports",
-                                                              securityScopeAlreadyStarted: true)
+                                                              securityScopeAlreadyStarted: scopeStarted)
                         }.value
                         switch selectedAction {
                         case .sourceFolder:
