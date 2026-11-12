@@ -22,6 +22,8 @@ struct ContentView: View {
     @AppStorage("gta_conversion_mode") private var conversionMode = "auto"
     @AppStorage("gta_cover_style") private var coverStyle = "neon"
     @AppStorage("gta_accent_color") private var accentColor = "purple"
+    @AppStorage("gta_home_density") private var homeDensity = "comfortable"
+    @AppStorage("gta_motion_enabled") private var motionEnabled = true
 
     private var purple: Color {
         switch accentColor {
@@ -51,7 +53,7 @@ struct ContentView: View {
             ZStack {
                 GTAAppBackground()
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: homeDensity == "compact" ? 10 : 16) {
                         header
                         topMenu
                         conversionCard
@@ -77,6 +79,7 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .animation(motionEnabled ? .spring(response: 0.48, dampingFraction: 0.82) : .easeOut(duration: 0.12), value: sourceURL)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -378,6 +381,20 @@ struct ContentView: View {
                         : "تم العثور على ملفات DLC. تقدر تستخدم أسماءها لإنشاء dlclist.xml.")
             )
             .font(.caption).foregroundStyle(.white.opacity(0.72))
+            if report.isFiveMVehicleResource {
+                NavigationLink(destination: CloudConversionView()) {
+                    Label("متابعة تجهيز مورد FiveM إلى DLC", systemImage: "car.side.fill")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity).padding(13)
+                        .background(.ultraThinMaterial)
+                        .overlay(RoundedRectangle(cornerRadius: 13).stroke(.white.opacity(0.22)))
+                        .clipShape(RoundedRectangle(cornerRadius: 13))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                Text("ظهر هذا الخيار لأن المورد يحتوي ملفات YFT وYTD وMETA، حتى لو ما كان داخله dlc.rpf. التحويل الفعلي يتم من مسار FiveM السحابي، وليس من خطوة فك الملفات.")
+                    .font(.caption2).foregroundStyle(.orange.opacity(0.9))
+            }
             if !report.packNames.isEmpty {
                 Button {
                     packNames = report.packNames.joined(separator: "\n")
@@ -833,7 +850,8 @@ struct ContentView: View {
 
 private extension View {
     func panel() -> some View {
-        self.background(Color.white.opacity(0.065))
+        self.background(.ultraThinMaterial)
+            .background(Color.white.opacity(0.045))
             .clipShape(RoundedRectangle(cornerRadius: 19))
             .overlay(RoundedRectangle(cornerRadius: 19).stroke(.white.opacity(0.055)))
     }
