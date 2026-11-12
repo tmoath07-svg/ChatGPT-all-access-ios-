@@ -536,6 +536,145 @@ pub unsafe extern "C" fn gta_engine_extract_ytd(
     }))
 }
 
+
+fn texture_name(path: &Path) -> Result<String, String> {
+    let name = path.file_stem().and_then(|value| value.to_str())
+        .ok_or_else(|| format!("اسم خامة غير صالح: {}", path.display()))?;
+    let name = name.trim();
+    if name.is_empty() || name.len() > 120 {
+        return Err(format!("اسم الخامة فارغ أو أطول من 120 حرفاً: {}", path.display()));
+    }
+    Ok(name.to_string())
+}
+
+fn build_ytd_from_folder(input: &Path) -> Result<(Vec<u8>, usize, u64), String> {
+    if !input.is_dir() {
+        return Err("المصدر المحدد ليس مجلداً.".to_string());
+    }
+    let mut files = Vec::new();
+    let mut total_bytes = 0u64;
+    collect_files(input, input, 0, &mut files, &mut total_bytes)?;
+    let mut textures = Vec::new();
+    let mut skipped = Vec::new();
+
+    for (_, path, size) in files {
+        let extension = path.extension().and_then(|value| value.to_str())
+            .unwrap_or("").to_ascii_lowercase();
+        if !matches!(extension.as_str(), "dds" | "png" | "jpg" | "jpeg" | "webp" | "bmp" | "tga") {
+            continue;
+        }
+        if size > 128 * 1024 * 1024 {
+            return Err(format!("ملف الخامة أكبر من 128MB: {}", path.display()));
+        }
+        let name = texture_name(&path)?;
+        let bytes = fs::read(&path)
+            .map_err(|error| format!("تعذرت قراءة الخامة {}: {error}", path.display()))?;
+
+        let texture = if extension == "dds" {
+            let mut texture = rage_formats::parse_dds(&bytes)
+                .map_err(|error| format!("ملف DDS غير مدعوم ({}): {error:#}", path.display()))?;
+            texture.name = name.clone();
+            texture.name_hash = rage_formats::rage_joaat(&name.to_ascii_lowercase());
+            texture
+        } else {
+            let decoded = image::load_from_memory(&bytes)
+                .map_err(|error| format!("تعذر فك الصورة {}: {error}", path.display()))?;
+            let (width, height) = (decoded.width(), decoded.height());
+            if width == 0 || height == 0 || width > 8192 || height > 8192 {
+                return Err(format!("أبعاد الصورة غير مدعومة: {width}x{height} ({})", path.display()));
+            }
+            let rgba = decoded.to_rgba8();
+            let format = rage_formats::auto_format(&name, rgba.as_raw());
+            let format = if format.texture_format().is_block_compressed() && (width % 4 != 0 || height % 4 != 0) {
+                rage_formats::EncodeFormat::Rgba8
+            } else {
+                format
+            };
+            rage_formats::encode_texture(&name, rgba.as_raw(), width, height, format, None)
+                .map_err(|error| format!("فشل ترميز الخامة {}: {error:#}", path.display()))?
+        };
+        if texture.pixel_data.is_empty() {
+            skipped.push(path.display().to_string());
+            continue;
+        }
+        textures.push(texture);
+        if textures.len() > 4096 {
+            return Err("عدد الخامات تجاوز الحد المسموح (4096).".to_string());
+        }
+    }
+
+    if textures.is_empty() {
+        return Err("ما لقيت خامات DDS أو صور مدعومة داخل المجلد.".to_string());
+    }
+
+    let mut hashes = std::collections::HashSet::new();
+    for texture in &textures {
+        if !hashes.insert(texture.name_hash) {
+            return Err(format!("فيه أسماء خامات متكررة أو متصادمة في JOAAT: {}", texture.name));
+        }
+    }
+
+    let expected_count = textures.len();
+    let output = rage_formats::serialize_ytd(&textures)
+        .map_err(|error| format!("فشل بناء قاموس YTD: {error:#}"))?;
+    let parsed = rage_formats::parse_ytd(&output)
+        .map_err(|error| format!("فشل فحص قاموس YTD الناتج: {error:#}"))?;
+    if parsed.len() != expected_count {
+        return Err(format!("فشل التحقق: دخلت {expected_count} خامة لكن الناتج يحتوي {} فقط.", parsed.len()));
+    }
+    Ok((output, expected_count, total_bytes))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_engine_build_ytd(
+    input_directory: *const c_char,
+    output_file: *const c_char,
+) -> *mut c_char {
+    let input = match read_c_path(input_directory) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    let output = match read_c_path(output_file) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    if output.starts_with(&input) {
+        return result_error("احفظ قاموس YTD خارج مجلد الخامات المصدرية.");
+    }
+    let (bytes, texture_count, input_bytes) = match build_ytd_from_folder(&input) {
+        Ok(value) => value,
+        Err(error) => return result_error(error),
+    };
+    if let Some(parent) = output.parent() {
+        if let Err(error) = fs::create_dir_all(parent) {
+            return result_error(format!("تعذر إنشاء مجلد الناتج: {error}"));
+        }
+    }
+    let temp = output.with_extension("ytd.tmp");
+    let write_result = (|| -> Result<(), String> {
+        let mut file = fs::File::create(&temp)
+            .map_err(|error| format!("تعذر إنشاء ملف YTD مؤقت: {error}"))?;
+        file.write_all(&bytes).map_err(|error| format!("تعذرت كتابة YTD: {error}"))?;
+        file.sync_all().map_err(|error| format!("تعذر حفظ YTD: {error}"))?;
+        fs::rename(&temp, &output).map_err(|error| format!("تعذر اعتماد YTD النهائي: {error}"))?;
+        Ok(())
+    })();
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&temp);
+        return result_error(error);
+    }
+    result_ok(json!({
+        "ok": true,
+        "format": "YTD",
+        "textures": texture_count,
+        "input_bytes": input_bytes,
+        "output_bytes": bytes.len(),
+        "output": output.to_string_lossy(),
+        "validated_textures": texture_count,
+        "warning": "هذا قاموس YTD بصيغة PC Legacy، وليس OTD خاصاً بـPS4. بناء OTD يتطلب تخطيط Orbis والتحقق من ملفات PS4 حقيقية."
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -618,6 +757,24 @@ mod tests {
         assert!(resource_mapping("ydr").is_ok());
         assert!(resource_mapping("ypt").is_err());
         assert!(resource_mapping("yed").is_err());
+    }
+
+    #[test]
+    fn builds_and_roundtrips_ytd_from_dds_texture() {
+        let texture = rage_formats::encode_texture(
+            "test_diffuse",
+            &vec![255u8; 4 * 4 * 4],
+            4,
+            4,
+            rage_formats::EncodeFormat::Bc1,
+            Some(1),
+        ).unwrap();
+        let ytd = rage_formats::serialize_ytd(&[texture]).unwrap();
+        let parsed = rage_formats::parse_ytd(&ytd).unwrap();
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].name, "test_diffuse");
+        assert_eq!(parsed[0].width, 4);
+        assert_eq!(parsed[0].height, 4);
     }
 
     #[test]
