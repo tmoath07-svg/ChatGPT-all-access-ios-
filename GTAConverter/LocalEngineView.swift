@@ -3,7 +3,9 @@ import UniformTypeIdentifiers
 
 struct LocalEngineView: View {
     let initialFolder: URL?
+    let initialFile: URL?
 
+    @State private var didAutoProcessInitialFile = false
     @State private var sourceFolder: URL?
     @State private var outputFile: URL?
     @State private var report = ""
@@ -27,8 +29,9 @@ struct LocalEngineView: View {
     @State private var extractedRpfFolder: URL?
     @State private var convertedFolderURL: URL?
 
-    init(initialFolder: URL? = nil) {
+    init(initialFolder: URL? = nil, initialFile: URL? = nil) {
         self.initialFolder = initialFolder
+        self.initialFile = initialFile
         _sourceFolder = State(initialValue: initialFolder)
     }
 
@@ -254,6 +257,20 @@ struct LocalEngineView: View {
         }
         .navigationTitle("المحرك المحلي")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            guard let file = initialFile, !didAutoProcessInitialFile else { return }
+            didAutoProcessInitialFile = true
+            let ext = file.pathExtension.lowercased()
+            if ext == "rpf" {
+                inspect(file)
+            } else if ["yft", "ydr", "ydd", "ypt", "ybn", "ybd", "yld", "yed", "yfd", "ynd", "ynv", "yvr", "ywr", "ypdb", "ycd", "ymap", "ytyp", "ymt", "ymf"].contains(ext) {
+                convertResource(file)
+            } else if ext == "ytd" {
+                extractYTD(file)
+            } else {
+                report = "تم فتح الملف: \(file.lastPathComponent)\nهذا النوع يحتاج اختيار أداة مناسبة من المحرك أو فك الأرشيف أولاً."
+            }
+        }
         .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
         .environment(\.locale, Locale(identifier: appLanguage))
         .fileImporter(
