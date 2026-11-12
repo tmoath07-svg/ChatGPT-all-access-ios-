@@ -154,6 +154,7 @@ final class GTADownloadManager: NSObject, ObservableObject, URLSessionDownloadDe
             items[index].localPath = destination.path
             items[index].progress = 1
             items[index].status = "اكتمل وحُفظ في مكتبة المودات"
+            GTATransferHistoryStore.record(title: "تنزيل مود", detail: destination.lastPathComponent)
             if items[index].expectedBytes <= 0,
                let savedSize = (try? destination.resourceValues(forKeys: [.fileSizeKey]))?.fileSize {
                 items[index].expectedBytes = Int64(savedSize)
@@ -443,6 +444,34 @@ struct GTADownloadsView: View {
     }
 }
 
+ // MARK: - Persistent transfer history
+
+struct GTATransferEvent: Identifiable, Codable {
+    var id: UUID
+    var title: String
+    var detail: String
+    var date: Date
+}
+
+enum GTATransferHistoryStore {
+    private static let key = "gta_transfer_events_v1"
+
+    static func record(title: String, detail: String) {
+        var events = load()
+        events.insert(GTATransferEvent(id: UUID(), title: title, detail: detail, date: Date()), at: 0)
+        if events.count > 250 { events = Array(events.prefix(250)) }
+        if let data = try? JSONEncoder().encode(events) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    static func load() -> [GTATransferEvent] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let events = try? JSONDecoder().decode([GTATransferEvent].self, from: data) else { return [] }
+        return events.sorted { $0.date > $1.date }
+    }
+}
+
 // MARK: - Mods library and activity history
 
 struct GTAModsLibraryView: View {
@@ -565,7 +594,8 @@ struct GTATransferHistoryView: View {
                 found.append((url.lastPathComponent, folderName, date))
             }
         }
-        records = found.sorted { $0.2 > $1.2 }
+        let savedEvents = GTATransferHistoryStore.load().map { ($0.title, $0.detail, $0.date) }
+        records = (savedEvents + found).sorted { $0.2 > $1.2 }
     }
 }
 
