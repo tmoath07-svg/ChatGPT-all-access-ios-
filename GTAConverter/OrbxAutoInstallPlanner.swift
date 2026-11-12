@@ -100,7 +100,7 @@ enum INRPFOrbxAutoInstallPlanner {
         guard parser.parse() else {
             throw PlanError.malformedXML(parser.parserError?.localizedDescription ?? "XML parsing failed")
         }
-        let pattern = #"(?is)<Item(?:\\s[^>]*)?>(.*?)</Item\\s*>"#
+        let pattern = #"(?is)<Item(?:\s[^>]*)?>(.*?)</Item\s*>"#
         let expression = try NSRegularExpression(pattern: pattern)
         let fullRange = NSRange(xml.startIndex..<xml.endIndex, in: xml)
         let items = expression.matches(in: xml, range: fullRange).compactMap { match -> String? in
