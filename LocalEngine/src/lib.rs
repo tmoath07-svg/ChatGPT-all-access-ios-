@@ -1243,7 +1243,7 @@ mod tests {
     }
 
     #[test]
-    fn lists_rpf7_nested_paths_without_extracting() {
+    fn lists_vehicle_metadata_only_without_extracting() {
         let mut builder = RpfBuilder::new(RpfEncryption::Open);
         builder.add_file("common/data/vehicles.meta", b"<vehicles/>".to_vec());
         builder.add_file("stream/cars/demo.yft", b"MODEL".to_vec());
@@ -1257,10 +1257,7 @@ mod tests {
         let mut items = Vec::new();
         collect_rpf_listing(&parsed, start, count, "", 0, &mut items).unwrap();
         let paths = items.iter().filter_map(|item| item["path"].as_str()).collect::<Vec<_>>();
-        assert!(paths.contains(&"common"));
-        assert!(paths.contains(&"common/data"));
-        assert!(paths.contains(&"common/data/vehicles.meta"));
-        assert!(paths.contains(&"stream/cars/demo.yft"));
+        assert_eq!(paths, vec!["common/data/vehicles.meta"]);
     }
 
     #[test]
