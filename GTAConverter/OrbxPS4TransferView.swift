@@ -54,7 +54,7 @@ struct OrbxPS4TransferView: View {
                                 }
                             }
                             .pickerStyle(.menu).tint(.white)
-                            .onChange(of: selectedPackagePath) { _, _ in loadSelectedPackageNames() }
+                            .onChange(of: selectedPackagePath) { _ in loadSelectedPackageNames() }
                             Text("عدد الحزم داخلها: \(packNames.count)")
                                 .font(.caption).foregroundStyle(.white.opacity(0.6))
                         }
