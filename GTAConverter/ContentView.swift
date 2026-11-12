@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var isBusy = false
     @State private var progressText = ""
     @State private var importKind = ImportKind.archive
+    @State private var isDropTargeted = false
 
     private let purple = Color(red: 0.57, green: 0.30, blue: 0.98)
     private let background = Color(red: 0.035, green: 0.025, blue: 0.065)
@@ -86,43 +87,26 @@ struct ContentView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "car.side.fill")
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(purple)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("GTA CONVERTER").font(.system(size: 25, weight: .black, design: .rounded)).tracking(-0.5).foregroundStyle(.white)
+                    Text("مركز تجهيز مودات قراند").font(.subheadline.weight(.medium)).foregroundStyle(.white.opacity(0.65))
+                }
                 Spacer()
-                Text("iPHONE EDITION")
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .tracking(1.2)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .background(purple.opacity(0.22))
-                    .clipShape(Capsule())
+                ZStack {
+                    RoundedRectangle(cornerRadius: 19).fill(LinearGradient(colors: [purple, Color(red: 0.34, green: 0.16, blue: 0.72)], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 58, height: 58)
+                    Image(systemName: "car.side.fill").font(.system(size: 27, weight: .bold)).foregroundStyle(.white)
+                }
             }
-            Text("GTA CONVERTER")
-                .font(.system(size: 26, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-                .minimumScaleFactor(0.75)
-                .lineLimit(1)
-            Text("جهّز ملفات مودات قراند للـ PS4")
-                .font(.headline)
-                .foregroundStyle(.white.opacity(0.75))
-            HStack(spacing: 7) {
-                featureTag("ZIP")
-                featureTag("RAR")
-                featureTag("رابط مباشر")
-                featureTag("مجلدات")
+            HStack(spacing: 8) { featureTag("ZIP"); featureTag("RAR"); featureTag("مجلدات"); Spacer();
+                Text("iOS APP").font(.system(size: 10, weight: .heavy, design: .rounded)).tracking(1.1).foregroundStyle(purple.opacity(0.95))
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(19)
-        .background(LinearGradient(colors: [purple.opacity(0.34), Color.white.opacity(0.035)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing))
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(.white.opacity(0.07)))
+        }.padding(20)
+         .background(LinearGradient(colors: [purple.opacity(0.25), Color.white.opacity(0.045)], startPoint: .topLeading, endPoint: .bottomTrailing))
+         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+         .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(.white.opacity(0.09)))
     }
-
     private func featureTag(_ title: String) -> some View {
         Text(title).font(.system(size: 10, weight: .bold))
             .padding(.horizontal, 9).padding(.vertical, 6)
@@ -131,36 +115,51 @@ struct ContentView: View {
     }
 
     private var importCard: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            sectionTitle("استيراد المود", icon: "tray.and.arrow.down.fill")
-            HStack(spacing: 8) {
-                importButton("ملف ZIP / RAR", icon: "doc.zipper", kind: .archive)
-                importButton("مجلد من الملفات", icon: "folder", kind: .folder)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                sectionTitle("استيراد الملفات", icon: "tray.and.arrow.down.fill")
+                Spacer()
+                Text("01").font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(purple)
             }
+            VStack(spacing: 10) {
+                Image(systemName: isDropTargeted ? "arrow.down.doc.fill" : "doc.badge.plus")
+                    .font(.system(size: 34, weight: .medium)).foregroundStyle(isDropTargeted ? .white : purple)
+                Text(isDropTargeted ? "أفلت الملف هنا" : "اسحب الملف وأفلته هنا")
+                    .font(.headline.weight(.bold)).foregroundStyle(.white)
+                Text("يدعم ZIP وRAR والمجلدات من تطبيق الملفات")
+                    .font(.caption).foregroundStyle(.white.opacity(0.58)).multilineTextAlignment(.center)
+                HStack(spacing: 8) {
+                    importButton("اختيار ZIP / RAR", icon: "doc.zipper", kind: .archive)
+                    importButton("اختيار مجلد", icon: "folder.fill", kind: .folder)
+                }.padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 22).padding(.horizontal, 12)
+            .background(isDropTargeted ? purple.opacity(0.28) : .black.opacity(0.22))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [7, 5]))
+                    .foregroundStyle(isDropTargeted ? purple : .white.opacity(0.22))
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 20))
+            .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted, perform: handleDrop)
             HStack(spacing: 11) {
                 Image(systemName: sourceURL == nil ? "doc" : "checkmark.circle.fill")
                     .font(.title2).foregroundStyle(sourceURL == nil ? .white.opacity(0.35) : .green)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(selectedFileName).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                        .lineLimit(1)
-                    Text(sourceURL == nil ? "لم يتم اختيار مصدر بعد" : "جاهز للمعالجة")
-                        .font(.caption).foregroundStyle(.white.opacity(0.48))
+                    Text(selectedFileName).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                    Text(sourceURL == nil ? "بانتظار اختيار ملف" : "تم حفظ نسخة داخل التطبيق")
+                        .font(.caption).foregroundStyle(.white.opacity(0.5))
                 }
                 Spacer(minLength: 0)
                 if sourceURL != nil {
-                    Button { sourceURL = nil; selectedFileName = "ما تم اختيار ملف" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.white.opacity(0.5))
-                    }
-                    .buttonStyle(.plain)
+                    Button { sourceURL = nil; selectedFileName = "ما تم اختيار ملف"; outputFolder = nil } label: {
+                        Image(systemName: "xmark.circle.fill").font(.title3).foregroundStyle(.white.opacity(0.55))
+                    }.buttonStyle(.plain)
                 }
-            }
-            .padding(12).background(.black.opacity(0.22)).clipShape(RoundedRectangle(cornerRadius: 13))
-            Text("تقدر تختار الملف من تطبيق «الملفات» في الآيفون.")
-                .font(.caption).foregroundStyle(.white.opacity(0.48))
-        }
-        .padding(16).panel()
+            }.padding(13).background(.white.opacity(0.055)).clipShape(RoundedRectangle(cornerRadius: 15))
+        }.padding(17).panel()
     }
-
     private func importButton(_ title: String, icon: String, kind: ImportKind) -> some View {
         Button {
             importKind = kind
@@ -320,6 +319,33 @@ struct ContentView: View {
         }
     }
 
+    private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
+            fail("المصدر هذا ما يرسل رابط ملف قابل للاستيراد.")
+            return false
+        }
+        isBusy = true
+        progressText = "جاري استيراد الملف المسحوب..."
+        provider.loadFileRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { url, error in
+            guard let url = url, error == nil else {
+                DispatchQueue.main.async { fail("ما قدرت أقرأ الملف المسحوب. جرّب اختيار الملف من الزر."); isBusy = false }
+                return
+            }
+            do {
+                let importedURL = try Self.copyPickedItemIntoAppStorage(url)
+                DispatchQueue.main.async {
+                    sourceURL = importedURL
+                    selectedFileName = url.lastPathComponent
+                    status = "تم استيراد الملف المسحوب وحفظه داخل التطبيق."
+                    isError = false
+                    isBusy = false
+                }
+            } catch {
+                DispatchQueue.main.async { fail("تعذر استيراد الملف المسحوب: " + error.localizedDescription); isBusy = false }
+            }
+        }
+        return true
+    }
     private static func copyPickedItemIntoAppStorage(_ source: URL) throws -> URL {
         let hasAccess = source.startAccessingSecurityScopedResource()
         defer {
