@@ -53,7 +53,7 @@ struct LocalEngineView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(16).panel()
+                    .padding(16).localEnginePanel()
 
                     Button(action: buildRPF) {
                         HStack {
@@ -89,7 +89,7 @@ struct LocalEngineView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
                             }
                         }
-                        .padding(15).panel()
+                        .padding(15).localEnginePanel()
                     }
 
                     if !report.isEmpty {
@@ -129,7 +129,7 @@ struct LocalEngineView: View {
             }
         }
         .fileImporter(isPresented: $showingRPFPicker,
-                      allowedContentTypes: [.data],
+                      allowedContentTypes: [.item],
                       allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
@@ -205,5 +205,15 @@ struct LocalEngineView: View {
             }
             if access { file.stopAccessingSecurityScopedResource() }
         }
+    }
+}
+
+
+private extension View {
+    func localEnginePanel() -> some View {
+        self.background(.ultraThinMaterial)
+            .background(Color.white.opacity(0.045))
+            .clipShape(RoundedRectangle(cornerRadius: 19))
+            .overlay(RoundedRectangle(cornerRadius: 19).stroke(.white.opacity(0.08)))
     }
 }
