@@ -1179,8 +1179,8 @@ private struct AppSettingsView: View {
                 }.padding(16)
             }
         }
-        .environment(\\.layoutDirection, language == "ar" ? .rightToLeft : .leftToRight)
-        .environment(\\.locale, Locale(identifier: language))
+        .environment(\.layoutDirection, language == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\.locale, Locale(identifier: language))
         .navigationTitle(language == "ar" ? "الإعدادات" : "Settings")
         .navigationBarTitleDisplayMode(.inline)
     }
