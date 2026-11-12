@@ -156,12 +156,15 @@ private final class FTPBrowserModel: ObservableObject {
     }
 
     func upload(_ url: URL) {
+        let scopeStarted = url.startAccessingSecurityScopedResource()
         Task {
+            defer { if scopeStarted { url.stopAccessingSecurityScopedResource() } }
             isBusy = true
             error = ""
             do {
                 let localURL = try await Task.detached(priority: .userInitiated) {
-                    try FileImportService.importItem(from: url, category: "Imports")
+                    try FileImportService.importItem(from: url, category: "Imports",
+                                                     securityScopeAlreadyStarted: true)
                 }.value
                 try await client.upload(fileURL: localURL, remoteName: url.lastPathComponent, path: currentPath)
                 try await refresh()
