@@ -11,6 +11,8 @@ struct LocalEngineView: View {
     @State private var isBusy = false
     @State private var showingFolderPicker = false
     @State private var showingRPFPicker = false
+    @State private var showingResourcePicker = false
+    @State private var convertedResourceURL: URL?
 
     init(initialFolder: URL? = nil) {
         self.initialFolder = initialFolder
@@ -77,6 +79,14 @@ struct LocalEngineView: View {
                     }
                     .buttonStyle(.plain).disabled(isBusy)
 
+                    Button { showingResourcePicker = true } label: {
+                        Label("تحويل مورد Y* إلى O* محلياً", systemImage: "arrow.left.arrow.right")
+                            .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
+                            .background(.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain).disabled(isBusy)
+
                     if let outputFile {
                         VStack(alignment: .leading, spacing: 10) {
                             Label("تم إنشاء الملف وفحص بنيته", systemImage: "checkmark.seal.fill")
@@ -84,6 +94,22 @@ struct LocalEngineView: View {
                             Text(outputFile.lastPathComponent).font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7))
                             ShareLink(item: outputFile) {
                                 Label("مشاركة أرشيف RPF7", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity).padding(13)
+                                    .background(.white.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+                            }
+                        }
+                        .padding(15).localEnginePanel()
+                    }
+
+                    if let convertedResourceURL {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("تم إنشاء المورد المحوّل", systemImage: "checkmark.seal.fill")
+                                .font(.headline).foregroundStyle(.green)
+                            Text(convertedResourceURL.lastPathComponent)
+                                .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7))
+                            ShareLink(item: convertedResourceURL) {
+                                Label("مشاركة المورد المحوّل", systemImage: "square.and.arrow.up")
                                     .frame(maxWidth: .infinity).padding(13)
                                     .background(.white.opacity(0.1))
                                     .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
@@ -108,7 +134,7 @@ struct LocalEngineView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Label("حدود المرحلة الحالية", systemImage: "info.circle.fill")
                             .font(.subheadline.bold()).foregroundStyle(.orange)
-                        Text("هذا المحرك ينشئ حاوية RPF7 عامة ويفحص جدولها. لا يحوّل خامات RSC7 أو نماذج YFT إلى موارد PS4، ولا ينتج DLC مضمون التوافق. نضيف تحويل موارد PS4 بعد نقل واختبار بديل ragebuilder.")
+                        Text("هذا المحرك ينشئ حاوية RPF7 عامة ويفحص جدولها. بدأنا نقل التحويل البنيوي لبعض موارد RSC7 مثل YFT إلى O*، لكن YTD/OTD ومحرك ragebuilder وبناء DLC النهائي لم تكتمل بعد. لا تعتبر الناتج حزمة PS4 جاهزة.")
                             .font(.caption).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(14).background(.orange.opacity(0.07))
@@ -135,6 +161,16 @@ struct LocalEngineView: View {
             case .success(let urls):
                 guard let url = urls.first else { return }
                 inspect(url)
+            case .failure(let error): errorText = error.localizedDescription
+            }
+        }
+        .fileImporter(isPresented: $showingResourcePicker,
+                      allowedContentTypes: [.item],
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                convertResource(url)
             case .failure(let error): errorText = error.localizedDescription
             }
         }
@@ -174,6 +210,41 @@ struct LocalEngineView: View {
                 }
             }
             if access { folder.stopAccessingSecurityScopedResource() }
+        }
+    }
+
+    private func convertResource(_ file: URL) {
+        let access = file.startAccessingSecurityScopedResource()
+        isBusy = true
+        errorText = ""
+        convertedResourceURL = nil
+        report = "يتم تحويل مورد اللعبة محلياً..."
+        Task.detached(priority: .userInitiated) {
+            do {
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                                                            appropriateFor: nil, create: true)
+                let outputDirectory = documents.appendingPathComponent("GTA Converter/Local Engine/Converted", isDirectory: true)
+                let result = try LocalEngineBridge.convertResource(at: file, to: outputDirectory)
+                let outputPath = result["output"] as? String ?? ""
+                await MainActor.run {
+                    convertedResourceURL = URL(fileURLWithPath: outputPath)
+                    report = """
+                    من الامتداد: \(result["input_extension"] as? String ?? "")
+                    إلى الامتداد: \(result["output_extension"] as? String ?? "")
+                    طريقة المعالجة: \(result["mode"] as? String ?? "")
+                    علامات المنصة المعدّلة: \(result["patched_markers"] as? Int ?? 0)
+                    حجم الناتج: \(ByteCountFormatter.string(fromByteCount: Int64(result["output_bytes"] as? Int64 ?? 0), countStyle: .file))
+                    \(result["warning"] as? String ?? "")
+                    """
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorText = error.localizedDescription
+                    isBusy = false
+                }
+            }
+            if access { file.stopAccessingSecurityScopedResource() }
         }
     }
 
