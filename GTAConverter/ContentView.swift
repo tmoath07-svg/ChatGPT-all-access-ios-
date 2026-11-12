@@ -26,6 +26,7 @@ struct ContentView: View {
     @AppStorage("gta_motion_enabled") private var motionEnabled = true
     @AppStorage("gta_language") private var appLanguage = "ar"
     @AppStorage("gta_welcome_message") private var welcomeMessage = "حيّاك في GTA Converter"
+    @AppStorage("gta_background_color") private var backgroundStyle = "midnight"
     @AppStorage("gta_onboarding_complete") private var onboardingComplete = false
     @State private var showOnboarding = false
 
@@ -38,7 +39,14 @@ struct ContentView: View {
         default: return Color(red: 0.57, green: 0.30, blue: 0.98)
         }
     }
-    private let background = Color(red: 0.035, green: 0.025, blue: 0.065)
+    private var navigationBackground: Color {
+        switch backgroundStyle {
+        case "black": return .black
+        case "navy": return Color(red: 0.015, green: 0.045, blue: 0.12)
+        case "graphite": return Color(red: 0.075, green: 0.08, blue: 0.11)
+        default: return Color(red: 0.035, green: 0.025, blue: 0.065)
+        }
+    }
 
     private enum ImportKind: String, CaseIterable, Identifiable {
         case archive = "ZIP / RAR"
@@ -81,7 +89,7 @@ struct ContentView: View {
             }
             .navigationTitle("GTA Converter")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(background, for: .navigationBar)
+            .toolbarBackground(navigationBackground, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .animation(motionEnabled ? .spring(response: 0.48, dampingFraction: 0.82) : .easeOut(duration: 0.12), value: sourceURL)
             .toolbarColorScheme(.dark, for: .navigationBar)
@@ -1175,7 +1183,7 @@ private struct AppSettingsView: View {
                     HStack {
                         Text(language == "ar" ? "الإصدار" : "Version").foregroundStyle(.white.opacity(0.65))
                         Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.80")
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.90")
                             .font(.system(.subheadline, design: .rounded).weight(.bold)).foregroundStyle(.white)
                     }.padding(16).frame(maxWidth: .infinity).background(.white.opacity(0.07)).clipShape(RoundedRectangle(cornerRadius: 15))
                 }.padding(16)
