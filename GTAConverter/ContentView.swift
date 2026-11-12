@@ -577,7 +577,7 @@ struct ContentView: View {
         return true
     }
     nonisolated private static func appManagedFolder(_ name: String) throws -> URL {
-        let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let root = documents.appendingPathComponent("GTA Converter", isDirectory: true)
         let folder = root.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -585,45 +585,7 @@ struct ContentView: View {
     }
 
     nonisolated private static func copyPickedItemIntoAppStorage(_ source: URL) throws -> URL {
-        let hasAccess = source.startAccessingSecurityScopedResource()
-        defer {
-            if hasAccess { source.stopAccessingSecurityScopedResource() }
-        }
-
-        let fm = FileManager.default
-        let documents = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        let appRoot = documents.appendingPathComponent("GTA Converter", isDirectory: true)
-        let imports = appRoot.appendingPathComponent("Imports", isDirectory: true)
-        try fm.createDirectory(at: imports, withIntermediateDirectories: true)
-        let destinationRoot = imports.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try fm.createDirectory(at: destinationRoot, withIntermediateDirectories: true)
-
-        var copiedURL: URL?
-        var coordinationError: NSError?
-        var copyError: Error?
-        let coordinator = NSFileCoordinator(filePresenter: nil)
-        coordinator.coordinate(readingItemAt: source, options: [], error: &coordinationError) { readableURL in
-            do {
-                var isDirectory: ObjCBool = false
-                guard fm.fileExists(atPath: readableURL.path, isDirectory: &isDirectory) else {
-                    throw ImportError.folderRead
-                }
-                if isDirectory.boolValue {
-                    try Self.copyFolderSafely(from: readableURL, to: destinationRoot)
-                    copiedURL = destinationRoot
-                } else {
-                    let destination = destinationRoot.appendingPathComponent(source.lastPathComponent)
-                    try fm.copyItem(at: readableURL, to: destination)
-                    copiedURL = destination
-                }
-            } catch {
-                copyError = error
-            }
-        }
-        if let coordinationError { throw coordinationError }
-        if let copyError { throw copyError }
-        guard let copiedURL else { throw ImportError.folderRead }
-        return copiedURL
+        try FileImportService.importItem(from: source, category: "Imports")
     }
 
     private func downloadFromLink() {
