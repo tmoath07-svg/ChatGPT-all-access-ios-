@@ -9,6 +9,7 @@ crate-type = ["staticlib"]
 
 [dependencies]
 rpf-archive = "0.10.0"
+rage-formats = { version = "0.5.1", default-features = false }
 serde_json = "1.0"
 flate2 = "1.0"
 
