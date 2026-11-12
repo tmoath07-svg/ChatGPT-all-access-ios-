@@ -21,6 +21,27 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Resolve packages and patch SwiftArchive language mode
+        run: |
+          set -euo pipefail
+          xcodebuild -resolvePackageDependencies -project GTAConverter.xcodeproj -scheme GTAConverter
+          PACKAGE_MANIFEST="$(find "$HOME/Library/Developer/Xcode/DerivedData" build/DerivedData -path '*/SourcePackages/checkouts/libarchive-for-swift/Package.swift' -print -quit 2>/dev/null || true)"
+          if [ -z "$PACKAGE_MANIFEST" ]; then
+            echo "SwiftArchive Package.swift was not found after dependency resolution."
+            exit 1
+          fi
+          echo "Patching SwiftArchive manifest: $PACKAGE_MANIFEST"
+          python3 - "$PACKAGE_MANIFEST" <<'PY'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          source = path.read_text()
+          if "swiftLanguageModes: [.v6]" not in source:
+              raise SystemExit("Expected SwiftArchive Swift 6 language mode was not found; refusing an unsafe blind patch.")
+          path.write_text(source.replace("swiftLanguageModes: [.v6]", "swiftLanguageModes: [.v5]", 1))
+          print("SwiftArchive language mode changed to Swift 5.")
+          PY
+
       - name: Build unsigned app
         run: |
           set -euo pipefail
@@ -31,8 +52,8 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
+            -disableAutomaticPackageResolution \
             CODE_SIGNING_ALLOWED=NO \
-            OTHER_SWIFT_FLAGS='-swift-version 5' \
             build
 
       - name: Package and validate IPA
