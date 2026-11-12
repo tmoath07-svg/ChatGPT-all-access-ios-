@@ -108,7 +108,7 @@ struct FeatureHubView: View {
     @State private var searchText = ""
     @State private var selectedCategory = "الكل"
 
-    private let categories = ["الكل", "الملفات", "السيارات", "PS4", "الذكاء الاصطناعي", "الإدارة"]
+    private let categories = ["الكل", "الملفات", "السيارات", "PS4", "PlayStation", "الذكاء الاصطناعي", "الإدارة"]
     private let items: [FeatureCatalogItem] = [
         .init(id:1,title:"محلل المودات الذكي",category:"الملفات",icon:"doc.text.magnifyingglass",status:"متاح",detail:"تحليل الأرشيفات والملفات واكتشاف مكونات المود. افتح شاشة الاستيراد والتحليل من الصفحة الرئيسية.",live:true),
         .init(id:2,title:"مختبر YTD",category:"الملفات",icon:"photo.stack.fill",status:"فحص متاح",detail:"اختيار ملفات YTD وفحص الحجم وترويسة RSC7. استخراج DDS وإعادة بناء YTD والتحويل الفعلي تحتاج محرك معالجة مختبراً.",route:"ytd"),
@@ -149,7 +149,8 @@ struct FeatureHubView: View {
         .init(id:37,title:"Dependency Checker",category:"الملفات",icon:"point.3.connected.trianglepath.dotted",status:"مخطط",detail:"كشف الملفات التي تشير إلى ملفات أخرى وتحديد الاعتماديات الناقصة."),
         .init(id:38,title:"RPF Explorer",category:"الملفات",icon:"archivebox.fill",status:"مخطط",detail:"استعراض شجرة RPF واستخراج الملفات باستخدام أدوات متوافقة."),
         .init(id:39,title:"Texture Converter",category:"الملفات",icon:"photo.artframe",status:"مخطط",detail:"تحويل الخامات بين الصيغ المدعومة بعد استخراجها مع الحفاظ على الجودة والأبعاد."),
-        .init(id:40,title:"Mod Installer Guide",category:"PS4",icon:"book.closed.fill",status:"مخطط",detail:"دليل تركيب مرتب يوضح المسارات والمتطلبات وخطوات التحقق.")
+        .init(id:40,title:"Mod Installer Guide",category:"PS4",icon:"book.closed.fill",status:"مخطط",detail:"دليل تركيب مرتب يوضح المسارات والمتطلبات وخطوات التحقق."),
+        .init(id:41,title:"Chiaki Remote Play",category:"PlayStation",icon:"gamecontroller.fill",status:"دليل وتجهيز",detail:"مركز Chiaki لمشروع Remote Play ومعلومات دعم iOS وروابط المشروع الرسمية.",route:"chiaki")
     ]
 
     private var filteredItems: [FeatureCatalogItem] {
@@ -237,6 +238,7 @@ struct FeatureHubView: View {
         switch item.route {
         case "ytd": YTDTextureLabView()
         case "cloud": CloudConversionView()
+        case "chiaki": ChiakiRemotePlayView()
         case "dlc": FeatureInfoView(item: item)
         default: FeatureInfoView(item: item)
         }
@@ -403,5 +405,82 @@ struct CreatorPageView: View {
         .navigationTitle("المبدع")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.layoutDirection, .rightToLeft)
+    }
+}
+
+
+struct ChiakiRemotePlayView: View {
+    private let projectURL = URL(string: "https://github.com/chiaki-ng/chiaki-ng")!
+    private let releaseURL = URL(string: "https://github.com/chiaki-ng/chiaki-ng/releases")!
+    private let sonyURL = URL(string: "https://apps.apple.com/app/ps-remote-play/id1436192460")!
+
+    var body: some View {
+        ZStack {
+            extraBackground.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Image(systemName: "gamecontroller.fill")
+                            .font(.system(size: 38)).foregroundStyle(.purple)
+                        Text("Chiaki Remote Play")
+                            .font(.title2.bold()).foregroundStyle(.white)
+                        Text("مركز PlayStation Remote Play داخل GTA Converter")
+                            .font(.subheadline).foregroundStyle(.white.opacity(0.65))
+                    }
+                    .padding(18).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("حالة دعم iPadOS", systemImage: "info.circle.fill")
+                            .font(.headline).foregroundStyle(.white)
+                        Text("مشروع Chiaki-ng أضاف دعم تجميع iOS/tvOS، لكن هذا لا يعني وجود تطبيق iOS جاهز أو محرك بث مدمج داخل GTA Converter. دمج البث فعلياً يحتاج بناء واجهة iOS وربط الفيديو والصوت والتحكم والتسجيل.")
+                            .font(.subheadline).foregroundStyle(.white.opacity(0.72))
+                        Text("لن أعرض زر اتصال وهمي أو أوهمك أن مشاركة الشاشة تعمل قبل دمج المحرك واختباره.")
+                            .font(.caption.bold()).foregroundStyle(.orange)
+                            .padding(11).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.orange.opacity(0.09))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .padding(16).background(.white.opacity(0.055))
+                    .clipShape(RoundedRectangle(cornerRadius: 17))
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("مصادر المشروع")
+                            .font(.headline).foregroundStyle(.white)
+                        Link(destination: projectURL) {
+                            Label("مستودع Chiaki-ng الرسمي", systemImage: "chevron.left.forwardslash.chevron.right")
+                                .font(.subheadline.bold()).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                                .background(.purple.opacity(0.25))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        Link(destination: releaseURL) {
+                            Label("إصدارات المشروع", systemImage: "arrow.down.circle")
+                                .font(.subheadline.bold()).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                                .background(.white.opacity(0.07))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        Link(destination: sonyURL) {
+                            Label("PS Remote Play الرسمي للآيفون والآيباد", systemImage: "play.rectangle")
+                                .font(.subheadline.bold()).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                                .background(.white.opacity(0.07))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
+                    .padding(16).background(.white.opacity(0.055))
+                    .clipShape(RoundedRectangle(cornerRadius: 17))
+
+                    Text("ملاحظة: روابط المشروع خارجية. هذه الصفحة لا تنشئ اتصالاً بجهاز PlayStation ولا تطلب بيانات حساب PSN.")
+                        .font(.caption).foregroundStyle(.white.opacity(0.48))
+                        .padding(.horizontal, 3)
+                }.padding(16)
+            }
+        }
+        .navigationTitle("Chiaki")
+        .navigationBarTitleDisplayMode(.inline)
+        .environment(\\.layoutDirection, .rightToLeft)
     }
 }
