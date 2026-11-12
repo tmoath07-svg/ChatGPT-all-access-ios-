@@ -154,7 +154,7 @@ struct AppDiagnosticsView: View {
             return (false, (lines + ["نوع الملف: .\(ext.isEmpty ? "بدون امتداد" : ext)", "السبب: التطبيق يقبل ZIP وRAR فقط كأرشيفات."]).joined(separator: "\n"))
         }
 
-        let signature = (try? FileHandle(forReadingFrom: url).read(upToCount: 8)) ?? nil ?? Data()
+        let signature = (try? FileHandle(forReadingFrom: url).read(upToCount: 8)) ?? Data()
         let zipMagic = signature.starts(with: [0x50, 0x4B])
         let rarMagic = signature.starts(with: [0x52, 0x61, 0x72, 0x21])
         lines.append("الامتداد: \(ext.uppercased())")
