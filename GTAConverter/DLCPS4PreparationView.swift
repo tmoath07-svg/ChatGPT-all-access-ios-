@@ -141,7 +141,11 @@ struct DLCPS4PreparationView: View {
                         throw NSError(domain: "GTAConverter.DLC", code: 13,
                                       userInfo: [NSLocalizedDescriptionKey: "ملف DLC غير موجود بعد الفك: \(rawPath)"])
                     }
-                    let name = safeNames[index]
+                    let name = String(parts[parts.count - 2])
+                    guard safeNames.contains(name) else {
+                        throw NSError(domain: "GTAConverter.DLC", code: 15,
+                                      userInfo: [NSLocalizedDescriptionKey: "اسم مجلد DLC لا يطابق قائمة الحزم: \\(name)"])
+                    }
                     guard !copied.contains(name) else {
                         throw NSError(domain: "GTAConverter.DLC", code: 14,
                                       userInfo: [NSLocalizedDescriptionKey: "اسم حزمة مكرر: \(name)"])
@@ -151,7 +155,12 @@ struct DLCPS4PreparationView: View {
                     copied.insert(name)
                 }
 
-                let entries = safeNames.map {
+                guard copied == Set(safeNames) else {
+                    throw NSError(domain: "GTAConverter.DLC", code: 16,
+                                  userInfo: [NSLocalizedDescriptionKey: "لم يتم العثور على كل مجلدات DLC المتوقعة."])
+                }
+
+                let entries = safeNames.sorted().map {
                     "        <Item>/data/orbx/gta/rpf/dlc_addon/\($0)/</Item>"
                 }.joined(separator: "\n")
                 let xml = """
