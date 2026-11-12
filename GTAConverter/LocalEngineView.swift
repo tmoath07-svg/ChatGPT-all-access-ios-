@@ -261,30 +261,48 @@ struct LocalEngineView: View {
             allowedContentTypes: activePicker?.contentTypes ?? [.item],
             allowsMultipleSelection: false
         ) { result in
-            defer { activePicker = nil }
+            let selectedAction = activePicker
+            activePicker = nil
             switch result {
             case .failure(let error):
                 errorText = error.localizedDescription
             case .success(let urls):
-                guard let url = urls.first else { return }
-                switch activePicker {
-                case .sourceFolder:
-                    sourceFolder = url
-                    errorText = ""
-                case .buildYTD:
-                    buildYTD(from: url)
-                case .inspectRPF:
-                    inspect(url)
-                case .extractRPF:
-                    extractRPF(url)
-                case .convertResource:
-                    convertResource(url)
-                case .convertFolder:
-                    convertFolder(url)
-                case .extractYTD:
-                    extractYTD(url)
-                case .none:
-                    break
+                guard let selectedURL = urls.first, let selectedAction else { return }
+                isBusy = true
+                errorText = ""
+                report = "يتم نسخ الملف المختار إلى مساحة التطبيق..."
+                Task {
+                    do {
+                        let localURL = try await Task.detached(priority: .userInitiated) {
+                            try FileImportService.importItem(from: selectedURL, category: "Imports")
+                        }.value
+                        switch selectedAction {
+                        case .sourceFolder:
+                            var isDirectory: ObjCBool = false
+                            guard FileManager.default.fileExists(atPath: localURL.path, isDirectory: &isDirectory),
+                                  isDirectory.boolValue else {
+                                throw FileImportService.ImportFailure.unsupportedItem
+                            }
+                            sourceFolder = localURL
+                            report = "تم استيراد المجلد وحفظ نسخة محلية داخل التطبيق."
+                            isBusy = false
+                        case .buildYTD:
+                            buildYTD(from: localURL)
+                        case .inspectRPF:
+                            inspect(localURL)
+                        case .extractRPF:
+                            extractRPF(localURL)
+                        case .convertResource:
+                            convertResource(localURL)
+                        case .convertFolder:
+                            convertFolder(localURL)
+                        case .extractYTD:
+                            extractYTD(localURL)
+                        }
+                    } catch {
+                        errorText = "تعذر استيراد العنصر المختار: \(error.localizedDescription)"
+                        isBusy = false
+                    }
                 }
             }
         }
@@ -303,7 +321,7 @@ struct LocalEngineView: View {
         report = "يتم الآن قراءة الملفات وبناء أرشيف محلي..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let outputDirectory = documents.appendingPathComponent("GTA Converter/Local Engine", isDirectory: true)
                 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
@@ -340,7 +358,7 @@ struct LocalEngineView: View {
         report = "يتم استخراج الملفات وفك الأرشيفات الداخلية..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let base = documents.appendingPathComponent("GTA Converter/Local Engine/Extracted RPF", isDirectory: true)
                 let folderName = file.deletingPathExtension().lastPathComponent
@@ -374,7 +392,7 @@ struct LocalEngineView: View {
         report = "يتم تحويل موارد المجلد ونسخ ملفات البيانات..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let base = documents.appendingPathComponent("GTA Converter/Local Engine/Batch Converted", isDirectory: true)
                 let safeName = folder.lastPathComponent.replacingOccurrences(of: "/", with: "_")
@@ -410,7 +428,7 @@ struct LocalEngineView: View {
         report = "يتم تحويل مورد اللعبة محلياً..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let outputDirectory = documents.appendingPathComponent("GTA Converter/Local Engine/Converted", isDirectory: true)
                 let result = try LocalEngineBridge.convertResource(at: file, to: outputDirectory)
@@ -445,7 +463,7 @@ struct LocalEngineView: View {
         report = "يتم قراءة DDS والصور وبناء قاموس YTD محلياً..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let outputDirectory = documents.appendingPathComponent("GTA Converter/Local Engine/Texture Dictionaries", isDirectory: true)
                 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
@@ -482,7 +500,7 @@ struct LocalEngineView: View {
         report = "يتم تحليل YTD واستخراج الخامات..."
         Task.detached(priority: .userInitiated) {
             do {
-                let documents = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
                                                             appropriateFor: nil, create: true)
                 let base = documents.appendingPathComponent("GTA Converter/Local Engine/Textures", isDirectory: true)
                 let folderName = file.deletingPathExtension().lastPathComponent
