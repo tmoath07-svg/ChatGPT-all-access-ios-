@@ -772,17 +772,21 @@ struct ContentView: View {
         let reason = archiveError?.message.isEmpty == false
             ? archiveError!.message
             : (nsError.localizedFailureReason ?? "لم يوفّر النظام سبباً إضافياً.")
-        let technicalStage = archiveError.map { "مرحلة libarchive: \\(String(describing: $0.stage))، الحالة: \\(String(describing: $0.status))" }
+        let technicalStage = archiveError.map {
+            "مرحلة libarchive: \(String(describing: $0.stage))، الحالة: \(String(describing: $0.status))، الرمز الخام: \($0.code)"
+        }
         let suggestion = technicalStage ?? (nsError.localizedRecoverySuggestion ?? "انسخ التقرير وأرسله كما هو لتحديد موضع المشكلة.")
         let reportedCode = archiveError.map { Int($0.code) } ?? nsError.code
         let reportedDomain = archiveError == nil ? nsError.domain : "SwiftArchive.ArchiveError"
+        let technicalDescription = archiveError?.description ?? nsError.localizedDescription
         lastErrorDetails = """
         GTA Converter - Error Report
         الوقت: \(ISO8601DateFormatter().string(from: Date()))
         الخطأ: \(message)
         السبب: \(reason)
-        نطاق الخطأ: \(nsError.domain)
-        رمز الخطأ: \(nsError.code)
+        الوصف التقني: \(technicalDescription)
+        نطاق الخطأ: \(reportedDomain)
+        رمز الخطأ: \(reportedCode)
         اقتراح النظام: \(suggestion)
         الملف: \(sourceURL?.lastPathComponent ?? selectedFileName)
         المسار: \(sourceURL?.path ?? "غير متوفر")
