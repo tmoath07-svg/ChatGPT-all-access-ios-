@@ -120,7 +120,7 @@ struct FeatureHubView: View {
                     feature("مولّد dlclist.xml", detail: "إنشاء المسارات بصيغة Orbx المطلقة المطلوبة.", icon: "list.bullet.rectangle", state: "متاح")
                     feature("مستكشف الملفات", detail: "تصفح الملفات الناتجة ومشاركتها أو حذفها.", icon: "folder.fill", state: "متاح")
                     feature("تغيير الغلاف والألوان", detail: "تخصيص واجهة التطبيق من صفحة التصميم.", icon: "paintbrush.pointed.fill", state: "متاح")
-                    feature("تحويل PC إلى PS4 تلقائياً", detail: "غير مفعّل في هذه النسخة. فك الملفات وحده لا يعني تحويل صيغ اللعبة.", icon: "wrench.and.screwdriver.fill", state: "غير متاح")
+                    feature("محرك تحويل PC إلى PS4", detail: "محرك Ps4tools السحابي مضاف. يحتاج تشغيل Workflow برابط تنزيل مباشر، والربط التلقائي من التطبيق ما زال قيد التطوير.", icon: "cloud.gear.fill", state: "تجريبي")
                 }.padding(16)
             }
         }
