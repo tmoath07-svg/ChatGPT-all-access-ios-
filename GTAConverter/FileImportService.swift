@@ -1,4 +1,7 @@
 import Foundation
+import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
 enum FileImportService {
     enum ImportFailure: LocalizedError {
@@ -103,6 +106,62 @@ enum FileImportService {
                 try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try fm.copyItem(at: item, to: target)
             }
+        }
+    }
+}
+
+
+/// Presents Apple's document picker in import-copy mode.
+/// The selected item is materialized as a temporary copy before our app reads it.
+struct INRPFDocumentPickerPresenter: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    let contentTypes: [UTType]
+    let onCompletion: (Result<[URL], Error>) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let host = UIViewController()
+        host.view.backgroundColor = .clear
+        return host
+    }
+
+    func updateUIViewController(_ host: UIViewController, context: Context) {
+        context.coordinator.parent = self
+        guard isPresented,
+              host.presentedViewController == nil,
+              !context.coordinator.isPresenting else { return }
+
+        context.coordinator.isPresenting = true
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: contentTypes,
+            asCopy: true
+        )
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        host.present(picker, animated: true)
+    }
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        var parent: INRPFDocumentPickerPresenter
+        var isPresenting = false
+
+        init(parent: INRPFDocumentPickerPresenter) {
+            self.parent = parent
+        }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController,
+                            didPickDocumentsAt urls: [URL]) {
+            isPresenting = false
+            parent.isPresented = false
+            parent.onCompletion(.success(urls))
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            isPresenting = false
+            parent.isPresented = false
         }
     }
 }
