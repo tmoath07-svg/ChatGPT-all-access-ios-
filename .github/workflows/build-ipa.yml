@@ -79,9 +79,9 @@ jobs:
 
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          zip -qry GTA-Converter-1.4.3-unsigned.ipa Payload
+          zip -qry GTA-Converter-1.5.0-unsigned.ipa Payload
 
-          unzip -t GTA-Converter-1.4.3-unsigned.ipa
+          unzip -t GTA-Converter-1.5.0-unsigned.ipa
           INFO="Payload/GTA Converter.app/Info.plist"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
@@ -92,12 +92,12 @@ jobs:
           test -x "Payload/GTA Converter.app/$EXECUTABLE"
 
           mkdir -p release-package
-          cp GTA-Converter-1.4.3-unsigned.ipa release-package/GTA-Converter-1.4.3-unsigned.ipa
+          cp GTA-Converter-1.5.0-unsigned.ipa release-package/GTA-Converter-1.5.0-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
-          GTA Converter 1.4.3 - IPA غير موقّع
+          GTA Converter 1.5.0 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
-          2) استخرج ملف GTA-Converter-1.4.3-unsigned.ipa.
+          2) استخرج ملف GTA-Converter-1.5.0-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
           ملاحظة: ملف IPA نفسه أرشيف تثبيت، ولا يمكن تثبيته قبل التوقيع.
           EOF
@@ -110,7 +110,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: GTA-Converter-1.4.3-Install-Package
+          name: GTA-Converter-1.5.0-Install-Package
           path: release-package/
           if-no-files-found: error
           retention-days: 14
