@@ -21,6 +21,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.tmoath07.gta-converter
         PRODUCT_NAME: GTA Converter
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CURRENT_PROJECT_VERSION: "13"
+        VERSIONING_SYSTEM: apple-generic
         PRODUCT_BUNDLE_VERSION: "13"
         MARKETING_VERSION: "1.6.0"
         SWIFT_VERSION: "5.0"
