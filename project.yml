@@ -13,9 +13,14 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tmoath07.gta-converter
         PRODUCT_NAME: GTA Converter
+        PRODUCT_BUNDLE_VERSION: "1"
+        MARKETING_VERSION: "1.0.0"
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: "GTA Converter"
+        INFOPLIST_KEY_CFBundleVersion: "1"
+        INFOPLIST_KEY_CFBundleShortVersionString: "1.0.0"
+        INFOPLIST_KEY_LSRequiresIPhoneOS: YES
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
