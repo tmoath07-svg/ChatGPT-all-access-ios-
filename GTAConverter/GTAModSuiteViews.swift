@@ -191,14 +191,16 @@ final class GTADownloadManager: NSObject, ObservableObject, URLSessionDownloadDe
 
 struct GTAModBrowserView: View {
     @State private var address = "https://www.gta5-mods.com/vehicles"
+    @State private var searchQuery = ""
+    @State private var searchCategory = "vehicles"
     @State private var browserID = UUID()
+    @State private var showSearchNotice = false
     @StateObject private var downloads = GTADownloadManager.shared
 
     private let shortcuts: [(String, String, String)] = [
-        ("GTA5-Mods", "car.side.fill", "https://www.gta5-mods.com/"),
-        ("GTAInside", "globe", "https://www.gtainside.com/"),
-        ("LCPDFR", "shield.lefthalf.filled", "https://www.lcpdfr.com/"),
-        ("LibertyCity", "building.2", "https://libertycity.net/")
+        ("مركبات", "car.side.fill", "https://www.gta5-mods.com/vehicles"),
+        ("خرائط", "map.fill", "https://www.gta5-mods.com/maps"),
+        ("شخصيات", "person.fill", "https://www.gta5-mods.com/player")
     ]
 
     private var validURL: URL? {
@@ -232,6 +234,33 @@ struct GTAModBrowserView: View {
             .background(.white.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 13))
             .padding(.horizontal, 12)
+
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    TextField("ابحث عن مود مركبة أو خريطة أو شخصية", text: $searchQuery)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                        .onSubmit(performSearch)
+                        .foregroundStyle(.white)
+                    Button(action: performSearch) {
+                        Label("بحث", systemImage: "magnifyingglass")
+                            .font(.caption.bold()).padding(.horizontal, 12).padding(.vertical, 9)
+                            .background(.purple.opacity(0.75)).clipShape(Capsule()).foregroundStyle(.white)
+                    }
+                }
+                .padding(11).background(.white.opacity(0.07))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 12)
+
+                Picker("التصنيف", selection: $searchCategory) {
+                    Text("مركبات").tag("vehicles")
+                    Text("خرائط").tag("maps")
+                    Text("شخصيات").tag("player")
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 12)
+            }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -284,7 +313,27 @@ struct GTAModBrowserView: View {
         .navigationTitle("متصفح المودات")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.layoutDirection, .rightToLeft)
+        .alert("البحث غير متاح", isPresented: $showSearchNotice) {
+            Button("حسناً", role: .cancel) { }
+        } message: {
+            Text("البحث هنا مخصص لمودات المركبات والخرائط والشخصيات.")
+        }
         .gtaMotionEntrance()
+    }
+
+    private func performSearch() {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+        let blockedTerms = ["gun", "guns", "weapon", "weapons", "rifle", "pistol", "ammo", "firearm",
+                            "سلاح", "اسلحة", "أسلحة", "مسدس", "بندقية", "رشاش", "ذخيرة"]
+        let normalized = query.lowercased()
+        if blockedTerms.contains(where: { normalized.localizedCaseInsensitiveContains($0) }) {
+            showSearchNotice = true
+            return
+        }
+        guard let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return }
+        address = "https://www.google.com/search?q=site%3Agta5-mods.com%2F\(searchCategory)+\(encoded)"
+        browserID = UUID()
     }
 }
 
