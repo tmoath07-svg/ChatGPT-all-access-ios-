@@ -888,7 +888,7 @@ private struct AppFilesView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.035, green: 0.025, blue: 0.065).ignoresSafeArea()
+            GTAAppBackground()
             VStack(spacing: 12) {
                 HStack(spacing: 12) {
                     Image(systemName: "folder.fill").font(.system(size: 30)).foregroundStyle(Color.purple)
@@ -996,7 +996,7 @@ private struct AppSettingsView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.035, green: 0.025, blue: 0.065).ignoresSafeArea()
+            GTAAppBackground()
             ScrollView {
                 VStack(spacing: 14) {
                     HStack(spacing: 12) {
