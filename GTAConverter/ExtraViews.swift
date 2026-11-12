@@ -492,8 +492,8 @@ struct CreatorPageView: View {
         }
         .navigationTitle(appLanguage == "ar" ? "المبدعين" : "Creators")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
-        .environment(\\.locale, Locale(identifier: appLanguage))
+        .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
+        .environment(\.locale, Locale(identifier: appLanguage))
         .sheet(isPresented: $showAssistantProfile) {
             NavigationStack {
                 ZStack {
