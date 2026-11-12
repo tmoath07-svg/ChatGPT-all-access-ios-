@@ -37,19 +37,24 @@ struct FeatureAnalysisTests {
 
         let left = root.appendingPathComponent("left", isDirectory: true)
         let right = root.appendingPathComponent("right", isDirectory: true)
+        try FileManager.default.createDirectory(at: left, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: right, withIntermediateDirectories: true)
         try write("same", to: left.appendingPathComponent("same.txt"))
         try write("before", to: left.appendingPathComponent("changed.txt"))
         try write("remove", to: left.appendingPathComponent("removed.txt"))
         try write("same", to: right.appendingPathComponent("same.txt"))
         try write("after", to: right.appendingPathComponent("changed.txt"))
         try write("new", to: right.appendingPathComponent("added.txt"))
+        try write("nested", to: left.appendingPathComponent("nested/keep.txt"))
+        try write("nested", to: right.appendingPathComponent("nested/keep.txt"))
 
         let changes = try INRPFFileComparison.compare(left: left, right: right)
-        precondition(changes.count == 4, "Comparison expected 4 paths, got \(changes.count): \(changes.map(\.path))")
+        precondition(changes.count == 5, "Comparison expected 4 paths, got \(changes.count): \(changes.map(\.path))")
         precondition(changes.filter { $0.change == .unchanged }.map(\.path) == ["same.txt"], "Unchanged file classification failed")
         precondition(changes.filter { $0.change == .changed }.map(\.path) == ["changed.txt"], "Changed file classification failed")
         precondition(changes.filter { $0.change == .removed }.map(\.path) == ["removed.txt"], "Removed file classification failed")
         precondition(changes.filter { $0.change == .added }.map(\.path) == ["added.txt"], "Added file classification failed")
+        precondition(changes.contains { $0.path == "nested/keep.txt" && $0.change == .unchanged }, "Nested file inventory failed")
     }
 
     private static func write(_ value: String, to url: URL) throws {

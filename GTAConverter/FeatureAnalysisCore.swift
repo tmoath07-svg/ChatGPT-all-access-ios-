@@ -27,14 +27,13 @@ enum INRPFFileComparison {
     }
 
     private static func inventory(_ root: URL) throws -> [String: (bytes: Int64, hash: String)] {
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
+        let fileManager = FileManager.default
+        let rootValues = try root.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard rootValues.isDirectory == true, rootValues.isSymbolicLink != true else {
             throw NSError(domain: "INRPF.Compare", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "يجب اختيار مجلد صالح للمقارنة."])
         }
 
-        let fileManager = FileManager.default
         var pendingDirectories: [(url: URL, relative: String)] = [(root, "")]
         var result: [String: (bytes: Int64, hash: String)] = [:]
 
@@ -43,39 +42,30 @@ enum INRPFFileComparison {
             do {
                 children = try fileManager.contentsOfDirectory(
                     at: current.url,
-                    includingPropertiesForKeys: nil,
+                    includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey],
                     options: [.skipsHiddenFiles]
                 )
             } catch {
                 throw NSError(domain: "INRPF.Compare", code: 2,
-                              userInfo: [NSLocalizedDescriptionKey: "تعذر قراءة المجلد \(current.url.lastPathComponent): \(error.localizedDescription)"])
+                              userInfo: [NSLocalizedDescriptionKey: "تعذر قراءة المجلد \\(current.url.lastPathComponent): \\(error.localizedDescription)"])
             }
 
             for file in children {
-                let relative = current.relative.isEmpty
-                    ? file.lastPathComponent
-                    : current.relative + "/" + file.lastPathComponent
-                guard !relative.isEmpty,
-                      !relative.split(separator: "/").contains("..") else { continue }
-
-                let attributes = try fileManager.attributesOfItem(atPath: file.path)
-                let type = attributes[.type] as? FileAttributeType
-                if type == .typeSymbolicLink { continue }
-                if type == .typeDirectory {
+                let relative = current.relative.isEmpty ? file.lastPathComponent : current.relative + "/" + file.lastPathComponent
+                guard !relative.isEmpty, !relative.split(separator: "/").contains("..") else { continue }
+                let values = try file.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey])
+                if values.isSymbolicLink == true { continue }
+                if values.isDirectory == true {
                     pendingDirectories.append((file, relative))
                     continue
                 }
-                guard type == .typeRegular else { continue }
-
                 let data = try Data(contentsOf: file, options: [.mappedIfSafe])
                 let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-                let size = (attributes[.size] as? NSNumber)?.int64Value ?? Int64(data.count)
-                result[relative] = (size, hash)
+                result[relative] = (Int64(values.fileSize ?? data.count), hash)
             }
         }
         return result
-    }
-}
+    }}
 
 struct INRPFHandlingField: Equatable {
     let name: String
