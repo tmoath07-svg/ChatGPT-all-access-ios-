@@ -5,6 +5,7 @@ use std::fs;
 use std::io::Write;
 use std::os::raw::c_char;
 use std::path::{Component, Path, PathBuf};
+use suppaftp::{FtpError, FtpStream};
 
 const MAX_INPUT_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_RESOURCE_DECOMPRESSED_BYTES: u64 = 512 * 1024 * 1024;
@@ -1123,4 +1124,161 @@ mod tests {
         let error = convert_resource_bytes("ytd", b"not a ytd").unwrap_err();
         assert!(error.contains("OTD"));
     }
+}
+
+
+// MARK: - Native FTP transport (SuppaFTP over Rust std::net)
+
+fn ftp_open(host: &str, port: u16, username: &str, password: &str) -> Result<FtpStream, String> {
+    let mut client = FtpStream::connect((host, port))
+        .map_err(|error| format!("تعذر فتح اتصال FTP إلى {host}:{port}: {error}"))?;
+    client.get_ref().set_read_timeout(Some(std::time::Duration::from_secs(25)))
+        .map_err(|error| format!("تعذر ضبط مهلة قراءة FTP: {error}"))?;
+    client.get_ref().set_write_timeout(Some(std::time::Duration::from_secs(25)))
+        .map_err(|error| format!("تعذر ضبط مهلة إرسال FTP: {error}"))?;
+    client.login(username, password)
+        .map_err(|error| format!("اتصال TCP نجح لكن تسجيل دخول FTP فشل: {error}"))?;
+    Ok(client)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_ftp_connect(
+    host: *const c_char, port: u16, username: *const c_char, password: *const c_char
+) -> *mut c_char {
+    let host = match read_c_path(host) { Ok(v) => v, Err(e) => return result_error(e) };
+    let username = match read_c_path(username) { Ok(v) => v, Err(e) => return result_error(e) };
+    let password = match read_c_path(password) { Ok(v) => v, Err(e) => return result_error(e) };
+    match ftp_open(host, port, username, password) {
+        Ok(mut ftp) => {
+            let welcome = ftp.get_welcome_msg().unwrap_or("").to_string();
+            let cwd = ftp.pwd().unwrap_or_else(|_| "/".to_string());
+            let _ = ftp.quit();
+            result_ok(json!({"ok":true,"welcome":welcome,"path":cwd,"transport":"suppaftp/std::net"}))
+        }
+        Err(error) => result_error(error),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_ftp_list(
+    host: *const c_char, port: u16, username: *const c_char, password: *const c_char,
+    remote_path: *const c_char
+) -> *mut c_char {
+    let host = match read_c_path(host) { Ok(v) => v, Err(e) => return result_error(e) };
+    let username = match read_c_path(username) { Ok(v) => v, Err(e) => return result_error(e) };
+    let password = match read_c_path(password) { Ok(v) => v, Err(e) => return result_error(e) };
+    let remote_path = match read_c_path(remote_path) { Ok(v) => v, Err(e) => return result_error(e) };
+    let mut ftp = match ftp_open(host, port, username, password) { Ok(v) => v, Err(e) => return result_error(e) };
+    if let Err(error) = ftp.cwd(remote_path) {
+        return result_error(format!("تعذر فتح المسار {remote_path}: {error}"));
+    }
+
+    let entries = match ftp.mlsd(None) {
+        Ok(lines) => lines.into_iter().filter_map(|line| {
+            let (facts, name) = line.split_once(' ')?;
+            let name = name.trim();
+            if name.is_empty() || name == "." || name == ".." { return None; }
+            let lower = facts.to_ascii_lowercase();
+            let is_dir = lower.contains("type=dir");
+            let size = facts.split(';').find_map(|fact| fact.strip_prefix("size=")).unwrap_or("");
+            Some(json!({"name":name,"isDirectory":is_dir,"size":size}))
+        }).collect::<Vec<_>>(),
+        Err(_) => match ftp.list(None) {
+            Ok(lines) => lines.into_iter().filter_map(|line| {
+                let parts = line.split_whitespace().collect::<Vec<_>>();
+                if parts.len() < 9 { return None; }
+                let name = parts[8..].join(" ");
+                if name.is_empty() || name == "." || name == ".." { return None; }
+                let is_dir = parts[0].starts_with('d');
+                let size = if is_dir { String::new() } else { parts[4].to_string() };
+                Some(json!({"name":name,"isDirectory":is_dir,"size":size}))
+            }).collect::<Vec<_>>(),
+            Err(error) => return result_error(format!("فشل MLSD وLIST للمسار {remote_path}: {error}")),
+        }
+    };
+    let _ = ftp.quit();
+    result_ok(json!({"ok":true,"entries":entries,"path":remote_path}))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_ftp_mkdir(
+    host: *const c_char, port: u16, username: *const c_char, password: *const c_char,
+    remote_path: *const c_char, folder_name: *const c_char
+) -> *mut c_char {
+    let host = match read_c_path(host) { Ok(v) => v, Err(e) => return result_error(e) };
+    let username = match read_c_path(username) { Ok(v) => v, Err(e) => return result_error(e) };
+    let password = match read_c_path(password) { Ok(v) => v, Err(e) => return result_error(e) };
+    let remote_path = match read_c_path(remote_path) { Ok(v) => v, Err(e) => return result_error(e) };
+    let folder_name = match read_c_path(folder_name) { Ok(v) => v, Err(e) => return result_error(e) };
+    if folder_name.contains('/') || folder_name.contains('\\') || folder_name.contains("..") {
+        return result_error("اسم المجلد غير صالح.");
+    }
+    let mut ftp = match ftp_open(host, port, username, password) { Ok(v) => v, Err(e) => return result_error(e) };
+    if let Err(error) = ftp.cwd(remote_path) { return result_error(format!("تعذر فتح المسار: {error}")); }
+    if let Err(error) = ftp.mkdir(folder_name) { return result_error(format!("تعذر إنشاء المجلد: {error}")); }
+    let _ = ftp.quit();
+    result_ok(json!({"ok":true}))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_ftp_upload(
+    host: *const c_char, port: u16, username: *const c_char, password: *const c_char,
+    remote_path: *const c_char, remote_name: *const c_char, local_path: *const c_char
+) -> *mut c_char {
+    let host = match read_c_path(host) { Ok(v) => v, Err(e) => return result_error(e) };
+    let username = match read_c_path(username) { Ok(v) => v, Err(e) => return result_error(e) };
+    let password = match read_c_path(password) { Ok(v) => v, Err(e) => return result_error(e) };
+    let remote_path = match read_c_path(remote_path) { Ok(v) => v, Err(e) => return result_error(e) };
+    let remote_name = match read_c_path(remote_name) { Ok(v) => v, Err(e) => return result_error(e) };
+    let local_path = match read_c_path(local_path) { Ok(v) => v, Err(e) => return result_error(e) };
+    if remote_name.contains('/') || remote_name.contains('\\') || remote_name.contains("..") {
+        return result_error("اسم الملف البعيد غير صالح.");
+    }
+    let mut ftp = match ftp_open(host, port, username, password) { Ok(v) => v, Err(e) => return result_error(e) };
+    if let Err(error) = ftp.cwd(remote_path) { return result_error(format!("تعذر فتح مجلد الرفع: {error}")); }
+    let mut input = match fs::File::open(local_path) {
+        Ok(file) => file,
+        Err(error) => return result_error(format!("تعذر فتح الملف المحلي: {error}")),
+    };
+    let bytes = match ftp.put_file(remote_name, &mut input) {
+        Ok(bytes) => bytes,
+        Err(error) => return result_error(format!("فشل رفع الملف عبر FTP: {error}")),
+    };
+    let _ = ftp.quit();
+    result_ok(json!({"ok":true,"bytes":bytes}))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_ftp_download(
+    host: *const c_char, port: u16, username: *const c_char, password: *const c_char,
+    remote_path: *const c_char, remote_name: *const c_char, local_path: *const c_char
+) -> *mut c_char {
+    let host = match read_c_path(host) { Ok(v) => v, Err(e) => return result_error(e) };
+    let username = match read_c_path(username) { Ok(v) => v, Err(e) => return result_error(e) };
+    let password = match read_c_path(password) { Ok(v) => v, Err(e) => return result_error(e) };
+    let remote_path = match read_c_path(remote_path) { Ok(v) => v, Err(e) => return result_error(e) };
+    let remote_name = match read_c_path(remote_name) { Ok(v) => v, Err(e) => return result_error(e) };
+    let local_path = match read_c_path(local_path) { Ok(v) => v, Err(e) => return result_error(e) };
+    let mut ftp = match ftp_open(host, port, username, password) { Ok(v) => v, Err(e) => return result_error(e) };
+    if let Err(error) = ftp.cwd(remote_path) { return result_error(format!("تعذر فتح مجلد التنزيل: {error}")); }
+    let destination = Path::new(local_path);
+    if let Some(parent) = destination.parent() {
+        if let Err(error) = fs::create_dir_all(parent) { return result_error(format!("تعذر إنشاء مجلد التنزيل: {error}")); }
+    }
+    let mut output = match fs::File::create(destination) {
+        Ok(file) => file,
+        Err(error) => return result_error(format!("تعذر إنشاء الملف المحلي: {error}")),
+    };
+    let transfer = ftp.retr(remote_name, |stream| {
+        std::io::copy(stream, &mut output).map_err(FtpError::ConnectionError)
+    });
+    let bytes = match transfer {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            let _ = fs::remove_file(destination);
+            return result_error(format!("فشل تنزيل الملف عبر FTP: {error}"));
+        }
+    };
+    let _ = ftp.quit();
+    result_ok(json!({"ok":true,"bytes":bytes}))
 }
