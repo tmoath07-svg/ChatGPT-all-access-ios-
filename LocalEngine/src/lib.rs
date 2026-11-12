@@ -5,7 +5,7 @@ use std::fs;
 use std::io::Write;
 use std::os::raw::c_char;
 use std::path::{Component, Path, PathBuf};
-use suppaftp::{FtpError, FtpStream};
+use suppaftp::{types::FileType, FtpError, FtpStream, Mode};
 
 const MAX_INPUT_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_RESOURCE_DECOMPRESSED_BYTES: u64 = 512 * 1024 * 1024;
@@ -1132,12 +1132,18 @@ mod tests {
 fn ftp_open(host: &str, port: u16, username: &str, password: &str) -> Result<FtpStream, String> {
     let mut client = FtpStream::connect((host, port))
         .map_err(|error| format!("تعذر فتح اتصال FTP إلى {host}:{port}: {error}"))?;
+    client.set_mode(Mode::Passive);
+    // GoldHEN and console FTP servers may advertise 0.0.0.0 or an unreachable
+    // interface in PASV. Reuse the control peer address and keep the PASV port.
+    client.set_passive_nat_workaround(true);
     client.get_ref().set_read_timeout(Some(std::time::Duration::from_secs(25)))
         .map_err(|error| format!("تعذر ضبط مهلة قراءة FTP: {error}"))?;
     client.get_ref().set_write_timeout(Some(std::time::Duration::from_secs(25)))
         .map_err(|error| format!("تعذر ضبط مهلة إرسال FTP: {error}"))?;
     client.login(username, password)
         .map_err(|error| format!("اتصال TCP نجح لكن تسجيل دخول FTP فشل: {error}"))?;
+    client.transfer_type(FileType::Binary)
+        .map_err(|error| format!("تعذر تفعيل النقل الثنائي FTP: {error}"))?;
     Ok(client)
 }
 
