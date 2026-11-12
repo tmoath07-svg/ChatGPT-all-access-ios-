@@ -7,7 +7,7 @@ on:
         description: "وش تبي تسوي بالمود؟ اختر نوع التحويل"
         required: true
         type: choice
-        default: تحويل ملفات PC إلى PS4
+        default: تحويل مود FiveM متعدد السيارات إلى DLC للسوني
         options:
           - فحص الأدوات
           - تحويل ملفات PC إلى PS4
@@ -25,10 +25,10 @@ on:
         type: string
         default: "tools-source/ZokiiStudio-Toolkit-FIXED.zip"
       release_tag:
-        description: "Release Tag للمود (اختياري)"
+        description: "Release Tag من مستودع Ps4tools (افتراضي: 25 ويحتوي rb3nasb.2.rar)"
         required: false
         type: string
-        default: ""
+        default: "25"
       url:
         description: "رابط مباشر لملف ZIP/RAR/7Z/YFT/YTD/RPF (اختياري)"
         required: false
