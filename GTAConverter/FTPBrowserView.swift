@@ -16,6 +16,19 @@ private enum FTPFailure: LocalizedError {
     }
 }
 
+private final class FTPResumeGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didResume = false
+
+    func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !didResume else { return false }
+        didResume = true
+        return true
+    }
+}
+
 private final class INRPFtpClient {
     private let queue = DispatchQueue(label: "com.tmoath07.inrpf.ftp")
     private var control: NWConnection?
@@ -155,23 +168,20 @@ private final class INRPFtpClient {
 
     private func waitUntilReady(_ connection: NWConnection) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let lock = NSLock()
-            var resumed = false
+            let gate = FTPResumeGate()
             connection.stateUpdateHandler = { state in
-                lock.lock()
-                defer { lock.unlock() }
-                guard !resumed else { return }
                 switch state {
                 case .ready:
-                    resumed = true
+                    guard gate.claim() else { return }
                     continuation.resume()
                 case .failed(let error):
-                    resumed = true
+                    guard gate.claim() else { return }
                     continuation.resume(throwing: error)
                 case .cancelled:
-                    resumed = true
+                    guard gate.claim() else { return }
                     continuation.resume(throwing: FTPFailure.disconnected)
-                default: break
+                default:
+                    break
                 }
             }
             connection.start(queue: self.queue)
