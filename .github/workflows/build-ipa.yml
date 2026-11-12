@@ -44,8 +44,8 @@ jobs:
           set -euo pipefail
           swiftc GTAConverter/ModAnalyzer.swift Tests/fivem_mod_analyzer_tests.swift -o /tmp/fivem-mod-analyzer-tests
           /tmp/fivem-mod-analyzer-tests
-          grep -q 'MARKETING_VERSION: "3.00"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "31"' project.yml
+          grep -q 'MARKETING_VERSION: "3.10"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "32"' project.yml
 
       - name: Test Orbx auto installer with local DLC fixture
         run: |
@@ -122,7 +122,7 @@ jobs:
           INFO="Payload/INRPF.app/Info.plist"
           # XcodeGen may omit version keys from the generated plist on some runner/Xcode combinations.
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.00' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 3.00' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.10' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 3.10' "$INFO"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 31' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 31' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
@@ -130,10 +130,10 @@ jobs:
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")
 
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
-          test "$VERSION" = "3.00"
-          test "$BUILD" = "31"
-          zip -qry INRPF-3.00-unsigned.ipa Payload
-          unzip -t INRPF-3.00-unsigned.ipa
+          test "$VERSION" = "3.10"
+          test "$BUILD" = "32"
+          zip -qry INRPF-3.10-unsigned.ipa Payload
+          unzip -t INRPF-3.10-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"
           nm -g "Payload/INRPF.app/$EXECUTABLE" > build/exported-symbols.txt
           grep -q "_gta_engine_build_rpf7" build/exported-symbols.txt
@@ -143,12 +143,12 @@ jobs:
           grep -q "_gta_engine_build_ytd" build/exported-symbols.txt
 
           mkdir -p release-package
-          cp INRPF-3.00-unsigned.ipa release-package/INRPF-3.00-unsigned.ipa
+          cp INRPF-3.10-unsigned.ipa release-package/INRPF-3.10-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
-          INRPF 3.00 - IPA غير موقّع
+          INRPF 3.10 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
-          2) استخرج ملف INRPF-3.00-unsigned.ipa.
+          2) استخرج ملف INRPF-3.10-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
           يتضمن هذا الإصدار محرك RPF محلياً، واستخراج الأرشيفات غير المشفرة، وتحويلاً بنيوياً لبعض موارد Y*، واستخراج وبناء قواميس YTD بصيغة PC.
@@ -164,7 +164,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: INRPF-3.00-Install-Package
+          name: INRPF-3.10-Install-Package
           path: release-package/
           if-no-files-found: error
           retention-days: 14
