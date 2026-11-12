@@ -124,7 +124,7 @@ struct DLCPS4PreparationView: View {
                 try fm.createDirectory(at: addonRoot, withIntermediateDirectories: true)
 
                 var copied = Set<String>()
-                for (index, rawPath) in dlcFiles.enumerated() {
+                for rawPath in dlcFiles {
                     let normalized = rawPath.replacingOccurrences(of: "\\", with: "/")
                     let parts = normalized.split(separator: "/", omittingEmptySubsequences: true)
                     guard !normalized.hasPrefix("/"), !parts.contains(".."), !parts.contains("."),
@@ -144,7 +144,7 @@ struct DLCPS4PreparationView: View {
                     let name = String(parts[parts.count - 2])
                     guard safeNames.contains(name) else {
                         throw NSError(domain: "GTAConverter.DLC", code: 15,
-                                      userInfo: [NSLocalizedDescriptionKey: "اسم مجلد DLC لا يطابق قائمة الحزم: \\(name)"])
+                                      userInfo: [NSLocalizedDescriptionKey: "اسم مجلد DLC لا يطابق قائمة الحزم: \(name)"])
                     }
                     guard !copied.contains(name) else {
                         throw NSError(domain: "GTAConverter.DLC", code: 14,
