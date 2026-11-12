@@ -112,7 +112,7 @@ struct ContentView: View {
             }
             .fileImporter(
                 isPresented: $showingImporter,
-                allowedContentTypes: importKind == .folder ? [.folder] : [.item],
+                allowedContentTypes: importKind == .folder ? [.folder] : [.data, .archive, .zip, .rar],
                 allowsMultipleSelection: false
             ) { result in
                 handleImport(result)
@@ -956,9 +956,6 @@ private struct AppFilesView: View {
     @State private var items: [URL] = []
     @State private var search = ""
     @State private var errorText: String?
-    @State private var selectedURL: URL?
-    @State private var showSelectedItem = false
-
     private var root: URL {
         directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("GTA Converter", isDirectory: true)
@@ -1005,20 +1002,6 @@ private struct AppFilesView: View {
         }
         .navigationTitle("مستكشف الملفات")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showSelectedItem) {
-            NavigationStack {
-                if let selectedURL {
-                    if (try? selectedURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                        AppFilesView(directory: selectedURL)
-                    } else {
-                        AppFileDetailView(url: selectedURL)
-                    }
-                } else {
-                    Text("لم يتم تحديد ملف").foregroundStyle(.white)
-                }
-            }
-            .preferredColorScheme(.dark)
-        }
         .onAppear(perform: loadItems)
     }
 
@@ -1028,24 +1011,31 @@ private struct AppFilesView: View {
     }
 
     @ViewBuilder private func fileRow(_ url: URL) -> some View {
-        let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-        Button {
-            selectedURL = url
-            showSelectedItem = true
+        NavigationLink {
+            if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                AppFilesView(directory: url)
+            } else {
+                AppFileDetailView(url: url)
+            }
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: isDirectory ? "folder.fill" : icon(for: url))
-                    .font(.title2).foregroundStyle(isDirectory ? Color.purple : .white.opacity(0.8))
+                Image(systemName: (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                      ? "folder.fill" : icon(for: url))
+                    .font(.title2)
+                    .foregroundStyle((try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                                     ? Color.purple : .white.opacity(0.8))
                     .frame(width: 34)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(url.lastPathComponent)
                         .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                         .lineLimit(2).multilineTextAlignment(.leading)
-                    Text(isDirectory ? "مجلد • اضغط لفتحه" : fileSize(url) + " • اضغط لفتح الملف")
+                    Text(((try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true)
+                         ? "مجلد • اضغط لفتحه" : fileSize(url) + " • اضغط لعرض الملف")
                         .font(.caption2).foregroundStyle(.white.opacity(0.55))
                 }
                 Spacer(minLength: 8)
-                Image(systemName: "chevron.left").font(.caption.bold()).foregroundStyle(.white.opacity(0.45))
+                Image(systemName: "chevron.left")
+                    .font(.caption.bold()).foregroundStyle(.white.opacity(0.45))
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
