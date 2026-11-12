@@ -24,6 +24,9 @@ struct ContentView: View {
     @AppStorage("gta_accent_color") private var accentColor = "purple"
     @AppStorage("gta_home_density") private var homeDensity = "comfortable"
     @AppStorage("gta_motion_enabled") private var motionEnabled = true
+    @AppStorage("gta_language") private var appLanguage = "ar"
+    @AppStorage("gta_onboarding_complete") private var onboardingComplete = false
+    @State private var showOnboarding = false
 
     private var purple: Color {
         switch accentColor {
@@ -114,7 +117,11 @@ struct ContentView: View {
                 }
             }
         }
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
+        .onAppear { showOnboarding = !onboardingComplete }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            GTAOnboardingView { onboardingComplete = true; showOnboarding = false }
+        }
     }
 
     private var header: some View {
@@ -153,13 +160,14 @@ struct ContentView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 9) {
                 menuLink("المحرك المحلي", icon: "cpu.fill", destination: LocalEngineView(initialFolder: outputFolder))
+                menuLink("محرر RPF", icon: "archivebox.fill", destination: LocalEngineView(initialFolder: outputFolder))
                 menuLink("التحويل السحابي (احتياطي)", icon: "cloud.gear.fill", destination: CloudConversionView())
                 menuLink("متصفح المودات", icon: "globe", destination: GTAModBrowserView())
                 menuLink("مكتبة المودات", icon: "square.grid.2x2.fill", destination: GTAModsLibraryView())
                 menuLink("التنزيلات", icon: "arrow.down.circle.fill", destination: GTADownloadsView())
                 menuLink("سجل العمليات", icon: "clock.arrow.circlepath", destination: GTATransferHistoryView())
-                menuLink("مختبر YTD", icon: "photo.stack.fill", destination: YTDTextureLabView())
-                menuLink("التخصيص", icon: "paintpalette.fill", destination: GTAAppearanceSettingsView())
+                menuLink("محرر YTD", icon: "photo.stack.fill", destination: YTDTextureLabView())
+                menuLink("التخصيص واللغة", icon: "paintpalette.fill", destination: GTASetupSettingsView())
                 menuLink("الميزات", icon: "square.grid.2x2", destination: FeatureHubView())
                 menuLink("ملفاتي", icon: "folder.fill", destination: AppFilesView())
                 menuLink("الإعدادات", icon: "gearshape.fill", destination: AppSettingsView())
