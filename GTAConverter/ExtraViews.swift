@@ -237,7 +237,7 @@ struct FeatureHubView: View {
         switch item.route {
         case "ytd": YTDTextureLabView()
         case "cloud": CloudConversionView()
-        case "dlc": DLCPS4PreparationView()
+        case "dlc": FeatureInfoView(item: item)
         default: FeatureInfoView(item: item)
         }
     }
