@@ -820,6 +820,7 @@ struct ContentView: View {
             case .unsafePath: return "الأرشيف يحتوي مسار ملفات غير آمن وتم إيقاف الفك."
             case .folderRead: return "تعذرت قراءة محتويات المجلد."
             case .archivePathConflict(let path): return "تعارض مسار داخل الأرشيف: \(path). يوجد مجلد في مكان ملف أو العكس."
+            case .fileWrite(let name): return "تعذر إنشاء الملف المستخرج: \(name)"
             }
         }
     }
