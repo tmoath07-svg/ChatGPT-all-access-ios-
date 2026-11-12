@@ -547,9 +547,14 @@ struct GTAModsLibraryView: View {
     private func refresh() {
         let fm = FileManager.default
         try? fm.createDirectory(at: root, withIntermediateDirectories: true)
-        let folders = ["Mods", "Imports", "Ready"].map { root.appendingPathComponent($0, isDirectory: true) }
-        files = folders.flatMap { folder in
-            (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey], options: [.skipsHiddenFiles])) ?? []
+        let folders = ["Mods", "Imports", "Ready", "Downloads", "Local Engine"].map { root.appendingPathComponent($0, isDirectory: true) }
+        files = folders.flatMap { folder -> [URL] in
+            guard let enumerator = fm.enumerator(at: folder,
+                includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+                options: [.skipsHiddenFiles]) else { return [] }
+            var found: [URL] = []
+            while let item = enumerator.nextObject() as? URL { found.append(item) }
+            return found
         }.sorted {
             let a = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
             let b = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
@@ -600,12 +605,14 @@ struct GTATransferHistoryView: View {
         let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("GTA Converter", isDirectory: true)
         var found: [(String, String, Date)] = []
-        for folderName in ["Imports", "Mods", "Ready"] {
+        for folderName in ["Imports", "Mods", "Ready", "Downloads", "Local Engine"] {
             let folder = root.appendingPathComponent(folderName, isDirectory: true)
-            let urls = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles])) ?? []
-            for url in urls {
+            guard let enumerator = FileManager.default.enumerator(at: folder,
+                includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else { continue }
+            while let url = enumerator.nextObject() as? URL {
                 let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                found.append((url.lastPathComponent, folderName, date))
+                let relative = url.path.replacingOccurrences(of: root.path + "/", with: "")
+                found.append((url.lastPathComponent, relative, date))
             }
         }
         let savedEvents = GTATransferHistoryStore.load().map { ($0.title, $0.detail, $0.date) }
