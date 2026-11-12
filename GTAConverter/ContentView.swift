@@ -152,7 +152,8 @@ struct ContentView: View {
     private var topMenu: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 9) {
-                menuLink("التحويل السحابي", icon: "cloud.gear.fill", destination: CloudConversionView())
+                menuLink("المحرك المحلي", icon: "cpu.fill", destination: LocalEngineView(initialFolder: outputFolder))
+                menuLink("التحويل السحابي (احتياطي)", icon: "cloud.gear.fill", destination: CloudConversionView())
                 menuLink("متصفح المودات", icon: "globe", destination: GTAModBrowserView())
                 menuLink("مكتبة المودات", icon: "square.grid.2x2.fill", destination: GTAModsLibraryView())
                 menuLink("التنزيلات", icon: "arrow.down.circle.fill", destination: GTADownloadsView())
@@ -382,8 +383,8 @@ struct ContentView: View {
             )
             .font(.caption).foregroundStyle(.white.opacity(0.72))
             if report.isFiveMVehicleResource {
-                NavigationLink(destination: CloudConversionView()) {
-                    Label("متابعة تجهيز مورد FiveM إلى DLC", systemImage: "car.side.fill")
+                NavigationLink(destination: LocalEngineView(initialFolder: outputFolder)) {
+                    Label("فتح المحرك المحلي وفحص ملفات FiveM", systemImage: "cpu.fill")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity).padding(13)
                         .background(.ultraThinMaterial)
@@ -392,7 +393,16 @@ struct ContentView: View {
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
-                Text("ظهر هذا الخيار لأن المورد يحتوي ملفات YFT وYTD وMETA، حتى لو ما كان داخله dlc.rpf. التحويل الفعلي يتم من مسار FiveM السحابي، وليس من خطوة فك الملفات.")
+                NavigationLink(destination: CloudConversionView()) {
+                    Label("المسار السحابي الاحتياطي", systemImage: "cloud.gear.fill")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity).padding(11)
+                        .background(.white.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 11))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+                .buttonStyle(.plain)
+                Text("المحرك المحلي الحالي يفحص ويبني أرشيف RPF7 عاماً. تحويل موارد FiveM إلى موارد PS4 لم يكتمل بعد، لذلك لا تعتبر ملف RPF الناتج حزمة PS4 جاهزة.")
                     .font(.caption2).foregroundStyle(.orange.opacity(0.9))
             }
             if !report.packNames.isEmpty {
