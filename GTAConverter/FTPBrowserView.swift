@@ -164,7 +164,7 @@ private final class FTPBrowserModel: ObservableObject {
             do {
                 let localURL = try await Task.detached(priority: .userInitiated) {
                     try FileImportService.importItem(from: url, category: "Imports",
-                                                     securityScopeAlreadyStarted: true)
+                                                     securityScopeAlreadyStarted: scopeStarted)
                 }.value
                 try await client.upload(fileURL: localURL, remoteName: url.lastPathComponent, path: currentPath)
                 try await refresh()
