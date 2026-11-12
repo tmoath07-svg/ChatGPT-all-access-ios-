@@ -123,32 +123,40 @@ struct DLCPS4PreparationView: View {
                 let addonRoot = output.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
                 try fm.createDirectory(at: addonRoot, withIntermediateDirectories: true)
 
+                // Re-scan the extracted directory at packaging time rather than trusting
+                // stored relative paths, which can differ after URL normalization.
+                guard let enumerator = fm.enumerator(
+                    at: root,
+                    includingPropertiesForKeys: [.isDirectoryKey],
+                    options: [.skipsHiddenFiles]
+                ) else {
+                    throw NSError(domain: "GTAConverter.DLC", code: 17,
+                                  userInfo: [NSLocalizedDescriptionKey: "تعذر إعادة فتح مجلد الملفات المفكوكة."])
+                }
+
+                var discovered: [String: [URL]] = [:]
+                while let item = enumerator.nextObject() as? URL {
+                    guard item.lastPathComponent.caseInsensitiveCompare("dlc.rpf") == .orderedSame else { continue }
+                    let name = item.deletingLastPathComponent().lastPathComponent
+                    discovered[name.lowercased(), default: []].append(item)
+                }
+
                 var copied = Set<String>()
-                for rawPath in dlcFiles {
-                    let normalized = rawPath.replacingOccurrences(of: "\\", with: "/")
-                    let parts = normalized.split(separator: "/", omittingEmptySubsequences: true)
-                    guard !normalized.hasPrefix("/"), !parts.contains(".."), !parts.contains("."),
-                          parts.last?.lowercased() == "dlc.rpf", parts.count >= 2 else {
-                        throw NSError(domain: "GTAConverter.DLC", code: 12,
-                                      userInfo: [NSLocalizedDescriptionKey: "مسار DLC غير آمن أو غير صالح: \(rawPath)"])
+                for name in safeNames {
+                    let matches = discovered[name.lowercased()] ?? []
+                    guard matches.count == 1, let sourceFile = matches.first else {
+                        let detail = matches.isEmpty
+                            ? "لم يتم العثور على dlc.rpf داخل مجلد الحزمة \\(name)."
+                            : "تم العثور على أكثر من ملف dlc.rpf داخل مجلد الحزمة \\(name)."
+                        throw NSError(domain: "GTAConverter.DLC", code: 13,
+                                      userInfo: [NSLocalizedDescriptionKey: detail])
                     }
-                    let sourceFile = root.appendingPathComponent(parts.map(String.init).joined(separator: "/"))
                     let sourceFolder = sourceFile.deletingLastPathComponent()
                     var isDirectory: ObjCBool = false
-                    guard fm.fileExists(atPath: sourceFile.path),
-                          fm.fileExists(atPath: sourceFolder.path, isDirectory: &isDirectory),
+                    guard fm.fileExists(atPath: sourceFolder.path, isDirectory: &isDirectory),
                           isDirectory.boolValue else {
-                        throw NSError(domain: "GTAConverter.DLC", code: 13,
-                                      userInfo: [NSLocalizedDescriptionKey: "ملف DLC غير موجود بعد الفك: \(rawPath)"])
-                    }
-                    let name = String(parts[parts.count - 2])
-                    guard safeNames.contains(name) else {
-                        throw NSError(domain: "GTAConverter.DLC", code: 15,
-                                      userInfo: [NSLocalizedDescriptionKey: "اسم مجلد DLC لا يطابق قائمة الحزم: \(name)"])
-                    }
-                    guard !copied.contains(name) else {
-                        throw NSError(domain: "GTAConverter.DLC", code: 14,
-                                      userInfo: [NSLocalizedDescriptionKey: "اسم حزمة مكرر: \(name)"])
+                        throw NSError(domain: "GTAConverter.DLC", code: 18,
+                                      userInfo: [NSLocalizedDescriptionKey: "مجلد الحزمة غير موجود: \\(name)"])
                     }
                     let destination = addonRoot.appendingPathComponent(name, isDirectory: true)
                     try fm.copyItem(at: sourceFolder, to: destination)
