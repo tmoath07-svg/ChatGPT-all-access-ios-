@@ -1,0 +1,18 @@
+[package]
+name = "gta-local-engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "gta_local_engine"
+crate-type = ["staticlib"]
+
+[dependencies]
+rpf-archive = "0.10.0"
+serde_json = "1.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
