@@ -197,3 +197,65 @@ struct CloudConversionView: View {
         }.padding(14).background(.white.opacity(0.055)).clipShape(RoundedRectangle(cornerRadius: 15))
     }
 }
+
+
+struct CreatorPageView: View {
+    private let creatorHandle = "Moa_sa7"
+    private let tiktokURL = URL(string: "https://www.tiktok.com/@Moa_sa7")!
+
+    var body: some View {
+        ZStack {
+            extraBackground.ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 18) {
+                    VStack(spacing: 12) {
+                        ZStack {
+                            Circle().fill(
+                                LinearGradient(colors: [.purple, Color(red: 0.22, green: 0.08, blue: 0.48)],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                            ).frame(width: 104, height: 104)
+                            Image(systemName: "person.crop.circle.fill")
+                                .font(.system(size: 65)).foregroundStyle(.white)
+                        }
+                        Text("المبدع").font(.title2.bold()).foregroundStyle(.white)
+                        Text(creatorHandle).font(.title3.bold()).foregroundStyle(.purple)
+                        Text("صاحب ومطوّر GTA Converter")
+                            .font(.subheadline).foregroundStyle(.white.opacity(0.65))
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 28)
+                    .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 24))
+
+                    Link(destination: tiktokURL) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "music.note").font(.title2)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("TikTok").font(.headline.bold())
+                                Text("@\(creatorHandle)").font(.caption).opacity(0.75)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.right").font(.headline)
+                        }
+                        .foregroundStyle(.white).padding(16)
+                        .background(Color.purple.opacity(0.28))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("حقوق التطبيق", systemImage: "c.circle.fill")
+                            .font(.headline).foregroundStyle(.white)
+                        Text("© 2026 Moa_sa7. جميع الحقوق محفوظة.")
+                            .font(.subheadline).foregroundStyle(.white.opacity(0.72))
+                        Text("GTA Converter مشروع مستقل. العلامات التجارية وأسماء الألعاب المذكورة تعود لأصحابها.")
+                            .font(.caption).foregroundStyle(.white.opacity(0.48))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16).background(.white.opacity(0.055))
+                    .clipShape(RoundedRectangle(cornerRadius: 17))
+                }.padding(16)
+            }
+        }
+        .navigationTitle("المبدع")
+        .navigationBarTitleDisplayMode(.inline)
+        .environment(\.layoutDirection, .rightToLeft)
+    }
+}
