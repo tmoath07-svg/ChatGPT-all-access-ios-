@@ -55,7 +55,11 @@ struct ContentView: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("GTA Converter")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(background, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .fileImporter(isPresented: $showingImporter,
                           allowedContentTypes: importKind == .folder ? [.folder] : [.item],
                           allowsMultipleSelection: false,
@@ -105,7 +109,7 @@ struct ContentView: View {
                     .clipShape(Capsule())
             }
             Text("GTA CONVERTER")
-                .font(.system(size: 28, weight: .black, design: .rounded))
+                .font(.system(size: 26, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .minimumScaleFactor(0.75)
                 .lineLimit(1)
