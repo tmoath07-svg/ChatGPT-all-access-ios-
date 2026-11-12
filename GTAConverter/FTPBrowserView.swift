@@ -236,9 +236,19 @@ struct FTPBrowserView: View {
         }
         .navigationTitle("FTP جهاز PS4")
         .navigationBarTitleDisplayMode(.inline)
-        .fileImporter(isPresented: $showingUpload, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
-            if case .success(let urls) = result, let url = urls.first { model.upload(url) }
-            if case .failure(let failure) = result { model.error = failure.localizedDescription }
+        .background {
+            INRPFDocumentPickerPresenter(
+                isPresented: $showingUpload,
+                contentTypes: [.item],
+                onCompletion: { result in
+                    switch result {
+                    case .success(let urls):
+                        if let url = urls.first { model.upload(url) }
+                    case .failure(let failure):
+                        model.error = failure.localizedDescription
+                    }
+                }
+            )
         }
         .alert("مجلد جديد", isPresented: $showingNewFolder) {
             TextField("اسم المجلد", text: $folderName)
