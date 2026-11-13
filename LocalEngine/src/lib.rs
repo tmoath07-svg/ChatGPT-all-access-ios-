@@ -125,10 +125,6 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
         Ok(value) => value,
         Err(error) => return result_error(format!("تعذر تحليل RPF: {error:#}")),
     };
-    if !archive_has_vehicle_metadata(&archive) {
-        return result_error("أداة INRPF مخصصة لأرشيفات مركبات GTA التي تحتوي بيانات المركبات.");
-    }
-
     let mut directories = 0usize;
     let mut binary_files = 0usize;
     let mut resource_files = 0usize;
@@ -162,7 +158,8 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
         "directories": directories,
         "binary_files": binary_files,
         "resource_files": resource_files,
-        "warning": "الفحص البنيوي لا يثبت توافق موارد اللعبة مع PS4."
+        "has_vehicle_metadata": archive_has_vehicle_metadata(&archive),
+        "warning": "تم فحص بنية RPF بصرف النظر عن نوع محتواه. وجود بيانات مركبة لا يثبت توافق الموارد مع PS4."
     }))
 }
 
@@ -1282,6 +1279,33 @@ mod tests {
         let meta = parsed.entries.iter().find(|entry| entry.name_lower == "vehicles.meta").expect("metadata entry");
         let extracted = parsed.extract_entry(&bytes, meta, None).expect("extract metadata");
         assert_eq!(extracted.as_slice(), expected);
+    }
+
+    #[test]
+    fn probes_valid_non_vehicle_rpf_without_rejecting_it() {
+        use std::ffi::CString;
+
+        let root = std::env::temp_dir().join(format!("inrpf-generic-rpf-probe-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+
+        let mut builder = RpfBuilder::new(RpfEncryption::Open);
+        builder.add_file("common/data/readme.txt", b"generic archive".to_vec());
+        let bytes = builder.build(None).expect("build generic RPF7");
+        let path = root.join("generic.rpf");
+        fs::write(&path, bytes).unwrap();
+
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let response = unsafe { gta_engine_probe_rpf(path_c.as_ptr()) };
+        assert!(!response.is_null(), "RPF probe returned a null response");
+        let response_text = unsafe { CStr::from_ptr(response).to_str().unwrap().to_owned() };
+        unsafe { gta_engine_free_string(response) };
+        let payload: serde_json::Value = serde_json::from_str(&response_text).unwrap();
+
+        assert_eq!(payload["ok"], true, "generic RPF must be inspectable");
+        assert_eq!(payload["format"], "RPF7");
+        assert_eq!(payload["has_vehicle_metadata"], false);
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
