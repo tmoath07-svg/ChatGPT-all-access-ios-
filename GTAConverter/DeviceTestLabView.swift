@@ -7,6 +7,9 @@ struct INRPFDeviceTestLabView: View {
     @State private var status = "شغّل الاختبار لإنشاء تقرير من هذا الجهاز."
     @State private var isRunning = false
     @State private var isSending = false
+    @State private var isLoadingReports = false
+    @State private var receivedReports: [INRPFReportClient.ReceivedReport] = []
+    @State private var reportsStatus = "اضغط لتحديث سجل التقارير المستلمة."
     @State private var tokenInput = ""
     @State private var tokenStatus = INRPFReportClient.hasSavedToken() ? "يوجد رمز محفوظ في سلسلة المفاتيح." : "لم يتم حفظ رمز التقارير بعد."
     private let purple = Color(red: 0.57, green: 0.30, blue: 0.98)
@@ -44,6 +47,27 @@ struct INRPFDeviceTestLabView: View {
                         Text(tokenStatus).font(.caption).foregroundStyle(.white.opacity(0.65))
                         Text("الرمز لا يُضمّن في ملفات التطبيق أو GitHub، ويُحفظ في Keychain على هذا الجهاز.")
                             .font(.caption2).foregroundStyle(.green.opacity(0.9))
+                        Button {
+                            Task { await loadReceivedReports() }
+                        } label: {
+                            HStack {
+                                if isLoadingReports { ProgressView().tint(.white) }
+                                Label(isLoadingReports ? "جاري جلب التقارير..." : "عرض التقارير المستلمة", systemImage: "tray.full")
+                            }.font(.subheadline.bold()).frame(maxWidth: .infinity).padding(12)
+                                .background(purple.opacity(0.25)).foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 11))
+                        }.disabled(isLoadingReports)
+                        Text(reportsStatus).font(.caption).foregroundStyle(.white.opacity(0.7))
+                        ForEach(receivedReports) { item in
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("التقرير: \\(item.report_id)").font(.caption.bold()).foregroundStyle(.white)
+                                Text("الإصدار \\(item.app_version) • Build \\(item.build_number)").font(.caption).foregroundStyle(.white.opacity(0.7))
+                                Text("ناجح \\(item.passed_count) • فاشل \\(item.failed_count) • \\(item.all_passed ? "كل الاختبارات ناجحة" : "يوجد فشل")")
+                                    .font(.caption).foregroundStyle(item.all_passed ? .green : .orange)
+                                Text(item.received_at).font(.caption2).foregroundStyle(.white.opacity(0.5))
+                            }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                                .background(.white.opacity(0.05)).clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
                     }.padding(14).background(.white.opacity(0.055)).clipShape(RoundedRectangle(cornerRadius: 14))
 
                     Button(action: runTests) {
@@ -105,6 +129,17 @@ struct INRPFDeviceTestLabView: View {
             Text(title).font(.caption).foregroundStyle(.white.opacity(0.65))
         }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
             .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func loadReceivedReports() async {
+        isLoadingReports = true
+        defer { isLoadingReports = false }
+        do {
+            receivedReports = try await INRPFReportClient.fetchReports()
+            reportsStatus = "عدد التقارير المستلمة: \\(receivedReports.count)"
+        } catch {
+            reportsStatus = "تعذر جلب سجل التقارير: \\(error.localizedDescription)"
+        }
     }
 
     private func sendReport(_ report: INRPFDeviceTestReport) async {
