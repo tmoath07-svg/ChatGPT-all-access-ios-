@@ -103,9 +103,11 @@ enum ModAnalyzer {
         let hasHandlingMeta = vehicleMetaFiles.contains {
             URL(fileURLWithPath: $0).lastPathComponent.lowercased() == "handling.meta"
         }
+        // YTD and handling.meta are optional in many valid vehicle resources.
+        // Require a vehicle model, vehicles.meta, and at least one resource marker.
         let isFiveMVehicleResource =
-            !yftFiles.isEmpty && !ytdFiles.isEmpty && hasVehiclesMeta &&
-            (!manifestFiles.isEmpty || hasHandlingMeta)
+            !yftFiles.isEmpty && hasVehiclesMeta &&
+            (!manifestFiles.isEmpty || hasHandlingMeta || !ytdFiles.isEmpty)
 
         let size = ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
         var lines = [
