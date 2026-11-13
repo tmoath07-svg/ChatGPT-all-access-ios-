@@ -3,7 +3,8 @@ import UniformTypeIdentifiers
 
 struct RPFStudioView: View {
     @State private var selectedFile: URL?
-    @State private var report = "اختر ملف dlc.rpf لبدء الفحص."
+    @State private var selectedFileName = "اختر ملف RPF"
+    @State private var report = "اختر ملف dlc.rpf وسيبدأ Python تلقائياً."
     @State private var busy = false
     @State private var error = false
     @State private var importing = false
@@ -19,7 +20,7 @@ struct RPFStudioView: View {
                     header
                     fileCard
                     Button(action: runInspection) {
-                        Label(busy ? "جاري الفحص..." : "فحص ملف RPF باستخدام Python",
+                        Label(busy ? "جاري الفحص..." : "إعادة فحص الملف باستخدام Python",
                               systemImage: "waveform.path.ecg")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
@@ -45,7 +46,8 @@ struct RPFStudioView: View {
                     .padding(16)
                     .background(.white.opacity(0.06))
                     .clipShape(RoundedRectangle(cornerRadius: 18))
-                    Text("فاحص Python الأولي: يقرأ الترويسة والحجم والبصمة SHA256. لا يدّعي استخراج أو إعادة بناء أرشيف RPF.")
+
+                    Text("الفاحص الحالي يقرأ بيانات الملف والترويسة والبصمة SHA256 فقط؛ لا يدّعي استخراج أو إعادة بناء RPF.")
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.45))
                         .multilineTextAlignment(.center)
@@ -60,13 +62,19 @@ struct RPFStudioView: View {
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
-                guard let url = urls.first else { return }
+                guard let url = urls.first else {
+                    report = "لم يرجع تطبيق الملفات أي ملف."
+                    error = true
+                    return
+                }
                 selectedFile = url
-                report = "تم اختيار: \(url.lastPathComponent)\nاضغط زر الفحص لتشغيل Python."
-                error = false
+                selectedFileName = url.lastPathComponent
+                // Run immediately after selection; no second tap is required.
+                runInspection()
             case .failure(let issue):
                 report = "تعذر اختيار الملف: \(issue.localizedDescription)"
                 error = true
+                busy = false
             }
         }
     }
@@ -96,11 +104,11 @@ struct RPFStudioView: View {
                     .font(.title2)
                     .foregroundStyle(purple)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(selectedFile?.lastPathComponent ?? "اختر ملف RPF")
+                    Text(selectedFileName)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
-                    Text("الاختيار من تطبيق «الملفات»")
+                    Text("اختر الملف من تطبيق «الملفات» — يبدأ الفحص تلقائياً")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.55))
                 }
@@ -116,27 +124,46 @@ struct RPFStudioView: View {
     }
 
     private func runInspection() {
-        guard let source = selectedFile else { return }
+        guard let source = selectedFile, !busy else { return }
         busy = true
         error = false
-        report = "يتم تجهيز Python وفحص الملف..."
+        report = "تم اختيار \(source.lastPathComponent)\nجارٍ فتح صلاحية الملف ونسخه وتشغيل Python..."
+
         Task.detached(priority: .userInitiated) {
-            let access = source.startAccessingSecurityScopedResource()
-            defer { if access { source.stopAccessingSecurityScopedResource() } }
+            let hasSecurityScope = source.startAccessingSecurityScopedResource()
+            defer {
+                if hasSecurityScope {
+                    source.stopAccessingSecurityScopedResource()
+                }
+            }
+
             do {
+                let values = try source.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+                guard values.isRegularFile == true else {
+                    throw NSError(domain: "RPFStudio.Import", code: 1,
+                                  userInfo: [NSLocalizedDescriptionKey: "العنصر المحدد ليس ملفاً عادياً. اختر ملف RPF نفسه."])
+                }
+
                 let local = FileManager.default.temporaryDirectory
                     .appendingPathComponent("RPF-\(UUID().uuidString).rpf")
                 try? FileManager.default.removeItem(at: local)
                 try FileManager.default.copyItem(at: source, to: local)
+
+                let copiedSize = try FileManager.default.attributesOfItem(atPath: local.path)[.size] as? NSNumber
+                guard copiedSize?.int64Value ?? 0 > 0 else {
+                    throw NSError(domain: "RPFStudio.Import", code: 2,
+                                  userInfo: [NSLocalizedDescriptionKey: "تم إنشاء نسخة فارغة؛ تعذر قراءة محتوى الملف."])
+                }
+
                 let result = try PythonRuntime.shared.inspect(file: local)
                 await MainActor.run {
-                    report = result
+                    report = "نجح الاستيراد وتشغيل Python ✅\n\n" + result
                     error = false
                     busy = false
                 }
             } catch {
                 await MainActor.run {
-                    report = error.localizedDescription
+                    report = "فشل الاستيراد أو تشغيل Python ❌\n\(error.localizedDescription)"
                     self.error = true
                     busy = false
                 }
