@@ -59,6 +59,33 @@ enum INRPFReportClient {
         return token
     }
 
+    struct ReceivedReport: Decodable, Identifiable {
+        let received_at: String
+        let report_id: String
+        let app_version: String
+        let build_number: String
+        let passed_count: Int
+        let failed_count: Int
+        let all_passed: Bool
+        var id: String { report_id.isEmpty ? received_at : report_id }
+    }
+
+    static func fetchReports() async throws -> [ReceivedReport] {
+        let token = try loadToken()
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.setValue("Bearer \\(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw INRPFReportClientError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String ?? "تعذر جلب التقارير"
+            throw INRPFReportClientError.rejected(http.statusCode, message)
+        }
+        struct Envelope: Decodable { let reports: [ReceivedReport] }
+        return try JSONDecoder().decode(Envelope.self, from: data).reports
+    }
+
     static func send(report: INRPFDeviceTestReport) async throws {
         let token = try loadToken()
         var request = URLRequest(url: endpoint)
