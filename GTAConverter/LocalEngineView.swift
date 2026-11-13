@@ -86,6 +86,20 @@ struct LocalEngineView: View {
                     .disabled(sourceFolder == nil || isBusy)
                     .opacity(sourceFolder == nil || isBusy ? 0.45 : 1)
 
+                    Button(action: convertAndBuildRPF) {
+                        HStack {
+                            if isBusy { ProgressView().tint(.white) }
+                            Label(isBusy ? "جاري التحويل وبناء RPF..." : "تحويل الموارد ثم تجميعها في RPF", systemImage: "gearshape.2.fill")
+                        }
+                        .font(.headline.bold()).frame(maxWidth: .infinity).padding(15)
+                        .background(.purple.opacity(0.22))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(purple.opacity(0.65)))
+                        .clipShape(RoundedRectangle(cornerRadius: 14)).foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(sourceFolder == nil || isBusy)
+                    .opacity(sourceFolder == nil || isBusy ? 0.45 : 1)
+
                     Button { openPicker(.inspectRPF) } label: {
                         Label("فحص أرشيف مركبات RPF", systemImage: "doc.text.magnifyingglass")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
@@ -351,6 +365,46 @@ struct LocalEngineView: View {
                 }
             }
             if access { folder.stopAccessingSecurityScopedResource() }
+        }
+    }
+
+    private func convertAndBuildRPF() {
+        guard let folder = sourceFolder else { return }
+        let access = folder.startAccessingSecurityScopedResource()
+        isBusy = true
+        errorText = ""
+        outputFile = nil
+        report = "يتم تحويل موارد المود المدعومة، ثم بناء RPF وفحص جدول الملفات..."
+        Task.detached(priority: .userInitiated) {
+            defer { if access { folder.stopAccessingSecurityScopedResource() } }
+            do {
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                                                            appropriateFor: nil, create: true)
+                let base = documents.appendingPathComponent("GTA Converter/Local Engine/Converted RPF", isDirectory: true)
+                try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+                let safeName = folder.lastPathComponent.replacingOccurrences(of: "/", with: "_")
+                let output = base.appendingPathComponent("\(safeName)-converted.rpf")
+                let result = try LocalEngineBridge.convertAndBuildRPF(from: folder, to: output)
+                await MainActor.run {
+                    outputFile = output
+                    report = """
+                    الصيغة: \(result["format"] as? String ?? "RPF7")
+                    الموارد المحوّلة: \(result["converted_resources"] as? Int ?? 0)
+                    الملفات المنسوخة: \(result["copied_files"] as? Int ?? 0)
+                    ملفات الأرشيف: \(result["files_in_archive"] as? Int ?? 0)
+                    مدخلات الأرشيف: \(result["archive_entries"] as? Int ?? 0)
+                    علامات المنصة المعدّلة: \(result["patched_markers"] as? Int ?? 0)
+                    حجم RPF: \(ByteCountFormatter.string(fromByteCount: Int64(result["output_bytes"] as? Int64 ?? 0), countStyle: .file))
+                    \(result["warning"] as? String ?? "")
+                    """
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorText = error.localizedDescription
+                    isBusy = false
+                }
+            }
         }
     }
 
