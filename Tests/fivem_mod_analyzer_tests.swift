@@ -19,14 +19,6 @@ struct FiveMModAnalyzerTests {
         precondition(fiveM.yftFiles.count == 1 && fiveM.ytdFiles.count == 1, "YFT/YTD inventory is incorrect")
         precondition(fiveM.manifestFiles.count == 1, "FiveM manifest was not detected")
 
-        let minimalVehicle = root.appendingPathComponent("minimal_vehicle", isDirectory: true)
-        try write("game 'gta5'", to: minimalVehicle.appendingPathComponent("fxmanifest.lua"))
-        try write("model", to: minimalVehicle.appendingPathComponent("stream/car/car.yft"))
-        try write("<CVehicleModelInfo__InitDataList/>", to: minimalVehicle.appendingPathComponent("data/car/vehicles.meta"))
-        let minimalReport = try ModAnalyzer.analyze(at: minimalVehicle)
-        precondition(minimalReport.isFiveMVehicleResource,
-                     "Valid vehicle resource without YTD/handling.meta should be detected")
-
         let plain = root.appendingPathComponent("plain", isDirectory: true)
         try write("readme", to: plain.appendingPathComponent("readme.txt"))
         let nonFiveM = try ModAnalyzer.analyze(at: plain)

@@ -1,15 +1,14 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import SwiftArchive
 
-/// Imports a FiveM resource archive (ZIP/RAR), safely extracts it, and analyzes its structure.
+/// Local FiveM resource inspection. Conversion is only reported when a real
+/// conversion workflow has produced and validated a package.
 struct FiveMStudioView: View {
-    @State private var showingFilePicker = false
+    @State private var showingFolderPicker = false
     @State private var report: ModAnalysisReport?
-    @State private var status = "اختر ملف ZIP أو RAR لمورد FiveM."
+    @State private var status = "اختر مجلد مورد FiveM بعد فك ضغطه."
     @State private var isBusy = false
     @State private var errorText: String?
-    @State private var importedName = ""
 
     private let workflowURL = URL(string: "https://github.com/tmoath07-svg/ChatGPT-all-access-ios-/actions/workflows/convert-pc-to-ps4.yml")!
 
@@ -21,7 +20,7 @@ struct FiveMStudioView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Image(systemName: "car.side.3.fill").font(.system(size: 34)).foregroundStyle(.purple)
                         Text("FiveM Resource Studio").font(.title2.bold()).foregroundStyle(.white)
-                        Text("استورد ملف المورد ZIP أو RAR مباشرة. يفك التطبيق الأرشيف محلياً ثم يفحص stream وdata وملفات META.")
+                        Text("فحص محلي لبنية موارد FiveM. الفحص لا يحوّل ملفات الكمبيوتر إلى PS4 بحد ذاته.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
@@ -29,9 +28,9 @@ struct FiveMStudioView: View {
 
                     Button {
                         errorText = nil
-                        showingFilePicker = true
+                        showingFolderPicker = true
                     } label: {
-                        Label(isBusy ? "جاري الاستيراد والفحص..." : "اختيار ملف FiveM (ZIP / RAR)", systemImage: "doc.zipper")
+                        Label(isBusy ? "جاري الفحص..." : "اختيار مجلد مورد FiveM", systemImage: "folder.badge.plus")
                             .font(.headline.bold()).foregroundStyle(.white)
                             .frame(maxWidth: .infinity).padding(15)
                             .background(Color.purple.opacity(0.85))
@@ -39,8 +38,7 @@ struct FiveMStudioView: View {
                     }
                     .disabled(isBusy)
 
-                    Text(importedName.isEmpty ? status : "\(status)\nالملف: \(importedName)")
-                        .font(.caption).foregroundStyle(.white.opacity(0.7))
+                    Text(status).font(.caption).foregroundStyle(.white.opacity(0.7))
                     if let errorText {
                         Text(errorText).font(.caption).foregroundStyle(.red)
                             .padding(12).frame(maxWidth: .infinity, alignment: .leading)
@@ -74,14 +72,14 @@ struct FiveMStudioView: View {
                     }
 
                     Link(destination: workflowURL) {
-                        Label("فتح سير عمل تحويل FiveM إلى DLC", systemImage: "arrow.up.right.square")
+                        Label("فتح محرك تحويل FiveM إلى DLC", systemImage: "arrow.up.right.square")
                             .font(.headline.bold()).foregroundStyle(.white)
                             .frame(maxWidth: .infinity).padding(15)
                             .background(Color.orange.opacity(0.78))
                             .clipShape(RoundedRectangle(cornerRadius: 13))
                     }
 
-                    Text("تنبيه: الفحص المحلي لا يحوّل المورد إلى PS4. التحويل الفعلي يتم عبر سير العمل ويتطلب إدخال المورد هناك. سكربتات Lua وواجهات NUI واعتماديات السيرفر لا تتحول تلقائياً إلى DLC.")
+                    Text("المسار السحابي يدعم موارد سيارات محددة ببنية stream/ وdata/ وملفات META المطلوبة. سكربتات Lua وواجهات NUI واعتماديات السيرفر لا تتحول تلقائياً إلى DLC.")
                         .font(.caption).foregroundStyle(.orange.opacity(0.9))
                         .padding(12).background(.orange.opacity(0.08))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -92,11 +90,11 @@ struct FiveMStudioView: View {
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.layoutDirection, .rightToLeft)
         .fileImporter(
-            isPresented: $showingFilePicker,
-            allowedContentTypes: [.data],
+            isPresented: $showingFolderPicker,
+            allowedContentTypes: [.folder],
             allowsMultipleSelection: false
         ) { result in
-            handleFileSelection(result)
+            handleFolderSelection(result)
         }
     }
 
@@ -108,20 +106,14 @@ struct FiveMStudioView: View {
         }.font(.caption).padding(.vertical, 2)
     }
 
-    private func handleFileSelection(_ result: Result<[URL], Error>) {
+    private func handleFolderSelection(_ result: Result<[URL], Error>) {
         switch result {
         case .failure(let error):
-            errorText = "تعذر اختيار الملف: \(error.localizedDescription)"
-            status = "لم يتم استيراد أي ملف."
+            errorText = "تعذر اختيار المجلد: \(error.localizedDescription)"
+            status = "لم يتم استيراد أي مجلد."
         case .success(let urls):
             guard let source = urls.first else {
-                status = "لم يتم اختيار ملف."
-                return
-            }
-            let ext = source.pathExtension.lowercased()
-            guard ext == "zip" || ext == "rar" else {
-                errorText = "نوع الملف غير مدعوم. اختر ZIP أو RAR."
-                status = "تم رفض الملف قبل الاستيراده."
+                status = "لم يتم اختيار مجلد."
                 return
             }
             importAndAnalyze(source)
@@ -132,105 +124,23 @@ struct FiveMStudioView: View {
         isBusy = true
         errorText = nil
         report = nil
-        importedName = source.lastPathComponent
-        status = "يتم حفظ الأرشيف داخل INRPF..."
+        status = "يتم نسخ مجلد المورد إلى مساحة INRPF..."
         Task {
-            var extractionRoot: URL?
             do {
                 let copy = try await Task.detached(priority: .userInitiated) {
-                    try FileImportService.importItem(from: source, category: "FiveMArchives")
+                    try FileImportService.importItem(from: source, category: "FiveM")
                 }.value
-                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
-                                                            appropriateFor: nil, create: true)
-                let parent = documents.appendingPathComponent("GTA Converter/FiveM/Extracted", isDirectory: true)
-                try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-                let destination = parent.appendingPathComponent(UUID().uuidString, isDirectory: true)
-                try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-                extractionRoot = destination
-                status = "تم الاستيراد. يتم فك الأرشيف وفحصه..."
-                try await Self.extractArchive(copy, to: destination)
+                status = "تم الاستيراد. يتم تحليل ملفات المورد..."
                 let result = try await Task.detached(priority: .userInitiated) {
-                    try ModAnalyzer.analyze(at: destination)
+                    try ModAnalyzer.analyze(at: copy)
                 }.value
                 report = result
-                status = result.isFiveMVehicleResource
-                    ? "اكتمل الفحص وتم التعرف على مورد مركبة FiveM."
-                    : "اكتمل الفحص، لكن بنية المورد تحتاج مراجعة. راجع التقرير."
-                extractionRoot = nil
+                status = "اكتمل الفحص: \(copy.lastPathComponent)"
             } catch {
-                if let extractionRoot { try? FileManager.default.removeItem(at: extractionRoot) }
                 errorText = error.localizedDescription
-                status = "تعذر استيراد أو فك أو فحص الملف."
+                status = "تعذر استيراد أو فحص المجلد."
             }
             isBusy = false
-        }
-    }
-
-    private static func extractArchive(_ archiveURL: URL, to destination: URL) async throws {
-        let reader = try await ArchiveReader(reading: .fileURL(archiveURL))
-        var totalBytes: Int64 = 0
-        var fileCount = 0
-        do {
-            while let entry = try await reader.nextEntry() {
-                let raw = entry.path.replacingOccurrences(of: "\\", with: "/")
-                let parts = raw.split(separator: "/", omittingEmptySubsequences: true)
-                guard !parts.isEmpty, !raw.hasPrefix("/"), !parts.contains(".."), !parts.contains(".") else {
-                    throw NSError(domain: "INRPF.FiveMImport", code: 1,
-                                  userInfo: [NSLocalizedDescriptionKey: "الأرشيف يحتوي مساراً داخلياً غير آمن: \(raw)"])
-                }
-                let relative = parts.map(String.init).joined(separator: "/")
-                let target = destination.appendingPathComponent(relative, isDirectory: entry.fileType == .directory)
-                switch entry.fileType {
-                case .directory:
-                    try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
-                case .regular:
-                    if entry.hardlinkTarget != nil {
-                        try await reader.skipData()
-                        continue
-                    }
-                    try FileManager.default.createDirectory(at: target.deletingLastPathComponent(),
-                                                            withIntermediateDirectories: true)
-                    var existingIsDirectory: ObjCBool = false
-                    if FileManager.default.fileExists(atPath: target.path, isDirectory: &existingIsDirectory) {
-                        throw NSError(domain: "INRPF.FiveMImport", code: 2,
-                                      userInfo: [NSLocalizedDescriptionKey: "تعارض في مسار الأرشيف: \(relative)"])
-                    }
-                    guard FileManager.default.createFile(atPath: target.path, contents: nil) else {
-                        throw NSError(domain: "INRPF.FiveMImport", code: 3,
-                                      userInfo: [NSLocalizedDescriptionKey: "تعذر إنشاء الملف: \(relative)"])
-                    }
-                    let output = try FileHandle(forWritingTo: target)
-                    do {
-                        while true {
-                            let chunk = try await reader.readData(maxLength: 1024 * 1024)
-                            if chunk.isEmpty { break }
-                            totalBytes += Int64(chunk.count)
-                            guard totalBytes <= 1_500_000_000, fileCount < 20_000 else {
-                                throw NSError(domain: "INRPF.FiveMImport", code: 4,
-                                              userInfo: [NSLocalizedDescriptionKey: "الأرشيف تجاوز الحد الآمن (1.5GB أو 20,000 ملف)."])
-                            }
-                            try output.write(contentsOf: Data(chunk))
-                        }
-                        try output.close()
-                    } catch {
-                        try? output.close()
-                        throw error
-                    }
-                    fileCount += 1
-                case .symlink:
-                    try await reader.skipData()
-                default:
-                    try await reader.skipData()
-                }
-            }
-            await reader.close()
-        } catch {
-            await reader.close()
-            throw error
-        }
-        guard fileCount > 0 else {
-            throw NSError(domain: "INRPF.FiveMImport", code: 5,
-                          userInfo: [NSLocalizedDescriptionKey: "الأرشيف فارغ أو لا يحتوي ملفات قابلة للاستخراج."])
         }
     }
 }
