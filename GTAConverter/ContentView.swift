@@ -109,6 +109,10 @@ struct ContentView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    NavigationLink(destination: INRPFDeviceTestLabView()) {
+                        Image(systemName: "ipad.and.iphone").foregroundStyle(purple)
+                    }
+                    .accessibilityLabel("مختبر الجهاز")
                     NavigationLink(destination: AppFilesView()) { Image(systemName: "folder.fill").foregroundStyle(purple) }
                     NavigationLink(destination: AppSettingsView()) { Image(systemName: "gearshape.fill").foregroundStyle(purple) }
                     NavigationLink(destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails)) {
