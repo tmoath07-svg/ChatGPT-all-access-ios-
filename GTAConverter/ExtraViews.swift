@@ -781,10 +781,10 @@ struct FileHashInspectorView: View {
                 for (url, started) in scopedURLs where started { url.stopAccessingSecurityScopedResource() }
             }
             var lines: [String] = []
-            for (url, _) in scopedURLs {
+            for (url, started) in scopedURLs {
                 do {
                     let localURL = try FileImportService.importItem(from: url, category: "Imports",
-                                                                    securityScopeAlreadyStarted: true)
+                                                                    securityScopeAlreadyStarted: started)
                     let handle = try FileHandle(forReadingFrom: localURL)
                     defer { try? handle.close() }
                     var hasher = SHA256()

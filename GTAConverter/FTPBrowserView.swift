@@ -305,6 +305,7 @@ struct FTPBrowserView: View {
             INRPFDocumentPickerPresenter(
                 contentTypes: [.item, .folder],
                 onCompletion: { result in
+                    showingUpload = false
                     switch result {
                     case .success(let urls):
                         if let url = urls.first { model.upload(url) }

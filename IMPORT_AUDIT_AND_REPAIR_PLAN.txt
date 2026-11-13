@@ -1,0 +1,109 @@
+INRPF IMPORT AUDIT AND REPAIR CHECKLIST
+Updated: 2026-11-13
+Branch: feature/import-ftp-folder-fix
+
+PURPOSE
+This file is the persistent audit note for every user-facing workflow that imports a file or folder.
+Do not treat a picker button or a successful build as proof that runtime import works.
+The shared copy destination is the app's Documents/GTA Converter/<category>/<UUID>/ area.
+Shared importer: GTAConverter/FileImportService.swift
+
+DISCOVERED IMPORT ENTRY POINTS
+
+1) MAIN MOD IMPORT (GTAConverter/ContentView.swift)
+   - ZIP/RAR/archive file selection.
+   - Folder selection.
+   - Drag-and-drop file/folder providers via NSItemProvider.
+   - Direct HTTP/HTTPS download is a separate acquisition path, then feeds the processing pipeline.
+   - Current picker uses INRPFDocumentPickerPresenter from a SwiftUI sheet.
+   - Repair in this commit: explicitly close the SwiftUI importer sheet when the picker callback returns.
+   - Verify separately: ZIP, RAR, ordinary file, nested folder, empty folder, iCloud Drive, On My iPad, cancelled selection, repeated selections, large archive, drag/drop file and folder.
+   - Risk: picker presentation/dismissal and provider URL lifetime.
+
+2) FTP UPLOAD TO PS4 (GTAConverter/FTPBrowserView.swift)
+   - Imports one local file OR one local folder before FTP upload.
+   - Folder upload recursively uploads contained files.
+   - Repair in this commit: close the SwiftUI upload sheet when the picker callback returns.
+   - Verify: single file, nested folder, empty folder, duplicate names, large file, interrupted transfer, reconnect and remote verification.
+   - Import success must not be reported as FTP success; verify remote listing/size separately.
+
+3) FILE HASH / SHA-256 (GTAConverter/ExtraViews.swift)
+   - Multi-select local files.
+   - Bug found: the code passed securityScopeAlreadyStarted=true even when startAccessingSecurityScopedResource() returned false.
+   - Repair in this commit: pass the actual per-URL started boolean so FileImportService can acquire access itself when needed.
+   - Verify multiple files, mixed providers, large files, and one inaccessible item among valid items.
+
+4) DLC LIST XML EDITOR (GTAConverter/DLClistEditorView.swift)
+   - Imports one XML/data file and reads UTF-8 XML.
+   - Limit: 2 MB.
+   - Verify valid XML, malformed XML, non-UTF8 data, wrong extension/content, empty file, and size limit.
+   - Must preserve the original source file.
+
+5) FiveM RESOURCE ANALYZER (GTAConverter/FiveMStudioView.swift)
+   - Imports one folder, then analyzes resource contents.
+   - Verify fxmanifest.lua, __resource.lua, nested stream folders, missing manifest, empty folder, large resource, and provider-backed folder.
+   - This is a folder workflow, not an archive workflow.
+
+6) VEHICLE MODEL INSPECTOR (GTAConverter/VehicleModelInspectorView.swift)
+   - Imports one model file through fileImporter.
+   - Bug found: it analyzed the provider URL directly rather than first copying it into app storage.
+   - Repair in this commit: route the selected file through FileImportService into VehicleImports before the local engine reads it.
+   - Verify supported model files, unsupported files, large files, and provider URLs.
+
+7) YTD TEXTURE LAB (GTAConverter/YTDTextureLabView.swift)
+   - Mode A: imports a YTD file.
+   - Mode B: imports a folder containing DDS textures for rebuilding.
+   - Verify correct picker type per mode, nested DDS files, empty folder, invalid DDS, large textures, and generated YTD output.
+   - Current engine limitation: generated YTD is PC/Gen8; this is not proof of PS4 OTD support.
+
+8) MOD COMPARISON (GTAConverter/FeatureAnalysisViews.swift)
+   - Imports two folders independently, left and right, then compares.
+   - Verify choosing left/right in either order, reselecting one side, empty folder, nested files, and identical/different trees.
+
+9) HANDLING ANALYZER (GTAConverter/FeatureAnalysisViews.swift)
+   - Imports one XML or data file, then parses handling data.
+   - Verify valid handling XML, malformed XML, unrelated file, encoding, empty file, and large file.
+
+10) LOCAL UTILITIES (GTAConverter/LocalUtilityFeatureView.swift)
+    - Hex editor: imports one data file (512 KB maximum).
+    - Smart Folder: imports a mod folder and produces a sorted copy.
+    - Mod Report PDF: imports a folder and analyzes it before creating a PDF.
+    - PS4 readiness indicator: imports a folder.
+    - Mod Backup: imports a folder and creates a backup.
+    - Dependency Checker: imports a folder.
+    - Verify each feature independently; ensure folder-only actions do not accept files and Hex does not accept folders.
+
+11) SHARED IMPORT SERVICE (GTAConverter/FileImportService.swift)
+    - Handles files and folders, coordinates provider reads, copies into app Documents, skips symbolic links, and caps folder traversal at 100,000 items.
+    - Verify source access, coordinated read errors, cleanup after partial failure, nested folders, empty folders, file/folder name collisions, symbolic links, package directories, and repeated imports.
+    - Audit whether empty directories and package bundles need explicit preservation.
+    - Ensure every importer calls this shared service unless a documented direct-read exception exists.
+
+KNOWN NON-IMPORT FILE OPERATIONS
+- OrbxPS4TransferView and DLCPS4PreparationView primarily operate on already-imported/generated app files; do not add redundant pickers unless a real external source workflow is introduced.
+- LocalModLibraryView and AppFilesView browse app-managed files; browsing is not importing.
+- ShareLink/export actions are outbound sharing, not import.
+
+GLOBAL ACCEPTANCE TESTS (REQUIRED BEFORE CLAIMING THE IMPORT SYSTEM IS FIXED)
+A. Files app > On My iPad: ZIP, RAR, XML, YTD, model file.
+B. Files app > iCloud Drive: same representative file types.
+C. Folder selection: shallow, nested, empty, many files, hidden files, package-like folder.
+D. Repeat selection twice and select a different file after the first import.
+E. Cancel picker and reopen it.
+F. Unsupported type, zero-byte file, corrupt archive, and large file.
+G. Verify copied bytes/tree against source (file size and SHA-256; folder relative paths and per-file hashes).
+H. Verify UI exits loading state on success, cancel, and error.
+I. Verify no original user file is modified or deleted.
+J. Build success is not runtime proof. Device-level testing on iPad is still required.
+
+CHANGES RECORDED IN THIS REVISION
+- Main importer sheet closes on callback.
+- FTP upload picker sheet closes on callback.
+- File Hash passes the actual security-scope acquisition result.
+- Vehicle Model Inspector copies the selected file through the shared importer before analysis.
+
+STILL REQUIRED
+- Run the full iOS build and all available automated tests.
+- Exercise every entry point on a real iPad with Files/iCloud providers.
+- Add dedicated import-service tests for file copy, nested folder copy, empty folder, symlink handling, cancellation, and partial-copy cleanup.
+- Do not mark the overall import system complete until device-level tests pass.

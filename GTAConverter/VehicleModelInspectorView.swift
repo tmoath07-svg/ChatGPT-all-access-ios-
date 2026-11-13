@@ -70,11 +70,12 @@ struct VehicleModelInspectorView: View {
         selectedName = url.lastPathComponent
         scene = nil
         isBusy = true
-        report = "يتم تحليل الملف..."
-        let access = url.startAccessingSecurityScopedResource()
+        report = "يتم نسخ الملف إلى مساحة INRPF ثم تحليله..."
+        let sourceName = url.lastPathComponent
         Task.detached(priority: .userInitiated) {
             do {
-                let result = try LocalEngineBridge.previewVehicleModel(at: url)
+                let importedURL = try FileImportService.importItem(from: url, category: "VehicleImports")
+                let result = try LocalEngineBridge.previewVehicleModel(at: importedURL)
                 let rawMeshes = result["meshes"] as? [[String: Any]] ?? []
                 let payloads = rawMeshes.compactMap { item -> VehicleMeshPayload? in
                     guard let name = item["name"] as? String,
@@ -109,7 +110,7 @@ struct VehicleModelInspectorView: View {
 
                     \(result["warning"] as? String ?? "")
                     """
-                    INRPFLocalTimeline.record("معاينة نموذج مركبة", details: url.lastPathComponent)
+                    INRPFLocalTimeline.record("معاينة نموذج مركبة", details: sourceName)
                     isBusy = false
                 }
             } catch {
@@ -118,7 +119,6 @@ struct VehicleModelInspectorView: View {
                     isBusy = false
                 }
             }
-            if access { url.stopAccessingSecurityScopedResource() }
         }
     }
 

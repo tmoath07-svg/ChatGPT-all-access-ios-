@@ -559,6 +559,7 @@ struct ContentView: View {
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
+        showingImporter = false
         switch result {
         case .success(let urls):
             guard let pickedURL = urls.first else { return }
