@@ -120,7 +120,7 @@ struct INRPFDocumentPickerPresenter: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let picker = UIDocumentPickerViewController(
             forOpeningContentTypes: contentTypes,
-            asCopy: false
+            asCopy: true
         )
         picker.delegate = context.coordinator
         picker.allowsMultipleSelection = false
@@ -140,13 +140,11 @@ struct INRPFDocumentPickerPresenter: UIViewControllerRepresentable {
 
         func documentPicker(_ controller: UIDocumentPickerViewController,
                             didPickDocumentsAt urls: [URL]) {
-            controller.dismiss(animated: true) {
-                self.onCompletion(.success(urls))
-            }
+            self.onCompletion(.success(urls))
         }
 
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-            controller.dismiss(animated: true)
+            onCompletion(.failure(CancellationError()))
         }
     }
 }
