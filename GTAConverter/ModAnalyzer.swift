@@ -12,12 +12,51 @@ struct ModAnalysisReport {
     let vehicleMetaFiles: [String]
     let manifestFiles: [String]
     let isFiveMVehicleResource: Bool
+    let resourceRootRelative: String?
     let reportText: String
 }
 
 enum ModAnalyzer {
-    static func analyze(at root: URL) throws -> ModAnalysisReport {
+    /// Finds the nearest valid FiveM resource root, even when an archive adds one or more wrapper folders.
+    static func discoverFiveMResourceRoot(in importedRoot: URL) throws -> URL? {
         let fm = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: importedRoot.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return nil
+        }
+        var candidates: [(URL, Int)] = []
+        guard let enumerator = fm.enumerator(at: importedRoot,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]) else { return nil }
+        var visited = 0
+        while let item = enumerator.nextObject() as? URL {
+            visited += 1
+            if visited > 20_000 { throw NSError(domain: "GTAConverter.ModAnalyzer", code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "تجاوز البحث عن جذر FiveM حد 20,000 عنصر."]) }
+            let values = try item.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            if values.isSymbolicLink == true { enumerator.skipDescendants(); continue }
+            guard values.isDirectory == true else { continue }
+            let manifestA = item.appendingPathComponent("fxmanifest.lua")
+            let manifestB = item.appendingPathComponent("__resource.lua")
+            if fm.fileExists(atPath: manifestA.path) || fm.fileExists(atPath: manifestB.path) {
+                let depth = item.pathComponents.count
+                candidates.append((item, depth))
+                enumerator.skipDescendants()
+            }
+        }
+        // Prefer the shallowest manifest root; nested manifests are separate resources and should not
+        // cause arbitrary selection of a deeply nested subfolder.
+        return candidates.sorted { $0.1 < $1.1 }.first?.0
+    }
+
+    static func analyze(at importedRoot: URL) throws -> ModAnalysisReport {
+        let fm = FileManager.default
+        let discoveredRoot = try discoverFiveMResourceRoot(in: importedRoot)
+        let root = discoveredRoot ?? importedRoot
+        let resourceRootRelative: String? = {
+            guard let discoveredRoot, discoveredRoot.standardizedFileURL != importedRoot.standardizedFileURL else { return "." }
+            return String(discoveredRoot.path.dropFirst(importedRoot.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        }()
         guard let enumerator = fm.enumerator(
             at: root,
             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
@@ -154,6 +193,7 @@ enum ModAnalyzer {
             vehicleMetaFiles: vehicleMetaFiles.sorted(),
             manifestFiles: manifestFiles.sorted(),
             isFiveMVehicleResource: isFiveMVehicleResource,
+            resourceRootRelative: resourceRootRelative,
             reportText: lines.joined(separator: "\n")
         )
     }

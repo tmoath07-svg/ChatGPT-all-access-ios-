@@ -166,10 +166,18 @@ struct FiveMStudioView: View {
     private func convertFiveMResource() {
         guard let extractedRoot = extractedResourceURL else { return }
         let source: URL
-        if let manifest = report?.manifestFiles.first {
-            source = extractedRoot.appendingPathComponent(manifest).deletingLastPathComponent()
+        if let relativeRoot = report?.resourceRootRelative, relativeRoot != ".", !relativeRoot.isEmpty {
+            source = extractedRoot.appendingPathComponent(relativeRoot, isDirectory: true).standardizedFileURL
+        } else if let manifest = report?.manifestFiles.first {
+            source = extractedRoot.appendingPathComponent(manifest).deletingLastPathComponent().standardizedFileURL
         } else {
             source = extractedRoot
+        }
+        guard FileManager.default.fileExists(atPath: source.appendingPathComponent("fxmanifest.lua").path)
+                || FileManager.default.fileExists(atPath: source.appendingPathComponent("__resource.lua").path) else {
+            errorText = "لم يتم العثور على جذر مورد FiveM صالح داخل الملفات المستوردة."
+            status = "توقف التحويل قبل تشغيل المحرك."
+            return
         }
         isBusy = true
         conversionReport = "يتم تشغيل محرك FiveM المحلي وفحص كل ملف قبل اعتماد الناتج..."

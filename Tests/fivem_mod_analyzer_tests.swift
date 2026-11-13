@@ -16,6 +16,27 @@ struct FiveMModAnalyzerTests {
 
         let fiveM = try ModAnalyzer.analyze(at: resource)
         precondition(fiveM.isFiveMVehicleResource, "Valid FiveM vehicle resource was not detected")
+        precondition(fiveM.resourceRootRelative == ".", "Direct resource root was not reported correctly")
+
+        // Archive wrapper regression: the actual resource is nested below an arbitrary top-level folder.
+        let wrapped = root.appendingPathComponent("D2A9E388", isDirectory: true)
+        let nestedResource = wrapped.appendingPathComponent("rb3nasb", isDirectory: true)
+        try write("fx_version 'cerulean'\ngame 'gta5'", to: nestedResource.appendingPathComponent("fxmanifest.lua"))
+        try write("model-a", to: nestedResource.appendingPathComponent("stream/rb3nasb/rb3nasb.yft"))
+        try write("model-b", to: nestedResource.appendingPathComponent("stream/rb3nasb2/rb3nasb2.yft"))
+        try write("texture", to: nestedResource.appendingPathComponent("stream/rb3nasb1/rb3nasb1.ytd"))
+        try write("<CVehicleModelInfo__InitDataList/>", to: nestedResource.appendingPathComponent("data/rb3nasb/vehicles.meta"))
+        try write("<HandlingData/>", to: nestedResource.appendingPathComponent("data/rb3nasb1/handling.meta"))
+        let discovered = try ModAnalyzer.discoverFiveMResourceRoot(in: wrapped)
+        precondition(discovered?.standardizedFileURL == nestedResource.standardizedFileURL,
+                     "Nested FiveM manifest root was not discovered")
+        let nestedReport = try ModAnalyzer.analyze(at: wrapped)
+        precondition(nestedReport.isFiveMVehicleResource, "Nested FiveM vehicle resource was not detected")
+        precondition(nestedReport.resourceRootRelative == "rb3nasb", "Nested resource root path is incorrect")
+        precondition(nestedReport.yftFiles.count == 2 && nestedReport.ytdFiles.count == 1,
+                     "Nested multi-folder stream inventory is incorrect")
+        precondition(nestedReport.vehicleMetaFiles.count == 2,
+                     "Nested META inventory is incorrect")
         precondition(fiveM.yftFiles.count == 1 && fiveM.ytdFiles.count == 1, "YFT/YTD inventory is incorrect")
         precondition(fiveM.manifestFiles.count == 1, "FiveM manifest was not detected")
 
