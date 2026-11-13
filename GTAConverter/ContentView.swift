@@ -255,6 +255,7 @@ struct ContentView: View {
             .init(id: "ftp", title: "FTP جهاز PS4", icon: "network"),
             .init(id: "orbx", title: "إرسال تلقائي للسوني", icon: "gamecontroller.fill"),
             .init(id: "rpf", title: "محرر RPF", icon: "archivebox.fill"),
+            .init(id: "rpf-python", title: "RPF Studio / فاحص Python", icon: "terminal.fill"),
             .init(id: "cloud", title: "التحويل السحابي (احتياطي)", icon: "cloud.gear.fill"),
             .init(id: "browser", title: "متصفح المودات", icon: "globe"),
             .init(id: "library", title: "مكتبة المودات", icon: "square.grid.2x2.fill"),
@@ -321,6 +322,7 @@ struct ContentView: View {
         case "ftp": FTPBrowserView()
         case "orbx": OrbxPS4TransferView()
         case "rpf": LocalEngineView(initialFolder: outputFolder)
+        case "rpf-python": RPFStudioView()
         case "cloud": CloudConversionView()
         case "browser": GTAModBrowserView()
         case "library": GTAModsLibraryView()
