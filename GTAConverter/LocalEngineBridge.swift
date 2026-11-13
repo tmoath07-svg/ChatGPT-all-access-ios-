@@ -45,7 +45,15 @@ enum LocalEngineBridge {
                 gta_engine_convert_resource(input, output)
             }
         }
-        return try decode(pointer)
+        let result = try decode(pointer)
+        if (result["mode"] as? String) == "extension-only-no-RSC7" {
+            throw NSError(
+                domain: "GTALocalEngine",
+                code: 4,
+                userInfo: [NSLocalizedDescriptionKey: "الملف لا يحتوي ترويسة RSC7؛ تم رفض تغيير الامتداد وحده حتى لا يظهر كمورد PS4 محوّل."]
+            )
+        }
+        return result
     }
 
     static func convertFolder(at folder: URL, to outputDirectory: URL) throws -> [String: Any] {
