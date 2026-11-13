@@ -262,6 +262,7 @@ struct ContentView: View {
             .init(id: "files", title: "ملفاتي", icon: "folder.fill"),
             .init(id: "settings", title: "الإعدادات", icon: "gearshape.fill"),
             .init(id: "diagnostics", title: "استكشاف المشاكل وحلها", icon: "wrench.and.screwdriver.fill"),
+            .init(id: "device-test", title: "مختبر الجهاز", icon: "ipad.and.iphone"),
             .init(id: "creator", title: "المبدع", icon: "person.crop.circle.fill"),
             .init(id: "customize", title: "ترتيب القوائم", icon: "rectangle.3.group")
         ]
@@ -327,6 +328,7 @@ struct ContentView: View {
         case "files": AppFilesView()
         case "settings": AppSettingsView()
         case "diagnostics": AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails)
+        case "device-test": INRPFDeviceTestLabView()
         case "creator": CreatorPageView()
         default: HomeMenuCustomizationView()
         }
