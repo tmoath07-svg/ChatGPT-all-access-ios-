@@ -1,0 +1,201 @@
+name: Audit RPF Reference Releases
+
+on:
+  push:
+    branches: [feature/local-engine-ios]
+    paths:
+      - ".github/workflows/audit-rpf-reference-assets.yml"
+      - "LocalEngine/**"
+      - "ENGINE_PORTING_NOTES.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-releases:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout INRPF
+        uses: actions/checkout@v4
+
+      - name: Download reference release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reference-zips
+          curl -fL --retry 3 'https://github.com/tmoath07-svg/ChatGPT-all-access-ios-/releases/download/%D9%85%D9%82%D8%A7%D8%B1%D9%86%D9%87/camry98.3.zip' -o reference-zips/camry98.3.zip
+          curl -fL --retry 3 'https://github.com/tmoath07-svg/ChatGPT-all-access-ios-/releases/download/%D9%85%D9%82%D8%A7%D8%B1%D9%86%D9%87/camry98.4.zip' -o reference-zips/camry98.4.zip
+          curl -fL --retry 3 'https://github.com/tmoath07-svg/ChatGPT-all-access-ios-/releases/download/Orbx/Orbx.Engine.v1.4.zip' -o reference-zips/Orbx.Engine.v1.4.zip
+          curl -fL --retry 3 'https://github.com/tmoath07-svg/ChatGPT-all-access-ios-/releases/download/%D9%85%D9%87%D9%85/Zokii.Studio.5.2.zip' -o reference-zips/Zokii.Studio.5.2.zip
+          sha256sum reference-zips/* | tee reference-zips/SHA256SUMS.txt
+
+      - name: Safely extract and inspect all archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import collections, hashlib, json, shutil, stat, zipfile
+          from pathlib import Path, PurePosixPath
+
+          base = Path("reference-zips")
+          out = Path("rpf-reference-audit")
+          extracted = out / "extracted"
+          extracted.mkdir(parents=True, exist_ok=True)
+          archives = {
+              "camry_3": base / "camry98.3.zip",
+              "camry_4": base / "camry98.4.zip",
+              "orbx": base / "Orbx.Engine.v1.4.zip",
+              "zokii": base / "Zokii.Studio.5.2.zip",
+          }
+
+          def safe_extract(zf, dest):
+              root = dest.resolve()
+              for info in zf.infolist():
+                  name = info.filename.replace("\\\\", "/")
+                  pp = PurePosixPath(name)
+                  if pp.is_absolute() or ".." in pp.parts:
+                      raise RuntimeError("Unsafe ZIP path rejected: " + info.filename)
+                  target = (dest / Path(*pp.parts)).resolve()
+                  if root not in target.parents and target != root:
+                      raise RuntimeError("ZIP path escaped destination: " + info.filename)
+                  mode = (info.external_attr >> 16) & 0o170000
+                  if mode == stat.S_IFLNK:
+                      raise RuntimeError("Symlink entry rejected: " + info.filename)
+                  if info.is_dir():
+                      target.mkdir(parents=True, exist_ok=True)
+                  else:
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      with zf.open(info) as src, target.open("wb") as dst:
+                          shutil.copyfileobj(src, dst)
+
+          inventory = {}
+          for label, archive in archives.items():
+              if not archive.is_file():
+                  raise SystemExit("Missing release asset: " + str(archive))
+              target = extracted / label
+              target.mkdir(parents=True, exist_ok=True)
+              with zipfile.ZipFile(archive) as zf:
+                  bad = zf.testzip()
+                  if bad:
+                      raise SystemExit(label + ": corrupt ZIP member " + bad)
+                  safe_extract(zf, target)
+
+              rows = []
+              ext_counts = collections.Counter()
+              magic_counts = collections.Counter()
+              for p in sorted(target.rglob("*")):
+                  if not p.is_file():
+                      continue
+                  raw = p.read_bytes()
+                  ext = p.suffix.lower() or "[no extension]"
+                  ext_counts[ext] += 1
+                  magic = raw[:4].hex()
+                  if raw[:4] == b"RSC7": magic = "RSC7"
+                  elif raw[:4] == b"RPF7": magic = "RPF7"
+                  elif raw[:4] == b"OTD\\0": magic = "OTD-NUL"
+                  elif raw[:4] == b"YTD\\0": magic = "YTD-NUL"
+                  rows.append({
+                      "path": p.relative_to(target).as_posix(),
+                      "bytes": len(raw),
+                      "extension": ext,
+                      "sha256": hashlib.sha256(raw).hexdigest(),
+                      "first16_hex": raw[:16].hex(),
+                      "magic": magic
+                  })
+              inventory[label] = {
+                  "archive": archive.name,
+                  "archive_bytes": archive.stat().st_size,
+                  "file_count": len(rows),
+                  "total_uncompressed_bytes": sum(x["bytes"] for x in rows),
+                  "extension_counts": dict(sorted(ext_counts.items())),
+                  "magic_counts": dict(magic_counts.most_common()),
+                  "files": rows
+              }
+              inventory[label]["magic_counts"] = dict(collections.Counter(x["magic"] for x in rows).most_common())
+
+          def by_path(label):
+              return {x["path"]: x for x in inventory[label]["files"]}
+          a, b = by_path("camry_3"), by_path("camry_4")
+          only_a, only_b = sorted(set(a)-set(b)), sorted(set(b)-set(a))
+          common = sorted(set(a)&set(b))
+          changed = [
+              {"path": p, "before_bytes": a[p]["bytes"], "after_bytes": b[p]["bytes"],
+               "before_sha256": a[p]["sha256"], "after_sha256": b[p]["sha256"],
+               "before_ext": a[p]["extension"], "after_ext": b[p]["extension"]}
+              for p in common if a[p]["sha256"] != b[p]["sha256"]
+          ]
+          report = {
+              "archives": {k: {kk: vv for kk, vv in v.items() if kk != "files"} for k,v in inventory.items()},
+              "camry_comparison": {
+                  "same_relative_paths_unchanged": len(common)-len(changed),
+                  "changed_same_path": changed,
+                  "only_in_camry98_3": only_a,
+                  "only_in_camry98_4": only_b,
+                  "extension_counts_before": inventory["camry_3"]["extension_counts"],
+                  "extension_counts_after": inventory["camry_4"]["extension_counts"]
+              },
+              "full_inventory": inventory
+          }
+          (out / "inventory-and-comparison.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+          lines = ["# RPF reference release audit", "",
+                   "Inventory of supplied release ZIPs. This is not proof of in-game compatibility.", "",
+                   "## Archive summary", ""]
+          for label, data in inventory.items():
+              lines += [
+                  "### " + label + ": " + data["archive"],
+                  "- Files: " + str(data["file_count"]),
+                  "- Uncompressed bytes: " + str(data["total_uncompressed_bytes"]),
+                  "- Extensions: " + json.dumps(data["extension_counts"], ensure_ascii=False),
+                  "- Magic signatures: " + json.dumps(data["magic_counts"], ensure_ascii=False), ""
+              ]
+          lines += [
+              "## Camry comparison", "",
+              "- Same paths unchanged: " + str(len(common)-len(changed)),
+              "- Same paths with different bytes: " + str(len(changed)),
+              "- Only in camry98.3: " + str(len(only_a)),
+              "- Only in camry98.4: " + str(len(only_b)), "",
+              "### Changed files", ""
+          ]
+          lines += [
+              "- " + x["path"] + " (" + str(x["before_bytes"]) + " -> " +
+              str(x["after_bytes"]) + " bytes; " + x["before_ext"] + " -> " + x["after_ext"] + ")"
+              for x in changed[:500]
+          ]
+          lines += ["", "### Only in camry98.3", ""] + ["- " + x for x in only_a[:500]]
+          lines += ["", "### Only in camry98.4", ""] + ["- " + x for x in only_b[:500]]
+          (out / "REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+          source_ext = {".py", ".lua", ".json", ".xml", ".yml", ".yaml", ".toml", ".ini", ".cfg", ".md", ".txt", ".h", ".hpp", ".c", ".cpp", ".rs"}
+          source_dir = out / "source-snapshot"
+          source_dir.mkdir(parents=True, exist_ok=True)
+          source_index = []
+          for label in ("orbx", "zokii"):
+              root = extracted / label
+              for p in root.rglob("*"):
+                  if p.is_file() and p.suffix.lower() in source_ext:
+                      rel = p.relative_to(root)
+                      dest = source_dir / label / rel
+                      dest.parent.mkdir(parents=True, exist_ok=True)
+                      shutil.copy2(p, dest)
+                      source_index.append({"archive": label, "path": rel.as_posix(), "bytes": p.stat().st_size})
+          (out / "source-index.json").write_text(json.dumps(source_index, indent=2), encoding="utf-8")
+          print((out / "REPORT.md").read_text(encoding="utf-8"))
+          print("Exported " + str(len(source_index)) + " source/config files for review.")
+          PY
+
+      - name: Run current Rust engine tests
+        run: cargo test --manifest-path LocalEngine/Cargo.toml --all-targets
+
+      - name: Upload extracted references and audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: INRPF-RPF-Reference-Audit
+          path: |
+            rpf-reference-audit/
+            reference-zips/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 30
