@@ -40,8 +40,9 @@ DISCOVERED IMPORT ENTRY POINTS
    - Must preserve the original source file.
 
 5) FiveM RESOURCE ANALYZER (GTAConverter/FiveMStudioView.swift)
-   - Imports one folder, then analyzes resource contents.
-   - Verify fxmanifest.lua, __resource.lua, nested stream folders, missing manifest, empty folder, large resource, and provider-backed folder.
+   - Imports one ZIP or RAR archive file, extracts it safely, then analyzes resource contents.
+   - Verify ZIP, RAR, invalid extension, corrupt archive, unsafe paths, empty archive, nested stream/data folders, missing manifest, large archive, repeated import, and cancellation.
+   - Folder-only selection was replaced with archive-file selection so users can import directly from Files without manually extracting first.
    - This is a folder workflow, not an archive workflow.
 
 6) VEHICLE MODEL INSPECTOR (GTAConverter/VehicleModelInspectorView.swift)
@@ -107,3 +108,12 @@ STILL REQUIRED
 - Exercise every entry point on a real iPad with Files/iCloud providers.
 - Add dedicated import-service tests for file copy, nested folder copy, empty folder, symlink handling, cancellation, and partial-copy cleanup.
 - Do not mark the overall import system complete until device-level tests pass.
+
+
+CHANGES RECORDED IN 3.80 / BUILD 42
+- FiveM Studio now imports ZIP/RAR files rather than requiring a pre-extracted folder.
+- FiveM extraction is streamed, rejects unsafe paths and symlinks, and enforces 1.5GB / 20,000-file limits.
+- FiveM vehicle detection no longer requires YTD when YFT + vehicles.meta + a resource marker are present.
+- RPF tree listing now displays general directories, binary files, and resource files for any RPF archive that the parser can read; vehicle-only metadata inspection remains separately scoped.
+- Diagnostics now includes a local troubleshooting report for storage, source/output paths, saved FTP settings, and common error categories.
+- Device-level iPad testing and actual FTP/PS4 verification remain required; build success is not runtime proof.

@@ -11,6 +11,9 @@ struct AppDiagnosticsView: View {
     @State private var report = "اضغط «بدء التحليل» لفحص الملف ومسار التحويل."
     @State private var isRunning = false
     @State private var passed = false
+    @State private var troubleshootingReport = "شغّل الفحص لاكتشاف مشاكل التخزين والملفات وإعدادات FTP."
+    @AppStorage("inrpf_ps4_host") private var ps4Host = ""
+    @AppStorage("inrpf_ps4_port") private var ps4Port = "2121"
 
     private let purple = Color(red: 0.57, green: 0.30, blue: 0.98)
     private let background = Color(red: 0.035, green: 0.025, blue: 0.065)
@@ -29,6 +32,26 @@ struct AppDiagnosticsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(18).background(purple.opacity(0.2))
                     .clipShape(RoundedRectangle(cornerRadius: 18))
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("استكشاف المشاكل وحلها", systemImage: "wrench.and.screwdriver.fill")
+                            .font(.headline).foregroundStyle(.white)
+                        Text("يفحص مجلدات التطبيق وإمكانية الكتابة وإعدادات اتصال PS4، ثم يعرض سبباً محتملاً وخطوة إصلاح واضحة.")
+                            .font(.caption).foregroundStyle(.white.opacity(0.62))
+                        Button(action: runTroubleshooting) {
+                            Label("استكشاف المشاكل الآن", systemImage: "stethoscope")
+                                .font(.headline.bold()).frame(maxWidth: .infinity).padding(13)
+                                .background(purple.opacity(0.85)).foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        Text(troubleshootingReport)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(16).background(.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 17))
 
                     infoRow("الملف المحدد", sourceURL?.lastPathComponent ?? "لم يتم اختيار ملف")
                     infoRow("مجلد الناتج", outputFolder?.lastPathComponent ?? "لم يبدأ التحويل")
@@ -93,6 +116,74 @@ struct AppDiagnosticsView: View {
         .environment(\.layoutDirection, .rightToLeft)
         .navigationTitle("التشخيص")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func runTroubleshooting() {
+        var lines = ["INRPF TROUBLESHOOTING", "فحص بيئة التطبيق:"]
+        let fm = FileManager.default
+        do {
+            let documents = try fm.url(for: .documentDirectory, in: .userDomainMask,
+                                       appropriateFor: nil, create: true)
+            let appRoot = documents.appendingPathComponent("GTA Converter", isDirectory: true)
+            try fm.createDirectory(at: appRoot, withIntermediateDirectories: true)
+            let probe = appRoot.appendingPathComponent(".inrpf-write-test-\(UUID().uuidString)")
+            try Data("ok".utf8).write(to: probe, options: .atomic)
+            try fm.removeItem(at: probe)
+            lines.append("✓ التخزين المحلي قابل للكتابة.")
+            let ready = appRoot.appendingPathComponent("Ready", isDirectory: true)
+            if fm.fileExists(atPath: ready.path) {
+                let entries = try fm.contentsOfDirectory(at: ready, includingPropertiesForKeys: [.isDirectoryKey],
+                                                          options: [.skipsHiddenFiles])
+                lines.append("✓ مجلد Ready موجود، العناصر: \(entries.count).")
+            } else {
+                lines.append("• مجلد Ready غير موجود بعد. سيُنشأ عند أول تجهيز.")
+            }
+        } catch {
+            lines.append("✗ فشل التخزين المحلي: \(error.localizedDescription)")
+            lines.append("الحل: أعد تشغيل التطبيق وتأكد من وجود مساحة تخزين كافية.")
+        }
+
+        if let sourceURL {
+            lines.append(fm.fileExists(atPath: sourceURL.path)
+                ? "✓ ملف المصدر موجود: \(sourceURL.lastPathComponent)."
+                : "✗ ملف المصدر مفقود: \(sourceURL.lastPathComponent). أعد استيراده من تطبيق الملفات.")
+        } else {
+            lines.append("• لم يتم تحديد ملف مصدر. استورد الملف أولاً من الشاشة الرئيسية.")
+        }
+        if let outputFolder {
+            lines.append(fm.fileExists(atPath: outputFolder.path)
+                ? "✓ مجلد الناتج موجود: \(outputFolder.lastPathComponent)."
+                : "✗ مجلد الناتج مفقود. أعد فك الأرشيف أو التحويل.")
+        } else {
+            lines.append("• لا يوجد ناتج محفوظ للفحص.")
+        }
+
+        if ps4Host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("• عنوان PS4 غير محفوظ. أدخله في شاشة إرسال PS4 قبل النقل.")
+        } else if UInt16(ps4Port) == nil || UInt16(ps4Port) == 0 {
+            lines.append("✗ منفذ FTP غير صالح: \(ps4Port). استخدم المنفذ الصحيح الظاهر في GoldHEN.")
+        } else {
+            lines.append("✓ عنوان PS4 ومنفذ FTP محفوظان. لم يتم اختبار الاتصال الفعلي.")
+        }
+
+        if !latestError.isEmpty {
+            lines.append("آخر خطأ مسجل: \(latestError)")
+            let lower = latestError.lowercased()
+            if lower.contains("استعراض rpf") || lower.contains("vehicle") {
+                lines.append("الحل المقترح: حدّث التطبيق إلى الإصدار الذي يعرض شجرة RPF العامة، أو أعد تشغيله إذا كنت على إصدار أقدم.")
+            } else if lower.contains("dlc.rpf") || lower.contains("dlc") {
+                lines.append("الحل المقترح: تأكد من وجود dlc.rpf داخل مجلد الحزمة مباشرة، ومن عدم وجود أكثر من ملف DLC بنفس الاسم.")
+            } else if lower.contains("ftp") || lower.contains("network") || lower.contains("stream") {
+                lines.append("الحل المقترح: تأكد أن iPad وPS4 على الشبكة نفسها وأن FTP مفعّل في GoldHEN. فحص الإعدادات هنا لا يثبت نجاح الاتصال.")
+            } else if lower.contains("permission") || lower.contains("صلاحية") || lower.contains("access") {
+                lines.append("الحل المقترح: أعد اختيار الملف من تطبيق الملفات حتى يمنح iOS صلاحية الوصول من جديد.")
+            } else {
+                lines.append("الحل المقترح: انسخ نص الخطأ وأرسله مع تقرير التشخيص لتحديد إصلاح دقيق.")
+            }
+        } else {
+            lines.append("✓ لا يوجد خطأ سابق محفوظ.")
+        }
+        troubleshootingReport = lines.joined(separator: "\n")
     }
 
     private func infoRow(_ title: String, _ value: String) -> some View {

@@ -300,17 +300,27 @@ fn collect_rpf_listing(
         let path = if prefix.is_empty() { name.to_string() } else { format!("{prefix}/{name}") };
         match &entry.kind {
             RpfEntryKind::Directory { entries_index, entries_count } => {
+                if items.len() >= MAX_FILES {
+                    return Err(format!("تجاوز عدد عناصر RPF الحد المسموح ({MAX_FILES})."));
+                }
+                items.push(json!({"path": path, "kind": "directory"}));
                 collect_rpf_listing(
                     archive, *entries_index, *entries_count, &path, depth + 1, items,
                 )?;
             }
-            RpfEntryKind::BinaryFile { .. } | RpfEntryKind::ResourceFile { .. } => {
-                if is_vehicle_metadata_name(name) {
-                    if items.len() >= MAX_FILES {
-                        return Err(format!("تجاوز عدد ملفات META الحد المسموح ({MAX_FILES})."));
-                    }
-                    items.push(json!({"path": path, "kind": "vehicle_metadata"}));
+            RpfEntryKind::BinaryFile { .. } => {
+                if items.len() >= MAX_FILES {
+                    return Err(format!("تجاوز عدد عناصر RPF الحد المسموح ({MAX_FILES})."));
                 }
+                let kind = if is_vehicle_metadata_name(name) { "vehicle_metadata" } else { "file" };
+                items.push(json!({"path": path, "kind": kind}));
+            }
+            RpfEntryKind::ResourceFile { .. } => {
+                if items.len() >= MAX_FILES {
+                    return Err(format!("تجاوز عدد عناصر RPF الحد المسموح ({MAX_FILES})."));
+                }
+                let kind = if is_vehicle_metadata_name(name) { "vehicle_metadata" } else { "resource" };
+                items.push(json!({"path": path, "kind": kind}));
             }
         }
     }
@@ -342,9 +352,6 @@ pub unsafe extern "C" fn gta_engine_list_rpf(path: *const c_char) -> *mut c_char
         Ok(value) => value,
         Err(error) => return result_error(format!("تعذر تحليل RPF: {error:#}")),
     };
-    if !archive_has_vehicle_metadata(&archive) {
-        return result_error("استعراض RPF متاح لحزم المركبات المدعومة فقط.");
-    }
     let root = match archive.entries.first() {
         Some(value) => value,
         None => return result_error("جدول RPF فارغ."),
