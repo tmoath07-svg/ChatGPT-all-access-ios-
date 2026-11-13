@@ -34,9 +34,13 @@ enum INRPFOrbxAutoInstallPlanner {
         let children = try FileManager.default.contentsOfDirectory(
             at: packageURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]
         )
-        let matches = children.filter {
-            $0.lastPathComponent.caseInsensitiveCompare("Data") == .orderedSame &&
-            ((try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true)
+        let matches = children.filter { child in
+            guard child.lastPathComponent.caseInsensitiveCompare("Data") == .orderedSame else {
+                return false
+            }
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: child.path, isDirectory: &isDirectory)
+                && isDirectory.boolValue
         }
         guard matches.count == 1, let dataRoot = matches.first else {
             throw PlanError.missingAddonFolder
