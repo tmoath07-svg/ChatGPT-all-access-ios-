@@ -151,7 +151,6 @@ jobs:
               "CFBundleTypeRole": "Editor",
               "LSHandlerRank": "Owner",
               "LSItemContentTypes": [
-                  "public.data",
                   "public.archive",
                   "public.zip-archive",
                   "com.rarlab.rar-archive"
@@ -172,7 +171,7 @@ jobs:
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
           test "$VERSION" = "4.50"
           test "$BUILD" = "48"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes' "$INFO" | grep -q 'public.data'
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes' "$INFO" | grep -q 'public.archive'
           zip -qry INRPF-4.50-unsigned.ipa Payload
           unzip -t INRPF-4.50-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"

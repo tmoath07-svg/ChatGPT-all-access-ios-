@@ -11,6 +11,9 @@ Shared importer: GTAConverter/FileImportService.swift
 DISCOVERED IMPORT ENTRY POINTS
 
 1) MAIN MOD IMPORT (GTAConverter/ContentView.swift)
+   - Files app Open In support: registered archive document types route to ContentView.onOpenURL, then reuse FileImportService before extraction.
+   - Supported external open types: public.archive, public.zip-archive, com.rarlab.rar-archive. Folder selection remains available through the in-app folder picker.
+   - Verify Files > Share/Open In > INRPF with ZIP and RAR, app closed/backgrounded, repeated opens, cancellation, and iCloud-backed archives.
    - ZIP/RAR/archive file selection.
    - Folder selection.
    - Drag-and-drop file/folder providers via NSItemProvider.
