@@ -52,6 +52,10 @@ fn contains_vehicle_metadata(root: &Path, max_depth: usize) -> bool {
     false
 }
 
+fn has_fivem_manifest(root: &Path) -> bool {
+    root.join("fxmanifest.lua").is_file() || root.join("__resource.lua").is_file()
+}
+
 fn has_vehicle_metadata_near(path: &Path) -> bool {
     let mut current = if path.is_dir() { Some(path) } else { path.parent() };
     for _ in 0..5 {
@@ -980,6 +984,44 @@ pub unsafe extern "C" fn gta_engine_convert_folder(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn gta_engine_convert_fivem_resource(
+    input_directory: *const c_char,
+    output_directory: *const c_char,
+) -> *mut c_char {
+    let input = match read_c_path(input_directory) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    let output = match read_c_path(output_directory) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    if !input.is_dir() {
+        return result_error("مورد FiveM يجب أن يكون مجلداً مستورداً أو أرشيفاً مفكوكاً.");
+    }
+    if !has_fivem_manifest(&input) {
+        return result_error("لم يتم العثور على fxmanifest.lua أو __resource.lua في جذر المورد.");
+    }
+    if !has_vehicle_metadata_near(&input) {
+        return result_error("المحرك المحلي الحالي يحوّل موارد المركبات فقط؛ لم يتم العثور على بيانات مركبة.");
+    }
+    match convert_resource_folder(&input, &output) {
+        Ok((converted, copied, markers, input_bytes, output_bytes)) => result_ok(json!({
+            "ok": true,
+            "engine": "INRPF FiveM Resource Engine",
+            "converted_resources": converted,
+            "copied_files": copied,
+            "patched_markers": markers,
+            "input_bytes": input_bytes,
+            "output_bytes": output_bytes,
+            "output": output.to_string_lossy(),
+            "warning": "تم تحويل موارد RSC7 المدعومة فقط ونسخ الملفات الأخرى كما هي. ملفات YTD توقف العملية حالياً لأن بناء OTD الخاص بـOrbis غير مكتمل. ملفات Lua وNUI وموارد السيرفر ليست تطبيقات PS4 ولا تُنفذ على الجهاز. الناتج ليس DLC نهائياً حتى يُبنى ويُختبر داخل حزمة Orbx."
+        })),
+        Err(error) => result_error(error),
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn gta_engine_extract_ytd(
     input_path: *const c_char,
     output_directory: *const c_char,
@@ -1240,6 +1282,20 @@ mod tests {
         let meta = parsed.entries.iter().find(|entry| entry.name_lower == "vehicles.meta").expect("metadata entry");
         let extracted = parsed.extract_entry(&bytes, meta, None).expect("extract metadata");
         assert_eq!(extracted.as_slice(), expected);
+    }
+
+    #[test]
+    fn detects_fivem_resource_manifest_files() {
+        let root = std::env::temp_dir().join(format!("inrpf-fivem-manifest-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        assert!(!has_fivem_manifest(&root));
+        fs::write(root.join("fxmanifest.lua"), "game 'gta5'").unwrap();
+        assert!(has_fivem_manifest(&root));
+        fs::remove_file(root.join("fxmanifest.lua")).unwrap();
+        fs::write(root.join("__resource.lua"), "resource_manifest_version '44febabe-d386-4d18-afbe-5e627f4af937'").unwrap();
+        assert!(has_fivem_manifest(&root));
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

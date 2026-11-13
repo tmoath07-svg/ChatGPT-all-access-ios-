@@ -10,6 +10,9 @@ struct FiveMStudioView: View {
     @State private var isBusy = false
     @State private var errorText: String?
     @State private var importedName = ""
+    @State private var extractedResourceURL: URL?
+    @State private var convertedOutputURL: URL?
+    @State private var conversionReport = ""
 
     private let workflowURL = URL(string: "https://github.com/tmoath07-svg/ChatGPT-all-access-ios-/actions/workflows/convert-pc-to-ps4.yml")!
 
@@ -73,6 +76,36 @@ struct FiveMStudioView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
 
+                    if let report, report.isFiveMVehicleResource, extractedResourceURL != nil {
+                        Button(action: convertFiveMResource) {
+                            Label(isBusy ? "جاري تشغيل محرك FiveM..." : "تحويل موارد FiveM المدعومة محلياً",
+                                  systemImage: "cpu.fill")
+                                .font(.headline.bold()).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(15)
+                                .background(Color.green.opacity(0.78))
+                                .clipShape(RoundedRectangle(cornerRadius: 13))
+                        }.disabled(isBusy)
+                    }
+
+                    if !conversionReport.isEmpty {
+                        Text(conversionReport)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .textSelection(.enabled)
+                            .padding(13).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.white.opacity(0.06))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    if let convertedOutputURL {
+                        ShareLink(item: convertedOutputURL) {
+                            Label("تصدير ناتج محرك FiveM", systemImage: "square.and.arrow.up")
+                                .frame(maxWidth: .infinity).padding(13)
+                                .background(.white.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(.white)
+                        }
+                    }
+
                     Link(destination: workflowURL) {
                         Label("فتح سير عمل تحويل FiveM إلى DLC", systemImage: "arrow.up.right.square")
                             .font(.headline.bold()).foregroundStyle(.white)
@@ -127,6 +160,38 @@ struct FiveMStudioView: View {
         }
     }
 
+    private func convertFiveMResource() {
+        guard let source = extractedResourceURL else { return }
+        isBusy = true
+        conversionReport = "يتم تشغيل محرك FiveM المحلي وفحص كل ملف قبل اعتماد الناتج..."
+        Task {
+            do {
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                                                            appropriateFor: nil, create: true)
+                let parent = documents.appendingPathComponent("GTA Converter/FiveM/Converted", isDirectory: true)
+                try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+                let output = parent.appendingPathComponent(UUID().uuidString, isDirectory: true)
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try LocalEngineBridge.convertFiveMResource(at: source, to: output)
+                }.value
+                convertedOutputURL = output
+                conversionReport = """
+                INRPF FiveM Resource Engine
+                الموارد المحوّلة: \(result["converted_resources"] as? Int ?? 0)
+                الملفات المنسوخة: \(result["copied_files"] as? Int ?? 0)
+                العلامات البنيوية المعدلة: \(result["patched_markers"] as? Int ?? 0)
+                \(result["warning"] as? String ?? "")
+                """
+                status = "انتهى المحرك. راجع التحذيرات قبل استخدام الناتج."
+            } catch {
+                convertedOutputURL = nil
+                conversionReport = "توقف المحرك ولم يعتمد ناتجاً ناقصاً: \(error.localizedDescription)"
+                status = "فشل تحويل مورد FiveM."
+            }
+            isBusy = false
+        }
+    }
+
     private func importSingleFileAndAnalyze(_ source: URL) {
         isBusy = true
         errorText = nil
@@ -151,6 +216,9 @@ struct FiveMStudioView: View {
                     try ModAnalyzer.analyze(at: destination)
                 }.value
                 report = result
+                extractedResourceURL = destination
+                convertedOutputURL = nil
+                conversionReport = ""
                 status = "تم استيراد الملف وفحصه محلياً. هذا جرد للملف وليس تحويلاً إلى PS4."
                 staging = nil
             } catch {
@@ -187,6 +255,9 @@ struct FiveMStudioView: View {
                     try ModAnalyzer.analyze(at: destination)
                 }.value
                 report = result
+                extractedResourceURL = destination
+                convertedOutputURL = nil
+                conversionReport = ""
                 status = result.isFiveMVehicleResource
                     ? "اكتمل الفحص وتم التعرف على مورد مركبة FiveM."
                     : "اكتمل الفحص، لكن بنية المورد تحتاج مراجعة. راجع التقرير."
