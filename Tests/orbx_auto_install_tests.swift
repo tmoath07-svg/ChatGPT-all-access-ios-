@@ -9,7 +9,12 @@ struct OrbxAutoInstallTests {
 
         let packageRoot = root.appendingPathComponent("PS4-Orbx-Fixture", isDirectory: true)
         try FileManager.default.createDirectory(at: packageRoot, withIntermediateDirectories: true)
-        let addon = packageRoot.appendingPathComponent("Data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+        let addon = packageRoot
+            .appendingPathComponent("Data", isDirectory: true)
+            .appendingPathComponent("orbx", isDirectory: true)
+            .appendingPathComponent("gta", isDirectory: true)
+            .appendingPathComponent("rpf", isDirectory: true)
+            .appendingPathComponent("dlc_addon", isDirectory: true)
         try FileManager.default.createDirectory(at: addon, withIntermediateDirectories: true)
         let resolvedAddon = try INRPFOrbxAutoInstallPlanner.addonFolder(in: packageRoot)
         precondition(resolvedAddon.path == addon.path, "Canonical Data folder resolution failed")
@@ -54,7 +59,12 @@ struct OrbxAutoInstallTests {
         precondition(INRPFOrbxAutoInstallPlanner.remoteDLClistDirectory == "/Data/orbx/gta", "Incorrect PS4 dlclist path")
 
         let legacyRoot = root.appendingPathComponent("PS4-Orbx-Legacy", isDirectory: true)
-        let legacyData = legacyRoot.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+        let legacyData = legacyRoot
+            .appendingPathComponent("data", isDirectory: true)
+            .appendingPathComponent("orbx", isDirectory: true)
+            .appendingPathComponent("gta", isDirectory: true)
+            .appendingPathComponent("rpf", isDirectory: true)
+            .appendingPathComponent("dlc_addon", isDirectory: true)
         try FileManager.default.createDirectory(at: legacyData, withIntermediateDirectories: true)
         let resolvedLegacyAddon = try INRPFOrbxAutoInstallPlanner.addonFolder(in: legacyRoot)
         precondition(resolvedLegacyAddon.path == legacyData.path,
