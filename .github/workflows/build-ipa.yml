@@ -44,8 +44,8 @@ jobs:
           set -euo pipefail
           swiftc GTAConverter/ModAnalyzer.swift Tests/fivem_mod_analyzer_tests.swift -o /tmp/fivem-mod-analyzer-tests
           /tmp/fivem-mod-analyzer-tests
-          grep -q 'MARKETING_VERSION: "4.91"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "54"' project.yml
+          grep -q 'MARKETING_VERSION: "4.92"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "55"' project.yml
 
       - name: Test feature analysis core
         run: |
@@ -161,21 +161,21 @@ jobs:
           print("Registered Files/Open In document types.")
           PY
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 4.91' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 4.91' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 54' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 54' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 4.92' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 4.92' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 55' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 55' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
           BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")
 
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
-          test "$VERSION" = "4.91"
-          test "$BUILD" = "54"
+          test "$VERSION" = "4.92"
+          test "$BUILD" = "55"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes' "$INFO" | grep -q 'public.archive'
-          grep -q 'MARKETING_VERSION: "4.91"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "54"' project.yml
-          zip -qry INRPF-4.91-unsigned.ipa Payload
-          unzip -t INRPF-4.91-unsigned.ipa
+          grep -q 'MARKETING_VERSION: "4.92"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "55"' project.yml
+          zip -qry INRPF-4.92-unsigned.ipa Payload
+          unzip -t INRPF-4.92-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"
           nm -g "Payload/INRPF.app/$EXECUTABLE" > build/exported-symbols.txt
           grep -q "_gta_engine_build_rpf7" build/exported-symbols.txt
@@ -185,12 +185,12 @@ jobs:
           grep -q "_gta_engine_convert_fivem_resource" build/exported-symbols.txt
 
           mkdir -p release-package
-          cp INRPF-4.91-unsigned.ipa release-package/INRPF-4.91-unsigned.ipa
+          cp INRPF-4.92-unsigned.ipa release-package/INRPF-4.92-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
-          INRPF 4.91 - IPA غير موقّع
+          INRPF 4.92 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
-          2) استخرج ملف INRPF-4.91-unsigned.ipa.
+          2) استخرج ملف INRPF-4.92-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
           يتضمن هذا الإصدار محركاً محلياً لموارد المركبات، وفاحص RPF يعرض بيانات META الخاصة بالمركبات فقط، وتحليلاً وتحويلاً بنيوياً للموارد المدعومة، واستخراج وبناء قواميس YTD بصيغتها المدعومة. لا يتضمن استخراجاً عاماً لأرشيف RPF.
@@ -206,7 +206,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: INRPF-4.91-Install-Package
+          name: INRPF-4.92-Install-Package
           path: release-package/
           if-no-files-found: error
           retention-days: 14

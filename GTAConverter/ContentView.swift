@@ -48,6 +48,14 @@ struct ContentView: View {
         case "green": return Color(red: 0.18, green: 0.72, blue: 0.48)
         case "orange": return Color(red: 1.0, green: 0.48, blue: 0.16)
         case "red": return Color(red: 0.94, green: 0.22, blue: 0.32)
+        case "cyan": return Color(red: 0.10, green: 0.82, blue: 0.95)
+        case "pink": return Color(red: 0.96, green: 0.28, blue: 0.65)
+        case "teal": return Color(red: 0.08, green: 0.72, blue: 0.67)
+        case "gold": return Color(red: 0.91, green: 0.67, blue: 0.18)
+        case "crimson": return Color(red: 0.78, green: 0.10, blue: 0.22)
+        case "ice": return Color(red: 0.55, green: 0.78, blue: 1.0)
+        case "lime": return Color(red: 0.58, green: 0.82, blue: 0.20)
+        case "violet": return Color(red: 0.42, green: 0.20, blue: 0.85)
         default: return Color(red: 0.57, green: 0.30, blue: 0.98)
         }
     }
@@ -1323,6 +1331,98 @@ private struct AppIconPickerView: View {
     }
 }
 
+private struct INRPFThemePickerView: View {
+    let language: String
+    @AppStorage("gta_accent_color") private var accent = "purple"
+    @AppStorage("gta_background_color") private var background = "midnight"
+
+    private struct Theme: Identifiable {
+        let id: String
+        let ar: String
+        let en: String
+        let accent: String
+        let background: String
+        let colors: [Color]
+    }
+
+    private let themes: [Theme] = [
+        .init(id:"purple-night",ar:"بنفسجي ليلي",en:"Purple Night",accent:"purple",background:"midnight",colors:[Color(red:0.57,green:0.30,blue:0.98),Color(red:0.035,green:0.025,blue:0.065)]),
+        .init(id:"blue-ocean",ar:"محيط أزرق",en:"Ocean Blue",accent:"blue",background:"navy",colors:[.blue,Color(red:0.015,green:0.045,blue:0.12)]),
+        .init(id:"emerald",ar:"زمردي",en:"Emerald",accent:"green",background:"black",colors:[.green,.black]),
+        .init(id:"sunset",ar:"غروب",en:"Sunset",accent:"orange",background:"graphite",colors:[.orange,Color(red:0.075,green:0.08,blue:0.11)]),
+        .init(id:"ruby",ar:"ياقوتي",en:"Ruby",accent:"red",background:"black",colors:[.red,.black]),
+        .init(id:"cyber-cyan",ar:"سايبر سماوي",en:"Cyber Cyan",accent:"cyan",background:"navy",colors:[Color.cyan,Color(red:0.015,green:0.045,blue:0.12)]),
+        .init(id:"pink-neon",ar:"نيون وردي",en:"Pink Neon",accent:"pink",background:"black",colors:[.pink,.black]),
+        .init(id:"teal-matrix",ar:"تيال ماتريكس",en:"Teal Matrix",accent:"teal",background:"graphite",colors:[.teal,Color(red:0.075,green:0.08,blue:0.11)]),
+        .init(id:"gold-lux",ar:"ذهبي فاخر",en:"Gold Luxe",accent:"gold",background:"black",colors:[Color(red:0.91,green:0.67,blue:0.18),.black]),
+        .init(id:"crimson",ar:"قرمزي",en:"Crimson",accent:"crimson",background:"midnight",colors:[Color(red:0.78,green:0.10,blue:0.22),Color(red:0.035,green:0.025,blue:0.065)]),
+        .init(id:"ice-storm",ar:"جليدي",en:"Ice Storm",accent:"ice",background:"navy",colors:[Color(red:0.55,green:0.78,blue:1.0),Color(red:0.015,green:0.045,blue:0.12)]),
+        .init(id:"lime-dark",ar:"ليموني داكن",en:"Lime Dark",accent:"lime",background:"black",colors:[Color(red:0.58,green:0.82,blue:0.20),.black]),
+        .init(id:"royal-violet",ar:"بنفسجي ملكي",en:"Royal Violet",accent:"violet",background:"graphite",colors:[Color(red:0.42,green:0.20,blue:0.85),Color(red:0.075,green:0.08,blue:0.11)]),
+        .init(id:"blue-carbon",ar:"كربون أزرق",en:"Blue Carbon",accent:"blue",background:"graphite",colors:[.blue,Color(red:0.075,green:0.08,blue:0.11)]),
+        .init(id:"green-midnight",ar:"أخضر منتصف الليل",en:"Midnight Green",accent:"green",background:"midnight",colors:[.green,Color(red:0.035,green:0.025,blue:0.065)]),
+        .init(id:"orange-black",ar:"برتقالي وأسود",en:"Orange Black",accent:"orange",background:"black",colors:[.orange,.black]),
+        .init(id:"pink-graphite",ar:"وردي فحمي",en:"Pink Graphite",accent:"pink",background:"graphite",colors:[.pink,Color(red:0.075,green:0.08,blue:0.11)]),
+        .init(id:"cyan-midnight",ar:"سماوي ليلي",en:"Cyan Midnight",accent:"cyan",background:"midnight",colors:[.cyan,Color(red:0.035,green:0.025,blue:0.065)]),
+        .init(id:"gold-navy",ar:"ذهبي وكحلي",en:"Gold Navy",accent:"gold",background:"navy",colors:[Color(red:0.91,green:0.67,blue:0.18),Color(red:0.015,green:0.045,blue:0.12)]),
+        .init(id:"red-carbon",ar:"أحمر كربوني",en:"Red Carbon",accent:"crimson",background:"graphite",colors:[Color(red:0.78,green:0.10,blue:0.22),Color(red:0.075,green:0.08,blue:0.11)])
+    ]
+
+    private var selected: Theme? { themes.first { $0.accent == accent && $0.background == background } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(language == "ar" ? "20 ثيم جاهز" : "20 ready-made themes")
+                    .font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.65))
+                Spacer()
+                if let selected {
+                    Text(language == "ar" ? selected.ar : selected.en)
+                        .font(.caption.bold()).foregroundStyle(selected.colors[0])
+                }
+            }
+            LazyVGrid(columns: [GridItem(.flexible()),GridItem(.flexible())], spacing: 10) {
+                ForEach(themes) { theme in
+                    let isSelected = theme.accent == accent && theme.background == background
+                    Button {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            accent = theme.accent
+                            background = theme.background
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ZStack(alignment: .topTrailing) {
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(LinearGradient(colors: theme.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                                    .frame(height: 66)
+                                    .overlay(alignment: .bottomLeading) {
+                                        HStack(spacing: 5) {
+                                            Image(systemName: "sparkles").font(.caption.bold())
+                                            Text("INRPF").font(.system(size: 11,weight:.black)).tracking(1)
+                                        }.foregroundStyle(.white).padding(10)
+                                    }
+                                if isSelected {
+                                    Image(systemName:"checkmark.circle.fill").font(.title3)
+                                        .foregroundStyle(.white).padding(7)
+                                }
+                            }
+                            Text(language == "ar" ? theme.ar : theme.en)
+                                .font(.caption.weight(.bold)).foregroundStyle(.white).lineLimit(1)
+                        }
+                        .padding(8).frame(maxWidth:.infinity,alignment:.leading)
+                        .background(isSelected ? theme.colors[0].opacity(0.2) : .white.opacity(0.045))
+                        .clipShape(RoundedRectangle(cornerRadius:16))
+                        .overlay(RoundedRectangle(cornerRadius:16).stroke(isSelected ? theme.colors[0] : .white.opacity(0.08),lineWidth:isSelected ? 1.5 : 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Text(language == "ar" ? "تتغير ألوان الواجهة والخلفية مباشرة، وتقدر ترجع لأي ثيم متى ما بغيت." : "Interface colors and background update instantly. Switch themes whenever you like.")
+                .font(.caption2).foregroundStyle(.white.opacity(0.48))
+        }
+    }
+}
+
 private struct AppSettingsView: View {
     @AppStorage("gta_show_hidden_files") private var showHiddenFiles = false
     @AppStorage("gta_language") private var language = "ar"
@@ -1335,7 +1435,20 @@ private struct AppSettingsView: View {
     @State private var cacheMessage = ""
 
     private var tint: Color {
-        switch accent { case "blue": return .blue; case "green": return .green; case "orange": return .orange; case "red": return .red; default: return .purple }
+        switch accent {
+        case "blue": return .blue
+        case "green": return .green
+        case "orange": return .orange
+        case "red", "crimson": return Color(red: 0.88, green: 0.12, blue: 0.25)
+        case "cyan": return Color(red: 0.10, green: 0.82, blue: 0.95)
+        case "pink": return Color(red: 0.96, green: 0.28, blue: 0.65)
+        case "teal": return Color(red: 0.08, green: 0.72, blue: 0.67)
+        case "gold": return Color(red: 0.91, green: 0.67, blue: 0.18)
+        case "ice": return Color(red: 0.55, green: 0.78, blue: 1.0)
+        case "lime": return Color(red: 0.58, green: 0.82, blue: 0.20)
+        case "violet": return Color(red: 0.42, green: 0.20, blue: 0.85)
+        default: return .purple
+        }
     }
 
     var body: some View {
@@ -1360,6 +1473,9 @@ private struct AppSettingsView: View {
                     }
                     group(language == "ar" ? "أيقونة التطبيق" : "App icon", icon: "app.fill") {
                         AppIconPickerView(language: language, tint: tint)
+                    }
+                    group(language == "ar" ? "ثيمات وتصاميم التطبيق" : "App themes & designs", icon: "swatchpalette.fill") {
+                        INRPFThemePickerView(language: language)
                     }
                     group(language == "ar" ? "التصميم" : "Appearance", icon: "paintpalette.fill") {
                         Text(language == "ar" ? "لون الواجهة" : "Accent color").font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
