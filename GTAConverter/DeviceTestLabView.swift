@@ -62,7 +62,9 @@ struct INRPFDeviceTestLabView: View {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text("التقرير: \\(item.report_id)").font(.caption.bold()).foregroundStyle(.white)
                                 Text("الإصدار \\(item.app_version) • Build \\(item.build_number)").font(.caption).foregroundStyle(.white.opacity(0.7))
-                                Text("ناجح \\(item.passed_count) • فاشل \\(item.failed_count) • \\(item.all_passed ? "كل الاختبارات ناجحة" : "يوجد فشل")")
+                                Text("ناجح \\(item.passed_count) • فاشل \\(item.failed_count)")
+                                    .font(.caption).foregroundStyle(.white.opacity(0.8))
+                                Text(item.all_passed ? "كل الاختبارات ناجحة" : "يوجد فشل")
                                     .font(.caption).foregroundStyle(item.all_passed ? .green : .orange)
                                 Text(item.received_at).font(.caption2).foregroundStyle(.white.opacity(0.5))
                             }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
