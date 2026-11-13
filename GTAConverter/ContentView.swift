@@ -31,6 +31,7 @@ struct ContentView: View {
     @AppStorage("gta_background_color") private var backgroundStyle = "midnight"
     @AppStorage("inrpf_home_menu_order") private var homeMenuOrder = ""
     @AppStorage("inrpf_home_menu_style") private var homeMenuStyle = "pill"
+    @AppStorage("inrpf_home_menu_position") private var homeMenuPosition = "top"
     @AppStorage("gta_onboarding_complete") private var onboardingComplete = false
     @State private var showOnboarding = false
 
@@ -77,9 +78,11 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: homeDensity == "compact" ? 10 : 16) {
                         header.gtaScrollGlassMotion(motionEnabled)
-                        topMenu.gtaScrollGlassMotion(motionEnabled)
+                        if homeMenuPosition == "top" { topMenu.gtaScrollGlassMotion(motionEnabled) }
                         conversionCard.gtaScrollGlassMotion(motionEnabled)
+                        if homeMenuPosition == "afterConversion" { topMenu.gtaScrollGlassMotion(motionEnabled) }
                         importCard.gtaScrollGlassMotion(motionEnabled)
+                        if homeMenuPosition == "afterImport" { topMenu.gtaScrollGlassMotion(motionEnabled) }
                         directLinkCard.gtaScrollGlassMotion(motionEnabled)
                         packCard.gtaScrollGlassMotion(motionEnabled)
                         actionButtons.gtaScrollGlassMotion(motionEnabled)
@@ -241,26 +244,38 @@ struct ContentView: View {
     }
 
     private var topMenu: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 9) {
-                ForEach(orderedHomeMenuEntries) { entry in
-                    NavigationLink(destination: homeMenuDestination(entry.id).gtaMotionEntrance()) {
-                        Label(entry.title, systemImage: entry.icon)
-                            .font(.caption.weight(.bold)).foregroundStyle(.white)
-                            .padding(.horizontal, homeMenuStyle == "list" ? 11 : 13)
-                            .padding(.vertical, 11)
-                            .background(homeMenuStyle == "minimal" ? Color.clear : Color.white.opacity(0.075))
-                            .clipShape(RoundedRectangle(cornerRadius: homeMenuStyle == "card" ? 12 : 22))
-                            .overlay {
-                                if homeMenuStyle != "minimal" {
-                                    RoundedRectangle(cornerRadius: homeMenuStyle == "card" ? 12 : 22)
-                                        .stroke(purple.opacity(0.25))
-                                }
-                            }
-                    }.buttonStyle(.plain)
+        Group {
+            if homeMenuStyle == "list" {
+                VStack(spacing: 8) {
+                    ForEach(orderedHomeMenuEntries) { entry in homeMenuButton(entry) }
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 9) {
+                        ForEach(orderedHomeMenuEntries) { entry in homeMenuButton(entry) }
+                    }
                 }
             }
         }
+    }
+
+    private func homeMenuButton(_ entry: HomeMenuEntry) -> some View {
+        NavigationLink(destination: homeMenuDestination(entry.id).gtaMotionEntrance()) {
+            Label(entry.title, systemImage: entry.icon)
+                .font(.caption.weight(.bold)).foregroundStyle(.white)
+                .frame(maxWidth: homeMenuStyle == "list" ? .infinity : nil,
+                       alignment: homeMenuStyle == "list" ? .leading : .center)
+                .padding(.horizontal, homeMenuStyle == "list" ? 14 : 13)
+                .padding(.vertical, 12)
+                .background(homeMenuStyle == "minimal" ? Color.clear : Color.white.opacity(0.075))
+                .clipShape(RoundedRectangle(cornerRadius: homeMenuStyle == "card" ? 12 : 22))
+                .overlay {
+                    if homeMenuStyle != "minimal" {
+                        RoundedRectangle(cornerRadius: homeMenuStyle == "card" ? 12 : 22)
+                            .stroke(purple.opacity(0.25))
+                    }
+                }
+        }.buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -1274,6 +1289,7 @@ private struct AppSettingsView: View {
 private struct HomeMenuCustomizationView: View {
     @AppStorage("inrpf_home_menu_order") private var storedOrder = ""
     @AppStorage("inrpf_home_menu_style") private var menuStyle = "pill"
+    @AppStorage("inrpf_home_menu_position") private var menuPosition = "top"
     @State private var order = [
         "engine", "fivem", "ftp", "orbx", "rpf", "cloud", "browser", "library",
         "downloads", "history", "ytd", "setup", "features", "files", "settings",
@@ -1302,6 +1318,14 @@ private struct HomeMenuCustomizationView: View {
                             Text("بطاقات").tag("card")
                             Text("بسيط").tag("minimal")
                             Text("قائمة").tag("list")
+                        }.pickerStyle(.segmented).tint(.purple)
+                    }.padding(15).background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 15))
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text("مكان القائمة الرئيسية").font(.headline).foregroundStyle(.white)
+                        Picker("مكان القائمة", selection: $menuPosition) {
+                            Text("تحت العنوان").tag("top")
+                            Text("بعد التحويل").tag("afterConversion")
+                            Text("بعد الاستيراد").tag("afterImport")
                         }.pickerStyle(.segmented).tint(.purple)
                     }.padding(15).background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 15))
                     ForEach(order.indices, id: \.self) { index in

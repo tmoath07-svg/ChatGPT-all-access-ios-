@@ -44,6 +44,12 @@ struct AppDiagnosticsView: View {
                                 .background(purple.opacity(0.85)).foregroundStyle(.white)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
+                        Button(action: repairLocalStorage) {
+                            Label("إصلاح مشاكل التخزين القابلة للإصلاح", systemImage: "wrench.and.screwdriver")
+                                .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(12)
+                                .background(.green.opacity(0.22)).foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
                         Text(troubleshootingReport)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.white.opacity(0.82))
@@ -114,8 +120,37 @@ struct AppDiagnosticsView: View {
             }
         }
         .environment(\.layoutDirection, .rightToLeft)
-        .navigationTitle("التشخيص")
+        .navigationTitle("استكشاف المشاكل وحلها")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func repairLocalStorage() {
+        let fm = FileManager.default
+        do {
+            let documents = try fm.url(for: .documentDirectory, in: .userDomainMask,
+                                       appropriateFor: nil, create: true)
+            let root = documents.appendingPathComponent("GTA Converter", isDirectory: true)
+            let required = [
+                "Ready", "Imports", "Downloads", "Local Engine",
+                "FiveM/Extracted", "FiveM/Converted"
+            ]
+            for relative in required {
+                try fm.createDirectory(at: root.appendingPathComponent(relative, isDirectory: true),
+                                       withIntermediateDirectories: true)
+            }
+            let probe = root.appendingPathComponent(".inrpf-repair-\(UUID().uuidString)")
+            let expected = Data("INRPF_STORAGE_OK".utf8)
+            try expected.write(to: probe, options: .atomic)
+            let actual = try Data(contentsOf: probe)
+            guard actual == expected else {
+                throw NSError(domain: "INRPF.Diagnostics", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "فشل التحقق من قراءة الملف بعد كتابته."])
+            }
+            try fm.removeItem(at: probe)
+            troubleshootingReport = "اكتمل الإصلاح المحلي.\nتم إنشاء/التحقق من: \(required.joined(separator: "، ")).\nنجح اختبار الكتابة والقراءة والحذف.\nلم يتم حذف أي مود أو ملف شخصي.\nلم يتم اختبار اتصال FTP الفعلي."
+        } catch {
+            troubleshootingReport = "تعذر إكمال الإصلاح المحلي: \(error.localizedDescription)\nتحقق من مساحة التخزين وصلاحيات التطبيق."
+        }
     }
 
     private func runTroubleshooting() {
