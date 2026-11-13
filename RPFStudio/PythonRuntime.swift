@@ -62,7 +62,7 @@ with open(\(Self.pythonString(report)), "w", encoding="utf-8") as report_file:
     with contextlib.redirect_stdout(report_file), contextlib.redirect_stderr(report_file):
         runpy.run_path(\(Self.pythonString(script)), run_name="__main__")
 """
-        let result = code.withCString { PyRun_SimpleString($0) }
+        let result = code.withCString { PyRun_SimpleStringFlags($0, nil) }
         guard result == 0 else {
             throw PythonRuntimeError.executionFailed(result)
         }
