@@ -420,6 +420,9 @@ pub unsafe extern "C" fn gta_engine_list_rpf(path: *const c_char) -> *mut c_char
         Ok(value) => value,
         Err(error) => return result_error(format!("تعذر تحليل RPF: {error:#}")),
     };
+    if let Err(error) = ensure_rpf_archive_names_readable(&archive) {
+        return result_error(error);
+    }
     let (start, count) = match resolve_rpf_root_range(&archive.entries) {
         Ok(value) => value,
         Err(error) => return result_error(error),
