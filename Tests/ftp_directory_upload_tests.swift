@@ -40,6 +40,26 @@ struct FTPDirectoryUploadTests {
         }
         require(paths == sorted.map(\.relativePath), "sort parents before descendants")
 
+        // Virtual ORBX FTP tree: this is a local fixture representing the
+        // remote GoldHEN directory, not a live console or network connection.
+        let orbx = root.appendingPathComponent("data/orbx/gta/rpf/dlc_addon/Rbtitt", isDirectory: true);
+        try fm.createDirectory(at: orbx.appendingPathComponent("stream", isDirectory: true),
+                               withIntermediateDirectories: true);
+        try Data("synthetic-dlc-rpf".utf8).write(to: orbx.appendingPathComponent("dlc.rpf"));
+        try Data("synthetic-vehicle-meta".utf8).write(to: orbx.appendingPathComponent("vehicles.meta"));
+        try Data("synthetic-model".utf8).write(to: orbx.appendingPathComponent("stream/Rbtitt.oft"));
+        let virtualFTPPlan = try INRPFDirectoryUploadPlanner.plan(for: root)
+        let virtualFTPPaths = Set(virtualFTPPlan.map(\\.relativePath))
+        require(virtualFTPPaths.contains("data/orbx/gta/rpf/dlc_addon/Rbtitt/dlc.rpf"),
+                "virtual ORBX FTP tree includes the package dlc.rpf")
+        require(virtualFTPPaths.contains("data/orbx/gta/rpf/dlc_addon/Rbtitt/vehicles.meta"),
+                "virtual ORBX FTP tree includes vehicle metadata")
+        require(virtualFTPPaths.contains("data/orbx/gta/rpf/dlc_addon/Rbtitt/stream/Rbtitt.oft"),
+                "virtual ORBX FTP tree includes the vehicle model")
+        require(virtualFTPPlan.first(where: {
+            $0.relativePath == "data/orbx/gta/rpf/dlc_addon/Rbtitt"
+        })?.isDirectory == true, "virtual FTP package directory is planned before its contents")
+
         let missing = root.appendingPathComponent("missing", isDirectory: true)
         var rejectedMissing = false
         do {

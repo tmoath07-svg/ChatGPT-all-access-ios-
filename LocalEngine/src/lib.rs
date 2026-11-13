@@ -294,6 +294,29 @@ fn resolve_rpf_root_range(entries: &[rpf_archive::RpfEntry]) -> Result<(u32, u32
     }
 }
 
+fn validate_rpf_entry_name(name: &str) -> Result<(), String> {
+    // A single RPF entry is one path component. Colons are valid filename
+    // characters on the iOS target and do not create path traversal; separators,
+    // dot segments, and control characters remain forbidden.
+    let unsafe_name = name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.contains('/')
+        || name.contains('\\')
+        || name.chars().any(|character| character.is_control());
+    if unsafe_name {
+        let codepoints = name.chars()
+            .map(|character| format!("U+{:04X}", character as u32))
+            .collect::<Vec<_>>()
+            .join(" ");
+        return Err(format!(
+            "اسم عنصر غير آمن داخل RPF: {:?} (Unicode: {})",
+            name, codepoints
+        ));
+    }
+    Ok(())
+}
+
 fn collect_rpf_listing(
     archive: &RpfArchive,
     start: u32,
@@ -314,11 +337,7 @@ fn collect_rpf_listing(
 
     for entry in &archive.entries[begin..end] {
         let name = entry.name.as_str();
-        if name.is_empty() || name == "." || name == ".."
-            || name.contains('/') || name.contains('\\')
-            || name.contains(':') || name.chars().any(|c| c.is_control()) {
-            return Err(format!("اسم عنصر غير آمن داخل RPF: {name}"));
-        }
+        validate_rpf_entry_name(name)?;
         let path = if prefix.is_empty() { name.to_string() } else { format!("{prefix}/{name}") };
         match &entry.kind {
             RpfEntryKind::Directory { entries_index, entries_count } => {
@@ -489,11 +508,7 @@ fn extract_rpf_entries(
         return Err("مدخلات مجلد RPF تشير إلى نطاق خارج جدول الأرشيف.".to_string());
     }
     for entry in &archive.entries[begin..end] {
-        if entry.name.is_empty() || entry.name == "." || entry.name == ".."
-            || entry.name.contains('/') || entry.name.contains('\\')
-            || entry.name.contains(':') || entry.name.chars().any(|c| c.is_control()) {
-            return Err(format!("اسم عنصر غير آمن داخل RPF: {}", entry.name));
-        }
+        validate_rpf_entry_name(&entry.name)?;
         let destination = output.join(&entry.name);
         if !destination.starts_with(output) {
             return Err(format!("مسار عنصر خرج عن مجلد الاستخراج: {}", entry.name));
@@ -1337,6 +1352,19 @@ mod tests {
             },
         ];
         assert!(resolve_rpf_root_range(&entries).is_err());
+    }
+
+    #[test]
+    fn accepts_normal_rpf_entry_names_and_rejects_path_traversal() {
+        assert!(validate_rpf_entry_name("Rbtitt").is_ok());
+        assert!(validate_rpf_entry_name("rb3nasb").is_ok());
+        assert!(validate_rpf_entry_name("vehicle_2026").is_ok());
+        assert!(validate_rpf_entry_name("car model").is_ok());
+        assert!(validate_rpf_entry_name("../escape").is_err());
+        assert!(validate_rpf_entry_name("folder\\\\escape").is_err());
+        assert!(validate_rpf_entry_name(".").is_err());
+        assert!(validate_rpf_entry_name("..").is_err());
+        assert!(validate_rpf_entry_name("bad\\nname").is_err());
     }
 
     #[test]
