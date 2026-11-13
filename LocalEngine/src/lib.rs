@@ -106,7 +106,7 @@ fn rpf_version_label(version: rpf_archive::RpfVersion) -> &'static str {
 
 #[no_mangle]
 pub extern "C" fn gta_engine_version() -> *const c_char {
-    b"GTA Local Engine 0.1.0\0".as_ptr() as *const c_char
+    b"GTA Local Engine 0.2.0\0".as_ptr() as *const c_char
 }
 
 #[no_mangle]
@@ -1058,7 +1058,7 @@ fn build_open_rpf_from_directory(input: &Path, output: &Path) -> Result<(usize, 
         .map_err(|error| format!("فشل فحص RPF الناتج بعد البناء: {error:#}"))?;
     ensure_rpf_archive_names_readable(&parsed)?;
     let file_entries = parsed.entries.iter()
-        .filter(|entry| !matches!(entry.kind, RpfEntryKind::Directory { .. }))
+        .filter(|entry| !matches!(&entry.kind, RpfEntryKind::Directory { .. }))
         .count();
     if file_entries < files.len() {
         return Err(format!(
