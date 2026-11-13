@@ -125,6 +125,9 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
         Ok(value) => value,
         Err(error) => return result_error(format!("تعذر تحليل RPF: {error:#}")),
     };
+    if let Err(error) = ensure_rpf_archive_names_readable(&archive) {
+        return result_error(error);
+    }
     let mut directories = 0usize;
     let mut binary_files = 0usize;
     let mut resource_files = 0usize;
@@ -292,6 +295,30 @@ fn resolve_rpf_root_range(entries: &[rpf_archive::RpfEntry]) -> Result<(u32, u32
         }
         _ => Err("الأرشيف لا يحتوي على مجلد جذر، كما أن جدول الملفات يتضمن مجلدات داخلية؛ تم إيقاف الاستخراج لتجنب ترتيب ملفات خاطئ.".to_string()),
     }
+}
+
+fn ensure_rpf_archive_names_readable(archive: &RpfArchive) -> Result<(), String> {
+    if archive.encryption.is_encrypted() {
+        return Err(format!(
+            "فهرس RPF مشفر ({:?}) ولا يمكن قراءة أسماء الملفات بدقة دون مفاتيح فك التشفير. أوقف AUTO قبل استخدام أسماء مشوهة.",
+            archive.encryption
+        ));
+    }
+
+    if let Some(entry) = archive.entries.iter().find(|entry| {
+        entry.name.contains('\u{FFFD}')
+            || entry.name.chars().any(|character| character.is_control())
+    }) {
+        let codepoints = entry.name.chars()
+            .map(|character| format!("U+{:04X}", character as u32))
+            .collect::<Vec<_>>()
+            .join(" ");
+        return Err(format!(
+            "اسم RPF تالف أو ترميزه غير صالح: {:?} (Unicode: {}). لم يتم استخراج أو تركيب أي ملف.",
+            entry.name, codepoints
+        ));
+    }
+    Ok(())
 }
 
 fn validate_rpf_entry_name(name: &str) -> Result<(), String> {
@@ -535,6 +562,8 @@ fn extract_rpf_entries(
                 if entry.name_lower.ends_with(".rpf") {
                     let nested = RpfArchive::parse(&bytes, &entry.name, None)
                         .map_err(|error| format!("تعذر تحليل الأرشيف الداخلي {}: {error:#}", entry.name))?;
+                    ensure_rpf_archive_names_readable(&nested)
+                        .map_err(|error| format!("الأرشيف الداخلي {}: {error}", entry.name))?;
                     if nested.version == rpf_archive::RpfVersion::V7 {
                         if nested.encryption.is_encrypted() {
                             return Err(format!("الأرشيف الداخلي {} مشفر ويحتاج مفاتيح اللعبة.", entry.name));
@@ -580,6 +609,7 @@ fn extract_rpf_to_directory(input: &Path, output: &Path) -> Result<(usize, u64, 
     let name = input.file_name().and_then(|v| v.to_str()).unwrap_or("archive.rpf");
     let archive = RpfArchive::parse(&bytes, name, None)
         .map_err(|error| format!("تعذر تحليل RPF: {error:#}"))?;
+    ensure_rpf_archive_names_readable(&archive)?;
     if !archive_has_vehicle_metadata(&archive) {
         return Err("استخراج RPF متاح لحزم المركبات المدعومة فقط.".to_string());
     }
@@ -1287,6 +1317,41 @@ pub unsafe extern "C" fn gta_engine_build_ytd(
 mod tests {
     use super::*;
     use rpf_archive::{RpfArchive, RpfBuilder, RpfEncryption};
+
+    #[test]
+    fn encrypted_rpf_toc_is_rejected_before_using_corrupt_names() {
+        let mut builder = RpfBuilder::new(RpfEncryption::Open);
+        builder.add_file("Rbtitt/dlc.rpf", b"fixture".to_vec());
+        let bytes = builder.build(None).expect("build fixture");
+        let mut archive = RpfArchive::parse(&bytes, "encrypted-fixture.rpf", None).unwrap();
+        archive.encryption = RpfEncryption::Ng;
+        let error = ensure_rpf_archive_names_readable(&archive).unwrap_err();
+        assert!(error.contains("فهرس RPF مشفر"));
+        assert!(error.contains("مفاتيح فك التشفير"));
+    }
+
+    #[test]
+    fn corrupted_rpf_name_is_reported_as_encoding_error_not_path_traversal() {
+        let mut builder = RpfBuilder::new(RpfEncryption::Open);
+        builder.add_file("Rbtitt/dlc.rpf", b"fixture".to_vec());
+        let bytes = builder.build(None).expect("build fixture");
+        let mut archive = RpfArchive::parse(&bytes, "corrupt-name.rpf", None).unwrap();
+        let entry = archive.entries.iter_mut().find(|entry| entry.name == "Rbtitt").unwrap();
+        entry.name = "Rbtitt\u{FFFD}\u{000C}".to_string();
+        let error = ensure_rpf_archive_names_readable(&archive).unwrap_err();
+        assert!(error.contains("ترميزه غير صالح"));
+        assert!(!error.contains("غير آمن داخل RPF"));
+    }
+
+    #[test]
+    fn valid_rbtitt_rpf_names_are_accepted() {
+        let mut builder = RpfBuilder::new(RpfEncryption::Open);
+        builder.add_file("Rbtitt/dlc.rpf", b"fixture".to_vec());
+        let bytes = builder.build(None).expect("build fixture");
+        let archive = RpfArchive::parse(&bytes, "valid-name.rpf", None).unwrap();
+        ensure_rpf_archive_names_readable(&archive).unwrap();
+        assert!(validate_rpf_entry_name("Rbtitt").is_ok());
+    }
 
     #[test]
     fn resolves_flat_rpf_root_without_directory_wrapper() {
