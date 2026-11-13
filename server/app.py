@@ -54,7 +54,7 @@ def receive_report():
     try:
         REPORTS_DIR.mkdir(parents=True, exist_ok=True)
         with (REPORTS_DIR / "reports.jsonl").open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(record, ensure_ascii=False) + "\\n")
+            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
     except OSError:
         app.logger.exception("Could not store report")
         return jsonify({"ok": False, "error": "storage_error"}), 500
