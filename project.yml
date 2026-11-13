@@ -13,9 +13,9 @@ targets:
     platform: iOS
     sources:
       - GTAConverter
-      - path: RPFStudio
-        excludes:
-          - RPFStudioApp.swift
+      - RPFStudio/RPFStudioView.swift
+      - RPFStudio/PythonRuntime.swift
+      - RPFStudio/RPFPythonBridge.m
     resources:
       - path: GTAConverter/Resources
     dependencies:
