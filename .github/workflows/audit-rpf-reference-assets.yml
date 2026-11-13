@@ -257,17 +257,25 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends wine
+          sudo apt-get install -y --no-install-recommends wine xvfb
           ZOKII_ROOT="rpf-reference-audit/extracted/zokii/Zokii Studio (5)/assets/oldtool"
           mkdir -p "$ZOKII_ROOT/texture_input"
           cp rpf-reference-audit/camry-ytd-dds/*.dds "$ZOKII_ROOT/texture_input/"
           cp "$ZOKII_ROOT/texture_builder.lua" "$ZOKII_ROOT/texture_builder_ps4.lua"
-          sed -i 's/set_platform("orbis")/set_platform("ps4")/' "$ZOKII_ROOT/texture_builder_ps4.lua"
           export WINEPREFIX="$RUNNER_TEMP/inrpf-wine"
-          export WINEDEBUG=-all
+          export WINEARCH=win64
+          export WINEDEBUG=+seh
+          export WINEPREFIX
+          mkdir -p "$RUNNER_TEMP/ragebuilder-dumps"
+          mkdir -p "$WINEPREFIX/dosdevices"
+          ln -sfn "$RUNNER_TEMP/ragebuilder-dumps" "$WINEPREFIX/dosdevices/x:"
           wine --version
+          file "$ZOKII_ROOT/ragebuilder.exe"
+          wineboot --init
+          # RageBuilder expects a Windows desktop and a writable X:\\dumps directory.
           rm -f "$ZOKII_ROOT/texture.otd"
-          (cd "$ZOKII_ROOT" && timeout 180 wine "$PWD/ragebuilder.exe" "$PWD/texture_builder_ps4.lua")
+          (cd "$ZOKII_ROOT" && timeout 180s xvfb-run -a wine "$PWD/ragebuilder.exe" "$PWD/texture_builder_ps4.lua")
+          test -s "$ZOKII_ROOT/texture.otd"
           OTD="$ZOKII_ROOT/texture.otd"
           test -s "$OTD"
           python3 - "$OTD" rpf-reference-audit/camry-orbis-otd-validation.json <<'PY'
