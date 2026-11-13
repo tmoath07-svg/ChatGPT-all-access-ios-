@@ -517,6 +517,7 @@ struct LocalEngineView: View {
                     الصيغة: \(result["format"] as? String ?? "RPF")
                     التشفير: \(result["encryption"] as? String ?? "غير معروف")
                     عدد العناصر: \(result["count"] as? Int ?? items.count)
+                    حالة الفهرس: \((result["toc_readable"] as? Bool ?? true) ? "مقروء" : "مشفر، الملف قابل للنقل كما هو")
 
                     \(lines.joined(separator: "\n"))\(more)
 

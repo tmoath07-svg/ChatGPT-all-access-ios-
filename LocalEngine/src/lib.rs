@@ -89,6 +89,21 @@ fn result_error(message: impl Into<String>) -> *mut c_char {
     result_ok(json!({ "ok": false, "error": message.into() }))
 }
 
+fn rpf_version_label(version: rpf_archive::RpfVersion) -> &'static str {
+    match version {
+        rpf_archive::RpfVersion::V7 => "RPF7",
+        rpf_archive::RpfVersion::V8 => "RPF8",
+        rpf_archive::RpfVersion::V6 => "RPF6",
+        rpf_archive::RpfVersion::V4 => "RPF4",
+        rpf_archive::RpfVersion::V3 => "RPF3",
+        rpf_archive::RpfVersion::V2 => "RPF2",
+        rpf_archive::RpfVersion::V0 => "RPF0",
+        rpf_archive::RpfVersion::Img1 => "IMG1",
+        rpf_archive::RpfVersion::Img2 => "IMG2",
+        rpf_archive::RpfVersion::Img3 => "IMG3",
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn gta_engine_version() -> *const c_char {
     b"GTA Local Engine 0.1.0\0".as_ptr() as *const c_char
@@ -125,6 +140,23 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
         Ok(value) => value,
         Err(error) => return result_error(format!("تعذر تحليل RPF: {error:#}")),
     };
+    if archive.encryption.is_encrypted() {
+        return result_ok(json!({
+            "ok": true,
+            "format": rpf_version_label(archive.version),
+            "encryption": format!("{:?}", archive.encryption),
+            "bytes": metadata.len(),
+            "entries": null,
+            "declared_entries": archive.entries.len(),
+            "directories": null,
+            "binary_files": null,
+            "resource_files": null,
+            "has_vehicle_metadata": null,
+            "toc_readable": false,
+            "requires_keys": true,
+            "warning": "تم التعرف على أرشيف RPF المشفر. فحص الترويسة نجح، لكن أسماء الملفات الداخلية غير متاحة. يمكن تمرير ملف dlc.rpf كما هو في تركيب AUTO دون فكّه أو تعديل محتواه."
+        }));
+    }
     if let Err(error) = ensure_rpf_archive_names_readable(&archive) {
         return result_error(error);
     }
@@ -139,22 +171,9 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
         }
     }
 
-    let version = match archive.version {
-        rpf_archive::RpfVersion::V7 => "RPF7",
-        rpf_archive::RpfVersion::V8 => "RPF8",
-        rpf_archive::RpfVersion::V6 => "RPF6",
-        rpf_archive::RpfVersion::V4 => "RPF4",
-        rpf_archive::RpfVersion::V3 => "RPF3",
-        rpf_archive::RpfVersion::V2 => "RPF2",
-        rpf_archive::RpfVersion::V0 => "RPF0",
-        rpf_archive::RpfVersion::Img1 => "IMG1",
-        rpf_archive::RpfVersion::Img2 => "IMG2",
-        rpf_archive::RpfVersion::Img3 => "IMG3",
-    };
-
     result_ok(json!({
         "ok": true,
-        "format": version,
+        "format": rpf_version_label(archive.version),
         "encryption": format!("{:?}", archive.encryption),
         "bytes": metadata.len(),
         "entries": archive.entries.len(),
@@ -162,6 +181,8 @@ pub unsafe extern "C" fn gta_engine_probe_rpf(path: *const c_char) -> *mut c_cha
         "binary_files": binary_files,
         "resource_files": resource_files,
         "has_vehicle_metadata": archive_has_vehicle_metadata(&archive),
+        "toc_readable": true,
+        "requires_keys": false,
         "warning": "تم فحص بنية RPF بصرف النظر عن نوع محتواه. وجود بيانات مركبة لا يثبت توافق الموارد مع PS4."
     }))
 }
@@ -298,13 +319,6 @@ fn resolve_rpf_root_range(entries: &[rpf_archive::RpfEntry]) -> Result<(u32, u32
 }
 
 fn ensure_rpf_archive_names_readable(archive: &RpfArchive) -> Result<(), String> {
-    if archive.encryption.is_encrypted() {
-        return Err(format!(
-            "فهرس RPF مشفر ({:?}) ولا يمكن قراءة أسماء الملفات بدقة دون مفاتيح فك التشفير. أوقف AUTO قبل استخدام أسماء مشوهة.",
-            archive.encryption
-        ));
-    }
-
     if let Some(entry) = archive.entries.iter().find(|entry| {
         entry.name.contains('\u{FFFD}')
             || entry.name.chars().any(|character| character.is_control())
@@ -420,6 +434,18 @@ pub unsafe extern "C" fn gta_engine_list_rpf(path: *const c_char) -> *mut c_char
         Ok(value) => value,
         Err(error) => return result_error(format!("تعذر تحليل RPF: {error:#}")),
     };
+    if archive.encryption.is_encrypted() {
+        return result_ok(json!({
+            "ok": true,
+            "format": rpf_version_label(archive.version),
+            "encryption": format!("{:?}", archive.encryption),
+            "count": 0,
+            "items": [],
+            "toc_readable": false,
+            "requires_keys": true,
+            "warning": "الأرشيف المشفر مقبول كملف للنقل كما هو، لكن لا يمكن عرض أسماء عناصره الداخلية بدون مفاتيح. لم تُنشأ أسماء بديلة ولم يتم استخراج أي محتوى."
+        }));
+    }
     if let Err(error) = ensure_rpf_archive_names_readable(&archive) {
         return result_error(error);
     }
@@ -431,24 +457,14 @@ pub unsafe extern "C" fn gta_engine_list_rpf(path: *const c_char) -> *mut c_char
     if let Err(error) = collect_rpf_listing(&archive, start, count, "", 0, &mut items) {
         return result_error(error);
     }
-    let version = match archive.version {
-        rpf_archive::RpfVersion::V7 => "RPF7",
-        rpf_archive::RpfVersion::V8 => "RPF8",
-        rpf_archive::RpfVersion::V6 => "RPF6",
-        rpf_archive::RpfVersion::V4 => "RPF4",
-        rpf_archive::RpfVersion::V3 => "RPF3",
-        rpf_archive::RpfVersion::V2 => "RPF2",
-        rpf_archive::RpfVersion::V0 => "RPF0",
-        rpf_archive::RpfVersion::Img1 => "IMG1",
-        rpf_archive::RpfVersion::Img2 => "IMG2",
-        rpf_archive::RpfVersion::Img3 => "IMG3",
-    };
     result_ok(json!({
         "ok": true,
-        "format": version,
+        "format": rpf_version_label(archive.version),
         "encryption": format!("{:?}", archive.encryption),
         "count": items.len(),
         "items": items,
+        "toc_readable": true,
+        "requires_keys": false,
         "warning": "يعرض مستعرض RPF شجرة الملفات والمجلدات العامة للأرشيف القابل للقراءة. هذا العرض لا يستخرج محتويات الأرشيف."
     }))
 }
@@ -565,12 +581,17 @@ fn extract_rpf_entries(
                 if entry.name_lower.ends_with(".rpf") {
                     let nested = RpfArchive::parse(&bytes, &entry.name, None)
                         .map_err(|error| format!("تعذر تحليل الأرشيف الداخلي {}: {error:#}", entry.name))?;
+                    if nested.encryption.is_encrypted() {
+                        // Preserve encrypted nested RPF archives as opaque files.
+                        // Their original bytes remain valid for pass-through transfer.
+                        fs::write(&destination, &bytes)
+                            .map_err(|error| format!("تعذرت كتابة الأرشيف المشفر {}: {error}", destination.display()))?;
+                        *files_written += 1;
+                        continue;
+                    }
                     ensure_rpf_archive_names_readable(&nested)
                         .map_err(|error| format!("الأرشيف الداخلي {}: {error}", entry.name))?;
                     if nested.version == rpf_archive::RpfVersion::V7 {
-                        if nested.encryption.is_encrypted() {
-                            return Err(format!("الأرشيف الداخلي {} مشفر ويحتاج مفاتيح اللعبة.", entry.name));
-                        }
                         fs::create_dir_all(&destination)
                             .map_err(|error| format!("تعذر إنشاء مجلد الأرشيف الداخلي: {error}"))?;
                         let (nested_start, nested_count) = resolve_rpf_root_range(&nested.entries)
@@ -1321,16 +1342,79 @@ mod tests {
     use super::*;
     use rpf_archive::{RpfArchive, RpfBuilder, RpfEncryption};
 
+    fn encrypted_rpf7_fixture(encryption: u32) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&0x52504637u32.to_le_bytes());
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&4u32.to_le_bytes());
+        bytes.extend_from_slice(&encryption.to_le_bytes());
+        bytes.extend_from_slice(&[0u8; 16]); // encrypted TOC placeholder
+        bytes.extend_from_slice(&[0u8; 4]);  // encrypted names placeholder
+        bytes
+    }
+
+    unsafe fn take_engine_json(pointer: *mut c_char) -> serde_json::Value {
+        assert!(!pointer.is_null(), "engine returned a null response");
+        let response = CStr::from_ptr(pointer).to_str().unwrap().to_owned();
+        gta_engine_free_string(pointer);
+        serde_json::from_str(&response).unwrap()
+    }
+
     #[test]
-    fn encrypted_rpf_toc_is_rejected_before_using_corrupt_names() {
+    fn encrypted_rpf_probe_succeeds_in_header_only_mode() {
+        let root = std::env::temp_dir().join(format!("inrpf-encrypted-probe-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("dlc.rpf");
+        fs::write(&path, encrypted_rpf7_fixture(0x0FFFFFF9)).unwrap();
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let payload = unsafe { take_engine_json(gta_engine_probe_rpf(path_c.as_ptr())) };
+        assert_eq!(payload["ok"], true);
+        assert_eq!(payload["format"], "RPF7");
+        assert_eq!(payload["encryption"], "Aes");
+        assert_eq!(payload["toc_readable"], false);
+        assert_eq!(payload["requires_keys"], true);
+        assert!(payload["entries"].is_null(), "encrypted TOC entries must not be reported as verified");
+        assert!(payload["has_vehicle_metadata"].is_null(), "vehicle metadata must remain unknown");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn encrypted_rpf_listing_succeeds_without_fabricated_names() {
+        let root = std::env::temp_dir().join(format!("inrpf-encrypted-list-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("dlc.rpf");
+        fs::write(&path, encrypted_rpf7_fixture(0x0FEFFFFF)).unwrap();
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let payload = unsafe { take_engine_json(gta_engine_list_rpf(path_c.as_ptr())) };
+        assert_eq!(payload["ok"], true);
+        assert_eq!(payload["encryption"], "Ng");
+        assert_eq!(payload["toc_readable"], false);
+        assert_eq!(payload["requires_keys"], true);
+        assert_eq!(payload["count"], 0);
+        assert_eq!(payload["items"].as_array().unwrap().len(), 0);
+        assert!(!payload["warning"].as_str().unwrap().contains("binary_0"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn nested_encrypted_rpf_is_extracted_as_an_opaque_file() {
+        let root = std::env::temp_dir().join(format!("inrpf-nested-encrypted-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let nested_bytes = encrypted_rpf7_fixture(0x0FFFFFF9);
         let mut builder = RpfBuilder::new(RpfEncryption::Open);
-        builder.add_file("Rbtitt/dlc.rpf", b"fixture".to_vec());
-        let bytes = builder.build(None).expect("build fixture");
-        let mut archive = RpfArchive::parse(&bytes, "encrypted-fixture.rpf", None).unwrap();
-        archive.encryption = RpfEncryption::Ng;
-        let error = ensure_rpf_archive_names_readable(&archive).unwrap_err();
-        assert!(error.contains("فهرس RPF مشفر"));
-        assert!(error.contains("مفاتيح فك التشفير"));
+        builder.add_file("common/data/vehicles.meta", b"<vehicles/>".to_vec());
+        builder.add_file("dlc.rpf", nested_bytes.clone());
+        let outer_bytes = builder.build(None).unwrap();
+        let input = root.join("outer.rpf");
+        let output = root.join("extracted");
+        fs::write(&input, outer_bytes).unwrap();
+        let (files, _, _) = extract_rpf_to_directory(&input, &output).unwrap();
+        assert!(files >= 2);
+        assert_eq!(fs::read(output.join("dlc.rpf")).unwrap(), nested_bytes);
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
