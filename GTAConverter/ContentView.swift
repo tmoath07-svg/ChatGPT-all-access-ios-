@@ -29,6 +29,8 @@ struct ContentView: View {
     @AppStorage("gta_language") private var appLanguage = "ar"
     @AppStorage("gta_welcome_message") private var welcomeMessage = "حيّاك في INRPF"
     @AppStorage("gta_background_color") private var backgroundStyle = "midnight"
+    @AppStorage("inrpf_home_menu_order") private var homeMenuOrder = ""
+    @AppStorage("inrpf_home_menu_style") private var homeMenuStyle = "pill"
     @AppStorage("gta_onboarding_complete") private var onboardingComplete = false
     @State private var showOnboarding = false
 
@@ -203,39 +205,88 @@ struct ContentView: View {
             .foregroundStyle(.white.opacity(0.8))
     }
 
+    private struct HomeMenuEntry: Identifiable {
+        let id: String
+        let title: String
+        let icon: String
+    }
+
+    private var homeMenuEntries: [HomeMenuEntry] {
+        [
+            .init(id: "engine", title: "المحرك المحلي", icon: "cpu.fill"),
+            .init(id: "fivem", title: "استوديو FiveM", icon: "car.side.3.fill"),
+            .init(id: "ftp", title: "FTP جهاز PS4", icon: "network"),
+            .init(id: "orbx", title: "إرسال تلقائي للسوني", icon: "gamecontroller.fill"),
+            .init(id: "rpf", title: "محرر RPF", icon: "archivebox.fill"),
+            .init(id: "cloud", title: "التحويل السحابي (احتياطي)", icon: "cloud.gear.fill"),
+            .init(id: "browser", title: "متصفح المودات", icon: "globe"),
+            .init(id: "library", title: "مكتبة المودات", icon: "square.grid.2x2.fill"),
+            .init(id: "downloads", title: "التنزيلات", icon: "arrow.down.circle.fill"),
+            .init(id: "history", title: "سجل العمليات", icon: "clock.arrow.circlepath"),
+            .init(id: "ytd", title: "محرر YTD", icon: "photo.stack.fill"),
+            .init(id: "setup", title: "التخصيص واللغة", icon: "paintpalette.fill"),
+            .init(id: "features", title: "الميزات", icon: "square.grid.2x2"),
+            .init(id: "files", title: "ملفاتي", icon: "folder.fill"),
+            .init(id: "settings", title: "الإعدادات", icon: "gearshape.fill"),
+            .init(id: "diagnostics", title: "استكشاف المشاكل وحلها", icon: "wrench.and.screwdriver.fill"),
+            .init(id: "creator", title: "المبدع", icon: "person.crop.circle.fill"),
+            .init(id: "customize", title: "ترتيب القوائم", icon: "rectangle.3.group")
+        ]
+    }
+
+    private var orderedHomeMenuEntries: [HomeMenuEntry] {
+        let saved = homeMenuOrder.split(separator: ",").map(String.init)
+        let byID = Dictionary(uniqueKeysWithValues: homeMenuEntries.map { ($0.id, $0) })
+        let ordered = saved.compactMap { byID[$0] }
+        let remaining = homeMenuEntries.filter { !saved.contains($0.id) }
+        return ordered + remaining
+    }
+
     private var topMenu: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 9) {
-                menuLink("المحرك المحلي", icon: "cpu.fill", destination: LocalEngineView(initialFolder: outputFolder))
-                menuLink("استوديو FiveM", icon: "car.side.3.fill", destination: FiveMStudioView())
-                menuLink("FTP جهاز PS4", icon: "network", destination: FTPBrowserView())
-                menuLink("إرسال تلقائي للسوني", icon: "gamecontroller.fill", destination: OrbxPS4TransferView())
-                menuLink("محرر RPF", icon: "archivebox.fill", destination: LocalEngineView(initialFolder: outputFolder))
-                menuLink("التحويل السحابي (احتياطي)", icon: "cloud.gear.fill", destination: CloudConversionView())
-                menuLink("متصفح المودات", icon: "globe", destination: GTAModBrowserView())
-                menuLink("مكتبة المودات", icon: "square.grid.2x2.fill", destination: GTAModsLibraryView())
-                menuLink("التنزيلات", icon: "arrow.down.circle.fill", destination: GTADownloadsView())
-                menuLink("سجل العمليات", icon: "clock.arrow.circlepath", destination: GTATransferHistoryView())
-                menuLink("محرر YTD", icon: "photo.stack.fill", destination: YTDTextureLabView())
-                menuLink("التخصيص واللغة", icon: "paintpalette.fill", destination: GTASetupSettingsView())
-                menuLink("الميزات", icon: "square.grid.2x2", destination: FeatureHubView())
-                menuLink("ملفاتي", icon: "folder.fill", destination: AppFilesView())
-                menuLink("الإعدادات", icon: "gearshape.fill", destination: AppSettingsView())
-                menuLink("استكشاف المشاكل وحلها", icon: "wrench.and.screwdriver.fill", destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails))
-                menuLink("المبدع", icon: "person.crop.circle.fill", destination: CreatorPageView())
+                ForEach(orderedHomeMenuEntries) { entry in
+                    NavigationLink(destination: homeMenuDestination(entry.id).gtaMotionEntrance()) {
+                        Label(entry.title, systemImage: entry.icon)
+                            .font(.caption.weight(.bold)).foregroundStyle(.white)
+                            .padding(.horizontal, homeMenuStyle == "list" ? 11 : 13)
+                            .padding(.vertical, 11)
+                            .background(homeMenuStyle == "minimal" ? Color.clear : Color.white.opacity(0.075))
+                            .clipShape(RoundedRectangle(cornerRadius: homeMenuStyle == "card" ? 12 : 22))
+                            .overlay {
+                                if homeMenuStyle != "minimal" {
+                                    RoundedRectangle(cornerRadius: homeMenuStyle == "card" ? 12 : 22)
+                                        .stroke(purple.opacity(0.25))
+                                }
+                            }
+                    }.buttonStyle(.plain)
+                }
             }
         }
     }
 
-    private func menuLink<Destination: View>(_ title: String, icon: String, destination: Destination) -> some View {
-        NavigationLink(destination: destination.gtaMotionEntrance()) {
-            Label(title, systemImage: icon)
-                .font(.caption.weight(.bold)).foregroundStyle(.white)
-                .padding(.horizontal, 13).padding(.vertical, 11)
-                .background(.white.opacity(0.075))
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(purple.opacity(0.25)))
-        }.buttonStyle(.plain)
+    @ViewBuilder
+    private func homeMenuDestination(_ id: String) -> some View {
+        switch id {
+        case "engine": LocalEngineView(initialFolder: outputFolder)
+        case "fivem": FiveMStudioView()
+        case "ftp": FTPBrowserView()
+        case "orbx": OrbxPS4TransferView()
+        case "rpf": LocalEngineView(initialFolder: outputFolder)
+        case "cloud": CloudConversionView()
+        case "browser": GTAModBrowserView()
+        case "library": GTAModsLibraryView()
+        case "downloads": GTADownloadsView()
+        case "history": GTATransferHistoryView()
+        case "ytd": YTDTextureLabView()
+        case "setup": GTASetupSettingsView()
+        case "features": FeatureHubView()
+        case "files": AppFilesView()
+        case "settings": AppSettingsView()
+        case "diagnostics": AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails)
+        case "creator": CreatorPageView()
+        default: HomeMenuCustomizationView()
+        }
     }
 
     private var conversionCard: some View {
@@ -1220,4 +1271,82 @@ private struct AppSettingsView: View {
     private func settingRow(_ title: String, _ value: String) -> some View {
         HStack { Text(title).foregroundStyle(.white.opacity(0.7)); Spacer(); Text(value).foregroundStyle(.white) }.font(.subheadline)
     }
+}
+
+private struct HomeMenuCustomizationView: View {
+    @AppStorage("inrpf_home_menu_order") private var storedOrder = ""
+    @AppStorage("inrpf_home_menu_style") private var menuStyle = "pill"
+    @State private var order = [
+        "engine", "fivem", "ftp", "orbx", "rpf", "cloud", "browser", "library",
+        "downloads", "history", "ytd", "setup", "features", "files", "settings",
+        "diagnostics", "creator", "customize"
+    ]
+    private let labels: [(String, String)] = [
+        ("engine", "المحرك المحلي"), ("fivem", "استوديو FiveM"), ("ftp", "FTP جهاز PS4"),
+        ("orbx", "إرسال تلقائي للسوني"), ("rpf", "محرر RPF"), ("cloud", "التحويل السحابي"),
+        ("browser", "متصفح المودات"), ("library", "مكتبة المودات"), ("downloads", "التنزيلات"),
+        ("history", "سجل العمليات"), ("ytd", "محرر YTD"), ("setup", "التخصيص واللغة"),
+        ("features", "الميزات"), ("files", "ملفاتي"), ("settings", "الإعدادات"),
+        ("diagnostics", "استكشاف المشاكل وحلها"), ("creator", "المبدع"), ("customize", "ترتيب القوائم")
+    ]
+
+    var body: some View {
+        ZStack {
+            GTAAppBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("خصص شكل القائمة الرئيسية ورتّب اختصاراتك بالسحب عبر أزرار الأعلى والأسفل.")
+                        .font(.subheadline).foregroundStyle(.white.opacity(0.7))
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text("شكل القوائم").font(.headline).foregroundStyle(.white)
+                        Picker("شكل القوائم", selection: $menuStyle) {
+                            Text("كبسولات").tag("pill")
+                            Text("بطاقات").tag("card")
+                            Text("بسيط").tag("minimal")
+                            Text("قائمة").tag("list")
+                        }.pickerStyle(.segmented).tint(.purple)
+                    }.padding(15).background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 15))
+                    ForEach(Array(order.enumerated()), id: \.element) { index, id in
+                        HStack(spacing: 10) {
+                            Text(labels.first(where: { $0.0 == id })?.1 ?? id)
+                                .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                            Spacer()
+                            Button { move(index, by: -1) } label: {
+                                Image(systemName: "arrow.up").frame(width: 34, height: 34)
+                            }.disabled(index == 0)
+                            Button { move(index, by: 1) } label: {
+                                Image(systemName: "arrow.down").frame(width: 34, height: 34)
+                            }.disabled(index == order.count - 1)
+                        }
+                        .padding(11).background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    Button("استعادة الترتيب الافتراضي") {
+                        order = labels.map(\.0)
+                        save()
+                    }.font(.subheadline.bold()).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity).padding(13)
+                        .background(Color.purple.opacity(0.75)).clipShape(RoundedRectangle(cornerRadius: 12))
+                }.padding(16)
+            }
+        }
+        .navigationTitle("تخصيص القائمة الرئيسية")
+        .navigationBarTitleDisplayMode(.inline)
+        .environment(\.layoutDirection, .rightToLeft)
+        .onAppear {
+            let saved = storedOrder.split(separator: ",").map(String.init)
+            if !saved.isEmpty {
+                let valid = saved.filter { labels.contains(where: { $0.0 == $0 }) }
+                if !valid.isEmpty { order = valid + labels.map(\.0).filter { !valid.contains($0) } }
+            }
+        }
+    }
+
+    private func move(_ index: Int, by offset: Int) {
+        let target = index + offset
+        guard order.indices.contains(index), order.indices.contains(target) else { return }
+        order.swapAt(index, target)
+        save()
+    }
+
+    private func save() { storedOrder = order.joined(separator: ",") }
 }

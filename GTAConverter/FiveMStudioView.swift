@@ -21,7 +21,7 @@ struct FiveMStudioView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Image(systemName: "car.side.3.fill").font(.system(size: 34)).foregroundStyle(.purple)
                         Text("FiveM Resource Studio").font(.title2.bold()).foregroundStyle(.white)
-                        Text("استورد ملف المورد ZIP أو RAR مباشرة. يفك التطبيق الأرشيف محلياً ثم يفحص stream وdata وملفات META.")
+                        Text("استورد ZIP أو RAR أو أي ملف مورد FiveM منفرد مثل YFT وYTD وMETA وLua. يفك الأرشيف أو يحفظ الملف محلياً ثم يفحص البنية والاعتماديات الظاهرة.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
@@ -31,7 +31,7 @@ struct FiveMStudioView: View {
                         errorText = nil
                         showingFilePicker = true
                     } label: {
-                        Label(isBusy ? "جاري الاستيراد والفحص..." : "اختيار ملف FiveM (ZIP / RAR)", systemImage: "doc.zipper")
+                        Label(isBusy ? "جاري الاستيراد والفحص..." : "اختيار ملف أو أرشيف FiveM", systemImage: "doc.zipper")
                             .font(.headline.bold()).foregroundStyle(.white)
                             .frame(maxWidth: .infinity).padding(15)
                             .background(Color.purple.opacity(0.85))
@@ -81,7 +81,7 @@ struct FiveMStudioView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 13))
                     }
 
-                    Text("تنبيه: الفحص المحلي لا يحوّل المورد إلى PS4. التحويل الفعلي يتم عبر سير العمل ويتطلب إدخال المورد هناك. سكربتات Lua وواجهات NUI واعتماديات السيرفر لا تتحول تلقائياً إلى DLC.")
+                    Text("تنبيه: الفحص المحلي لا يحوّل المورد إلى PS4. ملفات Lua وNUI واعتماديات السيرفر لا تتحول تلقائياً إلى DLC. الملفات المدعومة فقط يمكن تمريرها لمحرك التحويل، ويجب فحص الناتج قبل نقله.")
                         .font(.caption).foregroundStyle(.orange.opacity(0.9))
                         .padding(12).background(.orange.opacity(0.08))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -119,12 +119,47 @@ struct FiveMStudioView: View {
                 return
             }
             let ext = source.pathExtension.lowercased()
-            guard ext == "zip" || ext == "rar" else {
-                errorText = "نوع الملف غير مدعوم. اختر ZIP أو RAR."
-                status = "تم رفض الملف قبل الاستيراده."
-                return
+            if ext == "zip" || ext == "rar" {
+                importAndAnalyze(source)
+            } else {
+                importSingleFileAndAnalyze(source)
             }
-            importAndAnalyze(source)
+        }
+    }
+
+    private func importSingleFileAndAnalyze(_ source: URL) {
+        isBusy = true
+        errorText = nil
+        report = nil
+        importedName = source.lastPathComponent
+        status = "يتم استيراد ملف المورد المفرد..."
+        Task {
+            var staging: URL?
+            do {
+                let copy = try await Task.detached(priority: .userInitiated) {
+                    try FileImportService.importItem(from: source, category: "FiveMFiles")
+                }.value
+                let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
+                                                            appropriateFor: nil, create: true)
+                let parent = documents.appendingPathComponent("GTA Converter/FiveM/Extracted", isDirectory: true)
+                try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+                let destination = parent.appendingPathComponent(UUID().uuidString, isDirectory: true)
+                try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+                staging = destination
+                let target = destination.appendingPathComponent(copy.lastPathComponent)
+                try FileManager.default.copyItem(at: copy, to: target)
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try ModAnalyzer.analyze(at: destination)
+                }.value
+                report = result
+                status = "تم استيراد الملف وفحصه محلياً. هذا جرد للملف وليس تحويلاً إلى PS4."
+                staging = nil
+            } catch {
+                if let staging { try? FileManager.default.removeItem(at: staging) }
+                errorText = error.localizedDescription
+                status = "تعذر استيراد أو فحص الملف المفرد."
+            }
+            isBusy = false
         }
     }
 
