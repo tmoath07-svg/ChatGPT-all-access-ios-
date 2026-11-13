@@ -53,6 +53,12 @@ jobs:
           swiftc GTAConverter/FeatureAnalysisCore.swift Tests/feature_analysis_tests.swift -o /tmp/feature-analysis-tests
           /tmp/feature-analysis-tests
 
+      - name: Test INRPF device test core
+        run: |
+          set -euo pipefail
+          swiftc GTAConverter/DeviceTestCore.swift Tests/device_test_core_tests.swift -o /tmp/inrpf-device-test-core
+          /tmp/inrpf-device-test-core
+
       - name: Test local utility core
         run: |
           set -euo pipefail
