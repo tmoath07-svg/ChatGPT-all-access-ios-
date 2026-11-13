@@ -69,8 +69,8 @@ struct RPFStudioView: View {
                 }
                 selectedFile = url
                 selectedFileName = url.lastPathComponent
-                // Run immediately after selection; no second tap is required.
-                runInspection()
+                // Pass the picked URL directly; SwiftUI state may not have updated yet.
+                startInspection(for: url)
             case .failure(let issue):
                 report = "تعذر اختيار الملف: \(issue.localizedDescription)"
                 error = true
@@ -124,7 +124,12 @@ struct RPFStudioView: View {
     }
 
     private func runInspection() {
-        guard let source = selectedFile, !busy else { return }
+        guard let source = selectedFile else { return }
+        startInspection(for: source)
+    }
+
+    private func startInspection(for source: URL) {
+        guard !busy else { return }
         busy = true
         error = false
         report = "تم اختيار \(source.lastPathComponent)\nجارٍ فتح صلاحية الملف ونسخه وتشغيل Python..."
