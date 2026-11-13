@@ -1916,7 +1916,7 @@ mod tests {
         encoder.write_all(b"synthetic vehicle payload").unwrap();
         let compressed = encoder.finish().unwrap();
         let mut resource = Vec::from(&b"RSC7"[..]);
-        resource.extend_from_slice(&[13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        resource.extend_from_slice(&[0; 12]);
         resource.extend_from_slice(&compressed);
         fs::write(input.join("stream/demo.yft"), resource).unwrap();
 
