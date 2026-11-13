@@ -36,8 +36,6 @@ targets:
     platform: iOS
     sources:
       - RPFStudio
-    resources:
-      - path: RPFStudio/Resources
     dependencies:
       - framework: vendor/Python.xcframework
         embed: true
@@ -56,3 +54,12 @@ targets:
         INFOPLIST_KEY_LSRequiresIPhoneOS: YES
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+    postBuildScripts:
+      - name: Stage Python runtime resources
+        script: |
+          set -euo pipefail
+          RESOURCES_DIR="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          mkdir -p "$RESOURCES_DIR"
+          ditto "$SRCROOT/RPFStudio/Resources/engine" "$RESOURCES_DIR/engine"
+          mkdir -p "$RESOURCES_DIR/python"
+          rsync -a --exclude "Python.framework" "$SRCROOT/RPFStudio/Resources/python/" "$RESOURCES_DIR/python/"
