@@ -158,6 +158,7 @@ jobs:
                     grep -q "_gta_engine_convert_folder" build/exported-symbols.txt
           grep -q "_gta_engine_extract_ytd" build/exported-symbols.txt
           grep -q "_gta_engine_build_ytd" build/exported-symbols.txt
+          grep -q "_gta_engine_convert_fivem_resource" build/exported-symbols.txt
 
           mkdir -p release-package
           cp INRPF-4.00-unsigned.ipa release-package/INRPF-4.00-unsigned.ipa

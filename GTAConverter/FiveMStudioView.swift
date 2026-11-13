@@ -161,7 +161,13 @@ struct FiveMStudioView: View {
     }
 
     private func convertFiveMResource() {
-        guard let source = extractedResourceURL else { return }
+        guard let extractedRoot = extractedResourceURL else { return }
+        let source: URL
+        if let manifest = report?.manifestFiles.first {
+            source = extractedRoot.appendingPathComponent(manifest).deletingLastPathComponent()
+        } else {
+            source = extractedRoot
+        }
         isBusy = true
         conversionReport = "يتم تشغيل محرك FiveM المحلي وفحص كل ملف قبل اعتماد الناتج..."
         Task {
