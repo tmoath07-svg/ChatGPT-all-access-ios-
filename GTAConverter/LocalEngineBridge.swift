@@ -14,6 +14,15 @@ enum LocalEngineBridge {
         return try decode(pointer)
     }
 
+    static func convertAndBuildRPF(from folder: URL, to output: URL) throws -> [String: Any] {
+        let pointer = folder.path.withCString { input in
+            output.path.withCString { destination in
+                gta_engine_convert_and_build_rpf(input, destination)
+            }
+        }
+        return try decode(pointer)
+    }
+
     static func inspectRPF(at file: URL) throws -> [String: Any] {
         let pointer = file.path.withCString { gta_engine_probe_rpf($0) }
         return try decode(pointer)
