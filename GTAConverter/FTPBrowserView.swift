@@ -209,53 +209,14 @@ private final class FTPBrowserModel: ObservableObject {
 
         try await client.makeDirectory(safeRootName, path: remoteParentPath)
         let remoteRoot = Self.joinRemotePath(remoteParentPath, safeRootName)
-        guard let enumerator = fm.enumerator(
-            at: localRoot,
-            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-            options: []
-        ) else {
-            throw FTPFailure.response("تعذر قراءة محتويات المجلد المحلي.")
-        }
-
-        var entries: [(url: URL, components: [String], isDirectory: Bool)] = []
-        let localPrefix = localRoot.standardizedFileURL.path + "/"
-        var visited = 0
-        for case let item as URL in enumerator {
-            visited += 1
-            guard visited <= 100_000 else {
-                throw FTPFailure.response("المجلد يحتوي عدداً كبيراً جداً من العناصر.")
-            }
-            let standardized = item.standardizedFileURL.path
-            guard standardized.hasPrefix(localPrefix) else {
-                throw FTPFailure.response("تم رفض مسار عنصر خارج المجلد المحدد.")
-            }
-            let relative = String(standardized.dropFirst(localPrefix.count))
-            let components = relative.split(separator: "/").map(String.init)
-            guard !components.isEmpty,
-                  !components.contains(".."),
-                  !components.contains("."),
-                  components.allSatisfy({ !$0.isEmpty && !$0.contains("\\") }) else {
-                throw FTPFailure.response("يحتوي المجلد على مسار غير صالح.")
-            }
-
-            let values = try item.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-            if values.isSymbolicLink == true { continue }
-            entries.append((item, components, values.isDirectory == true))
-        }
-
-        entries.sort {
-            if $0.components.count != $1.components.count {
-                return $0.components.count < $1.components.count
-            }
-            if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
-            return $0.components.joined(separator: "/") < $1.components.joined(separator: "/")
-        }
+        let entries = try INRPFDirectoryUploadPlanner.plan(for: localRoot)
 
         var fileCount = 0
         var folderCount = 1
         for entry in entries {
-            let name = entry.components[entry.components.count - 1]
-            let parentRelative = entry.components.dropLast().joined(separator: "/")
+            let components = entry.relativePath.split(separator: "/").map(String.init)
+            guard let name = components.last else { continue }
+            let parentRelative = components.dropLast().joined(separator: "/")
             let remoteParent = parentRelative.isEmpty
                 ? remoteRoot
                 : Self.joinRemotePath(remoteRoot, parentRelative)

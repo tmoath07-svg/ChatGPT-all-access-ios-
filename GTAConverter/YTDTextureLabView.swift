@@ -161,10 +161,25 @@ struct YTDTextureLabView: View {
             status = "تعذر اختيار العنصر: \(error.localizedDescription)"
         case .success(let urls):
             guard let url = urls.first else { return }
-            if pickerMode == .ytd {
-                extractTextures(from: url)
-            } else {
-                rebuildDictionary(from: url)
+            isBusy = true
+            isError = false
+            status = "يتم استيراد العنصر إلى مساحة INRPF..."
+            let selectedMode = pickerMode
+            Task { @MainActor in
+                do {
+                    let importedURL = try await Task.detached(priority: .userInitiated) {
+                        try FileImportService.importItem(from: url, category: "YTDImports")
+                    }.value
+                    if selectedMode == .ytd {
+                        extractTextures(from: importedURL)
+                    } else {
+                        rebuildDictionary(from: importedURL)
+                    }
+                } catch {
+                    isError = true
+                    status = "فشل استيراد ملف YTD أو مجلده: \(error.localizedDescription)"
+                    isBusy = false
+                }
             }
         }
     }

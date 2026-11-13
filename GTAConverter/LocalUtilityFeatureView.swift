@@ -245,62 +245,57 @@ struct LocalUtilityFeatureView: View {
 
         Task { @MainActor in
             do {
+                // Copy every selected item into the app's own Documents area first.
+                // This gives all utility features the same reliable, security-scoped import path.
+                let importedURL = try await Task.detached(priority: .userInitiated) {
+                    try FileImportService.importItem(from: url, category: "FeatureImports")
+                }.value
+
                 if featureID == 4 {
                     let data = try await Task.detached(priority: .userInitiated) {
-                        let access = url.startAccessingSecurityScopedResource()
-                        defer { if access { url.stopAccessingSecurityScopedResource() } }
-                        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+                        let attributes = try FileManager.default.attributesOfItem(atPath: importedURL.path)
                         let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
                         guard size <= 512 * 1024 else {
-                            throw NSError(domain: "INRPF.Hex", code: 1, userInfo: [NSLocalizedDescriptionKey: "الحد الأقصى لمحرر Hex هو 512KB."])
+                            throw NSError(domain: "INRPF.Hex", code: 1,
+                                userInfo: [NSLocalizedDescriptionKey: "الحد الأقصى لمحرر Hex هو 512KB."])
                         }
-                        return try Data(contentsOf: url)
+                        return try Data(contentsOf: importedURL)
                     }.value
                     hexText = data.map { String(format: "%02X", $0) }.joined(separator: " ")
                     resultText = "تم تحميل \(data.count) بايت. عدّل القيم واحفظ نسخة جديدة."
                 } else if featureID == 31 {
                     let output = try await Task.detached(priority: .userInitiated) {
-                        let access = url.startAccessingSecurityScopedResource()
-                        defer { if access { url.stopAccessingSecurityScopedResource() } }
-                        let vehicleReport = try ModAnalyzer.analyze(at: url)
+                        let vehicleReport = try ModAnalyzer.analyze(at: importedURL)
                         guard !vehicleReport.vehicleMetaFiles.isEmpty else {
                             throw NSError(domain: "INRPF.Sort", code: 4,
                                 userInfo: [NSLocalizedDescriptionKey: "Smart Folder مخصص لمجلدات مودات المركبات."])
                         }
-                        return try INRPFLocalUtilities.createSortedCopy(of: url)
+                        return try INRPFLocalUtilities.createSortedCopy(of: importedURL)
                     }.value
                     shareURL = output.url
                     resultText = "تم نسخ \(output.count) ملف إلى مجلد مصنف. المصدر لم يتغير."
                 } else if featureID == 33 {
                     let report = try await Task.detached(priority: .userInitiated) {
-                        let access = url.startAccessingSecurityScopedResource()
-                        defer { if access { url.stopAccessingSecurityScopedResource() } }
-                        return try ModAnalyzer.analyze(at: url)
+                        try ModAnalyzer.analyze(at: importedURL)
                     }.value
                     let pdf = try INRPFLocalUtilities.createPDF(report: report.reportText)
                     shareURL = pdf
                     resultText = "تم إنشاء تقرير PDF من \(report.fileCount) ملف."
                 } else if featureID == 34 {
                     let report = try await Task.detached(priority: .userInitiated) {
-                        let access = url.startAccessingSecurityScopedResource()
-                        defer { if access { url.stopAccessingSecurityScopedResource() } }
-                        return try ModAnalyzer.analyze(at: url)
+                        try ModAnalyzer.analyze(at: importedURL)
                     }.value
                     let score = INRPFLocalUtilities.structuralScore(report)
                     resultText = "مؤشر الجاهزية البنيوية: \(score)/100\n\(report.reportText)\n\nهذه الدرجة لا تعني ضمان التوافق أو التشغيل على PS4."
                 } else if featureID == 35 {
                     let backup = try await Task.detached(priority: .userInitiated) {
-                        let access = url.startAccessingSecurityScopedResource()
-                        defer { if access { url.stopAccessingSecurityScopedResource() } }
-                        return try INRPFLocalUtilities.createBackup(of: url)
+                        try INRPFLocalUtilities.createBackup(of: importedURL)
                     }.value
                     shareURL = backup
                     resultText = "تم إنشاء نسخة احتياطية مستقلة باسم \(backup.lastPathComponent)."
                 } else if featureID == 37 {
                     let report = try await Task.detached(priority: .userInitiated) {
-                        let access = url.startAccessingSecurityScopedResource()
-                        defer { if access { url.stopAccessingSecurityScopedResource() } }
-                        return try INRPFLocalUtilities.dependencyReport(at: url)
+                        try INRPFLocalUtilityCore.dependencyReport(at: importedURL)
                     }.value
                     resultText = report
                     INRPFLocalTimeline.record("فحص الاعتماديات", details: selectedName)

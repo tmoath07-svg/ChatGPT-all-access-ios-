@@ -60,9 +60,21 @@ struct ModComparisonView: View {
         .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.folder], allowsMultipleSelection: false) { result in
             do {
                 guard let url = try result.get().first else { return }
-                if activePicker == 1 { left = url } else { right = url }
-                results = []
+                let targetPicker = activePicker
+                isBusy = true
                 errorText = nil
+                Task { @MainActor in
+                    do {
+                        let importedURL = try await Task.detached(priority: .userInitiated) {
+                            try FileImportService.importItem(from: url, category: "ComparisonImports")
+                        }.value
+                        if targetPicker == 1 { left = importedURL } else { right = importedURL }
+                        results = []
+                    } catch {
+                        errorText = error.localizedDescription
+                    }
+                    isBusy = false
+                }
             } catch { errorText = error.localizedDescription }
         }
         .environment(\.layoutDirection, .rightToLeft)
@@ -145,11 +157,21 @@ struct HandlingAnalyzerView: View {
         .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.xml, .item], allowsMultipleSelection: false) { result in
             do {
                 guard let url = try result.get().first else { return }
-                let access = url.startAccessingSecurityScopedResource()
-                defer { if access { url.stopAccessingSecurityScopedResource() } }
-                fields = try INRPFHandlingParser.parse(data: Data(contentsOf: url))
                 fileName = url.lastPathComponent
                 errorText = nil
+                Task { @MainActor in
+                    do {
+                        let importedURL = try await Task.detached(priority: .userInitiated) {
+                            try FileImportService.importItem(from: url, category: "HandlingImports")
+                        }.value
+                        let data = try await Task.detached(priority: .userInitiated) {
+                            try Data(contentsOf: importedURL)
+                        }.value
+                        fields = try INRPFHandlingParser.parse(data: data)
+                    } catch {
+                        errorText = error.localizedDescription
+                    }
+                }
             } catch { errorText = error.localizedDescription }
         }
         .environment(\.layoutDirection, .rightToLeft)

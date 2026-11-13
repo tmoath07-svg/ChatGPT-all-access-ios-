@@ -57,15 +57,14 @@ struct DLClistEditorView: View {
         .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.xml, .data], allowsMultipleSelection: false) { result in
             do {
                 guard let url = try result.get().first else { return }
-                let access = url.startAccessingSecurityScopedResource()
-                defer { if access { url.stopAccessingSecurityScopedResource() } }
-                let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+                let importedURL = try FileImportService.importItem(from: url, category: "XMLImports")
+                let attributes = try FileManager.default.attributesOfItem(atPath: importedURL.path)
                 let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
                 guard size <= 2 * 1024 * 1024 else {
                     status = "الحد الأقصى لملف XML هو 2MB."
                     return
                 }
-                xmlText = try String(contentsOf: url, encoding: .utf8)
+                xmlText = try String(contentsOf: importedURL, encoding: .utf8)
                 status = "تم فتح \(url.lastPathComponent). الأصل لم يتغير."
                 shareURL = nil
             } catch {

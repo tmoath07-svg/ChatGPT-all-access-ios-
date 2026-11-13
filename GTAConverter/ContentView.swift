@@ -940,7 +940,7 @@ private struct DocumentPickerBridge: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: true)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: false)
         picker.delegate = context.coordinator
         picker.allowsMultipleSelection = false
         picker.shouldShowFileExtensions = true
