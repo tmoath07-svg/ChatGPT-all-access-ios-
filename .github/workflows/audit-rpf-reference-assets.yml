@@ -203,6 +203,55 @@ jobs:
             rpf-reference-audit/camry-ytd-dds \
             rpf-reference-audit/camry-engine-validation.json
 
+      - name: Safely inspect the encrypted Camry RPF with Zokii's bundled extractor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pycryptodome
+          RPF="$(find rpf-reference-audit/extracted/camry_3 -type f -name '*.rpf' -print -quit)"
+          ZOKII_ROOT="rpf-reference-audit/extracted/zokii/Zokii Studio (5)/assets/oldtool"
+          OUT="rpf-reference-audit/camry-decrypted-rpf"
+          python3 - "$RPF" "$ZOKII_ROOT/RPFBuilder" "$OUT" rpf-reference-audit/camry-decrypted-rpf-report.json <<'PY'
+          import collections, json, os, sys
+          from pathlib import Path, PurePosixPath
+          sys.path.insert(0, sys.argv[2])
+          import extract_rpf
+          rpf = Path(sys.argv[1])
+          out = Path(sys.argv[3])
+          report_path = Path(sys.argv[4])
+          raw = rpf.read_bytes()
+          entries = extract_rpf.parse_rpf(raw)
+          paths = extract_rpf.build_paths(entries)
+          if len(paths) > 20000:
+              raise SystemExit("RPF has too many entries for safe reference inspection.")
+          total = 0
+          for rel, entry in paths:
+              normalized = rel.replace("\\", "/")
+              pp = PurePosixPath(normalized)
+              if pp.is_absolute() or ".." in pp.parts or not pp.parts:
+                  raise SystemExit("Unsafe RPF entry path rejected: " + repr(rel))
+              if any(ord(ch) < 32 for ch in normalized):
+                  raise SystemExit("Control character in RPF entry path rejected.")
+              total += int(entry.get("orig_size", entry.get("file_size", 0)) or 0)
+              if total > 512 * 1024 * 1024:
+                  raise SystemExit("RPF declared extraction size exceeds 512 MiB.")
+          out.mkdir(parents=True, exist_ok=True)
+          extract_rpf.extract(str(rpf), str(out))
+          files = []
+          extensions = collections.Counter()
+          for p in sorted(out.rglob("*")):
+              if p.is_file():
+                  ext = p.suffix.lower() or "[no extension]"
+                  extensions[ext] += 1
+                  files.append({"path":p.relative_to(out).as_posix(),"bytes":p.stat().st_size,"extension":ext})
+          report = {"archive":str(rpf),"entry_count":len(paths),"extracted_files":len(files),
+                    "extensions":dict(sorted(extensions.items())),"files":files}
+          report_path.write_text(json.dumps(report,indent=2),encoding="utf-8")
+          print(json.dumps(report,indent=2))
+          if not files:
+              raise SystemExit("RPF extractor produced no files.")
+          PY
+
       - name: Build a real PS4 OTD from Camry YTD using Zokii RageBuilder
         shell: bash
         run: |
