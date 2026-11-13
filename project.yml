@@ -13,11 +13,16 @@ targets:
     platform: iOS
     sources:
       - GTAConverter
+      - path: RPFStudio
+        excludes:
+          - RPFStudioApp.swift
     resources:
       - path: GTAConverter/Resources
     dependencies:
       - package: libarchive-for-swift
         product: SwiftArchive
+      - framework: vendor/Python.xcframework
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tmoath07.gta-converter
@@ -41,6 +46,17 @@ targets:
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/GTAConverter/GTAConverter-Bridging-Header.h"
-        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/GTAConverter"
+        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/GTAConverter $(SRCROOT)/RPFStudio $(SRCROOT)/vendor/Python.xcframework/ios-arm64/Python.framework/Headers"
         LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/build/rust/ios"
         OTHER_LDFLAGS: "$(inherited) -lgta_local_engine"
+    postBuildScripts:
+      - name: Stage Python runtime and RPF engine
+        script: |
+          set -euo pipefail
+          RESOURCES_DIR="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          mkdir -p "$RESOURCES_DIR"
+          ditto "$SRCROOT/RPFStudio/Resources/engine" "$RESOURCES_DIR/engine"
+          PYTHON_SLICE="$SRCROOT/vendor/Python-ios-slice"
+          test -d "$PYTHON_SLICE/lib-arm64"
+          mkdir -p "$RESOURCES_DIR/python"
+          rsync -a --exclude "Python.framework" --exclude "platform-config" "$PYTHON_SLICE/lib-arm64/" "$RESOURCES_DIR/python/"
