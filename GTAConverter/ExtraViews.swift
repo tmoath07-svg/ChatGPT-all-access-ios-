@@ -128,9 +128,9 @@ struct FeatureHubView: View {
     @State private var searchText = ""
     @State private var selectedCategory = "الكل"
 
-    private let categories = ["الكل", "FiveM", "الملفات", "السيارات", "PS4", "PlayStation", "الذكاء الاصطناعي", "الإدارة"]
+    private let categories = ["الكل", "FiveM", "الملفات", "السيارات", "PS4", "PlayStation", "الإدارة"]
     private let items: [FeatureCatalogItem] = [
-        .init(id:1,title:"محلل المودات الذكي",category:"الملفات",icon:"doc.text.magnifyingglass",status:"متاح",detail:"تحليل الأرشيفات والملفات واكتشاف مكونات المود. افتح شاشة الاستيراد والتحليل من الصفحة الرئيسية.",live:true),
+        .init(id:1,title:"محلل المودات",category:"الملفات",icon:"doc.text.magnifyingglass",status:"متاح",detail:"تحليل الأرشيفات والملفات واكتشاف مكونات المود. افتح شاشة الاستيراد والتحليل من الصفحة الرئيسية.",live:true),
         .init(id:2,title:"مختبر YTD",category:"الملفات",icon:"photo.stack.fill",status:"فحص متاح",detail:"اختيار ملفات YTD وفحص الحجم وترويسة RSC7. استخراج DDS وإعادة بناء YTD والتحويل الفعلي تحتاج محرك معالجة مختبراً.",route:"ytd"),
         .init(id:3,title:"عارض YDR وYFT",category:"السيارات",icon:"cube.transparent",status:"قيد التطوير",detail:"معاينة هندسية محلية لملفات المركبات YFT وYDR وYDD المدعومة. لا تعرض الخامات أو التحريك حالياً."),
         .init(id:4,title:"محرر Hex",category:"الملفات",icon:"chevron.left.forwardslash.chevron.right",status:"متاح",detail:"عرض وتعديل بايتات الملف بصيغة Hex مع حفظ نسخة جديدة دون المساس بالأصل."),
@@ -198,9 +198,9 @@ struct FeatureHubView: View {
                             Image(systemName: "square.grid.3x3.fill").font(.title2).foregroundStyle(.purple)
                             Text("مركز الميزات").font(.title2.bold()).foregroundStyle(.white)
                             Spacer()
-                            Text("40 ميزة + FiveM").font(.caption.bold()).foregroundStyle(.purple)
+                            Text("\(items.count) ميزة").font(.caption.bold()).foregroundStyle(.purple)
                         }
-                        Text("40 ميزة أساسية مع استوديو FiveM. الحالة توضّح ما يعمل فعلياً وما لا يزال مخططاً.")
+                        Text("قائمة الميزات الحالية. الحالة توضّح ما يعمل فعلياً وما لا يزال قيد التطوير.")
                             .font(.caption).foregroundStyle(.white.opacity(0.62))
                     }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                         .background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))

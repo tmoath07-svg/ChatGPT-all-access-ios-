@@ -45,7 +45,7 @@ jobs:
           swiftc GTAConverter/ModAnalyzer.swift Tests/fivem_mod_analyzer_tests.swift -o /tmp/fivem-mod-analyzer-tests
           /tmp/fivem-mod-analyzer-tests
           grep -q 'MARKETING_VERSION: "3.70"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "38"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "39"' project.yml
 
       - name: Test feature analysis core
         run: |
@@ -135,7 +135,7 @@ jobs:
           # XcodeGen may omit version keys from the generated plist on some runner/Xcode combinations.
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.70' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 3.70' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 38' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 38' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 39' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 39' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
           BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")
@@ -143,7 +143,7 @@ jobs:
 
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
           test "$VERSION" = "3.70"
-          test "$BUILD" = "38"
+          test "$BUILD" = "39"
           zip -qry INRPF-3.70-unsigned.ipa Payload
           unzip -t INRPF-3.70-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"

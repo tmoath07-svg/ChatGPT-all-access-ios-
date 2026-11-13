@@ -166,12 +166,116 @@ private final class FTPBrowserModel: ObservableObject {
                     try FileImportService.importItem(from: url, category: "Imports",
                                                      securityScopeAlreadyStarted: scopeStarted)
                 }.value
-                try await client.upload(fileURL: localURL, remoteName: url.lastPathComponent, path: currentPath)
-                try await refresh()
-                status = "تم رفع \(url.lastPathComponent)"
-            } catch let caughtError { self.error = caughtError.localizedDescription }
+
+                var sourceIsDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: localURL.path, isDirectory: &sourceIsDirectory) else {
+                    throw FTPFailure.response("العنصر المستورد لم يعد موجوداً.")
+                }
+
+                if sourceIsDirectory.boolValue {
+                    let result = try await uploadDirectory(
+                        localRoot: localURL,
+                        remoteName: url.lastPathComponent,
+                        remoteParentPath: currentPath
+                    )
+                    try await refresh()
+                    status = "تم رفع المجلد \(url.lastPathComponent): \(result.files) ملف و\(result.folders) مجلد."
+                } else {
+                    try await client.upload(fileURL: localURL, remoteName: url.lastPathComponent, path: currentPath)
+                    try await refresh()
+                    status = "تم رفع الملف \(url.lastPathComponent)."
+                }
+            } catch let caughtError {
+                self.error = caughtError.localizedDescription
+            }
             isBusy = false
         }
+    }
+
+    private func uploadDirectory(localRoot: URL, remoteName: String,
+                                 remoteParentPath: String) async throws -> (files: Int, folders: Int) {
+        let fm = FileManager.default
+        var rootIsDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: localRoot.path, isDirectory: &rootIsDirectory),
+              rootIsDirectory.boolValue else {
+            throw FTPFailure.response("المجلد المحلي غير صالح.")
+        }
+
+        let safeRootName = URL(fileURLWithPath: remoteName).lastPathComponent
+        guard !safeRootName.isEmpty, safeRootName != ".", safeRootName != "..",
+              !safeRootName.contains("/") else {
+            throw FTPFailure.response("اسم المجلد غير صالح.")
+        }
+
+        try await client.makeDirectory(safeRootName, path: remoteParentPath)
+        let remoteRoot = Self.joinRemotePath(remoteParentPath, safeRootName)
+        guard let enumerator = fm.enumerator(
+            at: localRoot,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: []
+        ) else {
+            throw FTPFailure.response("تعذر قراءة محتويات المجلد المحلي.")
+        }
+
+        var entries: [(url: URL, components: [String], isDirectory: Bool)] = []
+        let localPrefix = localRoot.standardizedFileURL.path + "/"
+        var visited = 0
+        for case let item as URL in enumerator {
+            visited += 1
+            guard visited <= 100_000 else {
+                throw FTPFailure.response("المجلد يحتوي عدداً كبيراً جداً من العناصر.")
+            }
+            let standardized = item.standardizedFileURL.path
+            guard standardized.hasPrefix(localPrefix) else {
+                throw FTPFailure.response("تم رفض مسار عنصر خارج المجلد المحدد.")
+            }
+            let relative = String(standardized.dropFirst(localPrefix.count))
+            let components = relative.split(separator: "/").map(String.init)
+            guard !components.isEmpty,
+                  !components.contains(".."),
+                  !components.contains("."),
+                  components.allSatisfy({ !$0.isEmpty && !$0.contains("\\") }) else {
+                throw FTPFailure.response("يحتوي المجلد على مسار غير صالح.")
+            }
+
+            let values = try item.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            if values.isSymbolicLink == true { continue }
+            entries.append((item, components, values.isDirectory == true))
+        }
+
+        entries.sort {
+            if $0.components.count != $1.components.count {
+                return $0.components.count < $1.components.count
+            }
+            if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
+            return $0.components.joined(separator: "/") < $1.components.joined(separator: "/")
+        }
+
+        var fileCount = 0
+        var folderCount = 1
+        for entry in entries {
+            let name = entry.components[entry.components.count - 1]
+            let parentRelative = entry.components.dropLast().joined(separator: "/")
+            let remoteParent = parentRelative.isEmpty
+                ? remoteRoot
+                : Self.joinRemotePath(remoteRoot, parentRelative)
+
+            if entry.isDirectory {
+                try await client.makeDirectory(name, path: remoteParent)
+                folderCount += 1
+            } else {
+                try await client.upload(fileURL: entry.url, remoteName: name, path: remoteParent)
+                fileCount += 1
+            }
+        }
+        return (fileCount, folderCount)
+    }
+
+    private static func joinRemotePath(_ base: String, _ component: String) -> String {
+        let cleanBase = base.isEmpty ? "/" : base
+        let cleanComponent = component.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !cleanComponent.isEmpty else { return cleanBase }
+        return cleanBase == "/" ? "/" + cleanComponent : cleanBase + "/" + cleanComponent
     }
 
     func download(_ name: String) {
@@ -238,7 +342,7 @@ struct FTPBrowserView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingUpload) {
             INRPFDocumentPickerPresenter(
-                contentTypes: [.item],
+                contentTypes: [.item, .folder],
                 onCompletion: { result in
                     switch result {
                     case .success(let urls):
