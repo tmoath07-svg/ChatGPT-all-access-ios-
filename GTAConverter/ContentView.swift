@@ -170,6 +170,14 @@ struct ContentView: View {
                 processSource(from: initialSourceURL)
             }
         }
+        // Supports Files > Share/Open In > INRPF for registered document types.
+        .onOpenURL { url in
+            guard url.isFileURL else {
+                fail("المصدر الوارد ليس ملفاً محلياً قابلاً للاستيراد.")
+                return
+            }
+            handleImport(.success([url]))
+        }
         .fullScreenCover(isPresented: $showOnboarding) {
             GTAOnboardingView { onboardingComplete = true; showOnboarding = false }
         }
