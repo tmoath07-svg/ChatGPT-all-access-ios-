@@ -2,7 +2,7 @@ name: Build INRPF IPA
 
 on:
   push:
-    branches: [main, fix/import-drop-redesign, feature/local-engine-ios]
+    branches: [main, fix/import-drop-redesign, feature/local-engine-ios, feature/import-ftp-folder-fix]
   workflow_dispatch:
 
 permissions:
