@@ -130,22 +130,53 @@ fn inspect_ytd(path: &Path) -> Value {
     result.unwrap_or_else(|e| json!({"file":path.display().to_string(),"parse":"failed","error":e}))
 }
 
+fn export_ytd_dds(path: &Path, output: &Path) -> Result<Value, String> {
+    let bytes = fs::read(path).map_err(|e| format!("read YTD for DDS export: {e}"))?;
+    let textures = rage_formats::parse_ytd(&bytes).map_err(|e| format!("parse YTD for DDS export: {e:#}"))?;
+    fs::create_dir_all(output).map_err(|e| format!("create DDS output: {e}"))?;
+    let mut files = Vec::new();
+    let mut names = std::collections::HashSet::new();
+    for (index, texture) in textures.iter().enumerate() {
+        let dds = texture.to_dds();
+        if dds.len() < 128 || !dds.starts_with(b"DDS ") {
+            return Err(format!("Texture {} produced an invalid DDS header", texture.name));
+        }
+        let mut stem: String = texture.name.chars()
+            .map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' { ch } else { '_' })
+            .collect();
+        if stem.is_empty() { stem = format!("texture_{index}"); }
+        if stem.len() > 70 { stem.truncate(70); }
+        let mut filename = format!("{stem}.dds");
+        if !names.insert(filename.to_ascii_lowercase()) {
+            filename = format!("{stem}_{index}.dds");
+            names.insert(filename.to_ascii_lowercase());
+        }
+        fs::write(output.join(&filename), &dds).map_err(|e| format!("write DDS {filename}: {e}"))?;
+        files.push(json!({"name":filename,"bytes":dds.len(),"source_name":texture.name,
+            "width":texture.width,"height":texture.height,"format":texture.format.to_string()}));
+    }
+    Ok(json!({"ok":true,"source_ytd":path.display().to_string(),"texture_count":textures.len(),
+        "exported_dds":files.len(),"output":output.display().to_string(),"files":files}))
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 6 {
-        eprintln!("usage: inspect_reference <camry-dlc.rpf> <rpf-output-dir> <camry.yft> <camry.ytd> <report.json>");
+    if args.len() != 7 {
+        eprintln!("usage: inspect_reference <camry-dlc.rpf> <rpf-output-dir> <camry.yft> <camry.ytd> <dds-output-dir> <report.json>");
         std::process::exit(2);
     }
     let rpf = PathBuf::from(&args[1]);
     let extracted = PathBuf::from(&args[2]);
     let yft = PathBuf::from(&args[3]);
     let ytd = PathBuf::from(&args[4]);
-    let report_path = PathBuf::from(&args[5]);
+    let dds_output = PathBuf::from(&args[5]);
+    let report_path = PathBuf::from(&args[6]);
     let rpf_report = inspect_rpf(&rpf, &extracted).unwrap_or_else(|e| json!({"parse":"failed","error":e}));
     let report = json!({
         "camry_converted_rpf": rpf_report,
         "camry_original_yft": inspect_yft(&yft),
         "camry_original_ytd": inspect_ytd(&ytd),
+        "camry_ytd_dds_export": export_ytd_dds(&ytd, &dds_output).unwrap_or_else(|e| json!({"ok":false,"error":e})),
         "interpretation": "Container parse success is not proof of PS4 game compatibility. Compare extracted resource extensions and parse results."
     });
     if let Some(parent) = report_path.parent() { let _ = fs::create_dir_all(parent); }
