@@ -1209,6 +1209,120 @@ private struct AppFilesView: View {
     }
 }
 
+private struct AppIconPickerView: View {
+    let language: String
+    let tint: Color
+    @State private var currentIcon = UIApplication.shared.alternateIconName
+    @State private var isChanging = false
+    @State private var message = ""
+
+    private struct IconChoice: Identifiable {
+        let id: String
+        let titleAR: String
+        let titleEN: String
+        let subtitleAR: String
+        let subtitleEN: String
+        let symbol: String
+        let colors: [Color]
+    }
+
+    private let choices: [IconChoice] = [
+        .init(id: "primary", titleAR: "INRPF الجديد", titleEN: "INRPF Purple", subtitleAR: "الهوية البنفسجية الأساسية", subtitleEN: "Main purple identity", symbol: "car.side.fill", colors: [Color(red: 0.30, green: 0.08, blue: 0.68), Color(red: 0.05, green: 0.03, blue: 0.13)]),
+        .init(id: "AppIcon-Classic", titleAR: "الكلاسيكي القديم", titleEN: "Classic GTA", subtitleAR: "التصميم السابق", subtitleEN: "Previous design", symbol: "road.lanes.curved.left", colors: [Color(red: 0.10, green: 0.10, blue: 0.13), Color(red: 0.55, green: 0.08, blue: 0.12)]),
+        .init(id: "AppIcon-Cyber", titleAR: "سايبر أزرق", titleEN: "Cyber Blue", subtitleAR: "أزرق نيون وتقني", subtitleEN: "Neon blue tech style", symbol: "bolt.fill", colors: [Color(red: 0.02, green: 0.42, blue: 0.72), Color(red: 0.02, green: 0.05, blue: 0.16)]),
+        .init(id: "AppIcon-Carbon", titleAR: "كربون", titleEN: "Carbon", subtitleAR: "أسود ورمادي هادئ", subtitleEN: "Minimal graphite", symbol: "square.stack.3d.up.fill", colors: [Color(red: 0.26, green: 0.29, blue: 0.34), Color.black]),
+        .init(id: "AppIcon-Gold", titleAR: "ذهبي", titleEN: "Gold Edition", subtitleAR: "أسود مع لمسات ذهبية", subtitleEN: "Black with gold accents", symbol: "crown.fill", colors: [Color(red: 0.62, green: 0.39, blue: 0.05), Color(red: 0.07, green: 0.05, blue: 0.02)])
+    ]
+
+    private var isArabic: Bool { language == "ar" }
+    private func isSelected(_ choice: IconChoice) -> Bool {
+        choice.id == "primary" ? currentIcon == nil : currentIcon == choice.id
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Text(isArabic ? "اختر شكل الأيقونة التي تظهر على الشاشة الرئيسية" : "Choose the icon shown on your Home Screen")
+                .font(.caption).foregroundStyle(.white.opacity(0.62))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                ForEach(choices) { choice in
+                    Button { apply(choice) } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 18)
+                                    .fill(LinearGradient(colors: choice.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                                RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.17), lineWidth: 1)
+                                Image(systemName: choice.symbol)
+                                    .font(.system(size: 29, weight: .bold))
+                                    .foregroundStyle(.white)
+                                VStack {
+                                    HStack {
+                                        Spacer()
+                                        if isSelected(choice) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.title3).foregroundStyle(.white)
+                                                .background(Circle().fill(.black.opacity(0.35)))
+                                        }
+                                    }
+                                    Spacer()
+                                    HStack {
+                                        Text("INRPF").font(.system(size: 9, weight: .black, design: .rounded)).tracking(1.4)
+                                        Spacer()
+                                    }.foregroundStyle(.white.opacity(0.8))
+                                }.padding(9)
+                            }
+                            .frame(height: 92)
+                            Text(isArabic ? choice.titleAR : choice.titleEN)
+                                .font(.subheadline.weight(.bold)).foregroundStyle(.white)
+                                .lineLimit(1)
+                            Text(isArabic ? choice.subtitleAR : choice.subtitleEN)
+                                .font(.caption2).foregroundStyle(.white.opacity(0.55))
+                                .lineLimit(2)
+                        }
+                        .padding(9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(isSelected(choice) ? tint.opacity(0.2) : .white.opacity(0.045))
+                        .clipShape(RoundedRectangle(cornerRadius: 17))
+                        .overlay(RoundedRectangle(cornerRadius: 17).stroke(isSelected(choice) ? tint : .white.opacity(0.08), lineWidth: isSelected(choice) ? 1.5 : 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isChanging || isSelected(choice) || !UIApplication.shared.supportsAlternateIcons)
+                }
+            }
+            if isChanging {
+                HStack(spacing: 8) { ProgressView().tint(tint); Text(isArabic ? "يتم تغيير الأيقونة..." : "Changing icon...").font(.caption) }
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            if !message.isEmpty {
+                Text(message).font(.caption).foregroundStyle(.orange).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Text(isArabic ? "iOS قد يعرض تنبيه تأكيد عند تغيير الأيقونة." : "iOS may show a confirmation alert when the icon changes.")
+                .font(.caption2).foregroundStyle(.white.opacity(0.48))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func apply(_ choice: IconChoice) {
+        guard UIApplication.shared.supportsAlternateIcons else {
+            message = isArabic ? "تغيير الأيقونات غير مدعوم في هذا الإصدار." : "Alternate icons are not supported."
+            return
+        }
+        isChanging = true
+        message = ""
+        let target: String? = choice.id == "primary" ? nil : choice.id
+        UIApplication.shared.setAlternateIconName(target) { error in
+            DispatchQueue.main.async {
+                isChanging = false
+                if let error {
+                    message = error.localizedDescription
+                } else {
+                    currentIcon = target
+                }
+            }
+        }
+    }
+}
+
 private struct AppSettingsView: View {
     @AppStorage("gta_show_hidden_files") private var showHiddenFiles = false
     @AppStorage("gta_language") private var language = "ar"
@@ -1243,6 +1357,9 @@ private struct AppSettingsView: View {
                             Text("العربية").tag("ar")
                             Text("English").tag("en")
                         }.pickerStyle(.segmented)
+                    }
+                    group(language == "ar" ? "أيقونة التطبيق" : "App icon", icon: "app.fill") {
+                        AppIconPickerView(language: language, tint: tint)
                     }
                     group(language == "ar" ? "التصميم" : "Appearance", icon: "paintpalette.fill") {
                         Text(language == "ar" ? "لون الواجهة" : "Accent color").font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
