@@ -2,7 +2,7 @@ name: Build INRPF IPA
 
 on:
   push:
-    branches: [main, fix/import-drop-redesign, feature/local-engine-ios, feature/import-ftp-folder-fix]
+    branches: [main, fix/import-drop-redesign, feature/local-engine-ios, feature/import-ftp-folder-fix, merge/inrpf-rpf-studio]
   workflow_dispatch:
 
 permissions:
@@ -18,6 +18,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download Python for iOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vendor/python
+          curl -fL --retry 3 \
+            https://github.com/beeware/Python-Apple-support/releases/download/3.14-b10/Python-3.14-iOS-support.b10.tar.gz \
+            -o /tmp/python-ios.tar.gz
+          tar -xzf /tmp/python-ios.tar.gz -C vendor/python
+          XCFRAMEWORK="$(find vendor/python -type d -name Python.xcframework -print -quit)"
+          test -n "$XCFRAMEWORK"
+          ditto "$XCFRAMEWORK" vendor/Python.xcframework
+          DEVICE_SLICE="$(find vendor/Python.xcframework -mindepth 1 -maxdepth 1 -type d -name 'ios-arm64' -print -quit)"
+          test -n "$DEVICE_SLICE"
+          ditto "$DEVICE_SLICE" vendor/Python-ios-slice
+          test -d vendor/Python.xcframework
+          test -d vendor/Python-ios-slice/lib-arm64
+
 
       - name: Generate app icon
         run: |
@@ -139,6 +158,9 @@ jobs:
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/INRPF.app"
           test -d "$APP_PATH"
           test -f "$APP_PATH/Info.plist"
+          test -d "$APP_PATH/Frameworks/Python.framework"
+          test -d "$APP_PATH/python"
+          test -f "$APP_PATH/engine/rpf_inspect.py"
 
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
@@ -200,7 +222,7 @@ jobs:
           2) استخرج ملف INRPF-5.22-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
-          يتضمن هذا الإصدار محركاً محلياً لموارد المركبات، وفاحص RPF يعرض بيانات META الخاصة بالمركبات فقط، وتحليلاً وتحويلاً بنيوياً للموارد المدعومة، واستخراج وبناء قواميس YTD بصيغتها المدعومة. لا يتضمن استخراجاً عاماً لأرشيف RPF.
+          يتضمن هذا الإصدار جميع وظائف INRPF السابقة، إضافة إلى RPF Studio المدمج مع Python 3.14 وفاحص RPF الأولي (الحجم، SHA256، والترويسة). الفاحص لا يدّعي استخراجاً عاماً أو إعادة بناء لأرشيف RPF.
           تنبيه: هذا لا يعني أن OTD أو DLC الناتج متوافق مع PS4 حتى تكتمل اختبارات الموارد.
           EOF
           echo "IPA package: valid"
