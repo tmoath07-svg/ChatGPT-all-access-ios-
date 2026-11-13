@@ -1306,7 +1306,8 @@ private struct HomeMenuCustomizationView: View {
                             Text("قائمة").tag("list")
                         }.pickerStyle(.segmented).tint(.purple)
                     }.padding(15).background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 15))
-                    ForEach(Array(order.enumerated()), id: \.element) { index, id in
+                    ForEach(order.indices, id: \.self) { index in
+                        let id = order[index]
                         HStack(spacing: 10) {
                             Text(labels.first(where: { $0.0 == id })?.1 ?? id)
                                 .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
@@ -1335,7 +1336,8 @@ private struct HomeMenuCustomizationView: View {
         .onAppear {
             let saved = storedOrder.split(separator: ",").map(String.init)
             if !saved.isEmpty {
-                let valid = saved.filter { labels.contains(where: { $0.0 == $0 }) }
+                let validIDs = Set(labels.map { $0.0 })
+                let valid = saved.filter { validIDs.contains($0) }
                 if !valid.isEmpty { order = valid + labels.map(\.0).filter { !valid.contains($0) } }
             }
         }
