@@ -208,14 +208,14 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends wine64
+          sudo apt-get install -y --no-install-recommends wine
           ZOKII_ROOT="rpf-reference-audit/extracted/zokii/Zokii Studio (5)/assets/oldtool"
           RPF_BUILDER="$ZOKII_ROOT/RPFBuilder"
           mkdir -p "$RPF_BUILDER/texture_input"
           cp rpf-reference-audit/camry-ytd-dds/*.dds "$RPF_BUILDER/texture_input/"
           export WINEPREFIX="$RUNNER_TEMP/inrpf-wine"
           export WINEDEBUG=-all
-          wineboot --init || true
+          wine --version
           python3 "$RPF_BUILDER/build_otd.py"
           OTD="$RPF_BUILDER/texture.otd"
           test -s "$OTD"
