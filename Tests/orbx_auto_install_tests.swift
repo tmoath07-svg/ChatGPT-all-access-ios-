@@ -16,8 +16,26 @@ struct OrbxAutoInstallTests {
             .appendingPathComponent("rpf", isDirectory: true)
             .appendingPathComponent("dlc_addon", isDirectory: true)
         try FileManager.default.createDirectory(at: addon, withIntermediateDirectories: true)
+
+        // Validate the resolver by filesystem identity, not URL string formatting.
+        // Foundation may represent directory URLs with different trailing-slash forms.
         let resolvedAddon = try INRPFOrbxAutoInstallPlanner.addonFolder(in: packageRoot)
-        precondition(resolvedAddon.path == addon.path, "Canonical Data folder resolution failed")
+        let expectedPath = addon.standardizedFileURL.resolvingSymlinksInPath().path
+        let actualPath = resolvedAddon.standardizedFileURL.resolvingSymlinksInPath().path
+        guard expectedPath == actualPath else {
+            let entries = (try? FileManager.default.contentsOfDirectory(atPath: packageRoot.path)) ?? []
+            fputs("""
+            AUTO canonical Data path mismatch
+            packageRoot: \(packageRoot.path)
+            children: \(entries)
+            expected: \(expectedPath)
+            resolved: \(actualPath)
+            \\(\n)
+            """, stderr)
+            throw NSError(domain: "OrbxAutoInstallTests", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Canonical Data folder resolution failed"])
+        }
+
         let alpha = addon.appendingPathComponent("alpha_pack", isDirectory: true)
         let beta = addon.appendingPathComponent("car_2026", isDirectory: true)
         let optima = addon.appendingPathComponent("optima", isDirectory: true)
@@ -67,7 +85,8 @@ struct OrbxAutoInstallTests {
             .appendingPathComponent("dlc_addon", isDirectory: true)
         try FileManager.default.createDirectory(at: legacyData, withIntermediateDirectories: true)
         let resolvedLegacyAddon = try INRPFOrbxAutoInstallPlanner.addonFolder(in: legacyRoot)
-        precondition(resolvedLegacyAddon.path == legacyData.path,
+        precondition(resolvedLegacyAddon.standardizedFileURL.resolvingSymlinksInPath().path ==
+                     legacyData.standardizedFileURL.resolvingSymlinksInPath().path,
                      "Legacy lower-case data folder was not resolved")
 
         let gtaRoot = root.appendingPathComponent("Data/orbx/gta", isDirectory: true)
