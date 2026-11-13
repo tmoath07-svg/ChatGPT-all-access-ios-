@@ -27,15 +27,8 @@ enum FileImportService {
         defer {
             if access { source.stopAccessingSecurityScopedResource() }
         }
-        // Resolve symlinks before comparing paths. iOS may expose the same
-        // app-container location through /var or /private/var depending on provider.
-        let sourcePath = source.standardizedFileURL.resolvingSymlinksInPath().path
-        let sandboxPath = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-            .standardizedFileURL.resolvingSymlinksInPath().path
-        let isInsideAppSandbox = sourcePath == sandboxPath || sourcePath.hasPrefix(sandboxPath + "/")
-        // A false security-scope result does not always mean access is denied:
-        // some provider URLs are already readable without a scoped grant.
-        // Let coordinated file access determine whether the copy is actually allowed.
+        // Use coordinated reads for provider-backed URLs; the picker is opened in place
+        // so folder providers do not need to stage a second temporary copy first.
 
         let documents = try fm.url(for: .documentDirectory, in: .userDomainMask,
                                    appropriateFor: nil, create: true)
@@ -127,7 +120,7 @@ struct INRPFDocumentPickerPresenter: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let picker = UIDocumentPickerViewController(
             forOpeningContentTypes: contentTypes,
-            asCopy: true
+            asCopy: false
         )
         picker.delegate = context.coordinator
         picker.allowsMultipleSelection = false
