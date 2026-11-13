@@ -195,7 +195,13 @@ jobs:
           YTD="$(find rpf-reference-audit/extracted/camry_4 -type f -name 'camry98.ytd' -print -quit)"
           test -n "$RPF" && test -n "$YFT" && test -n "$YTD"
           mkdir -p rpf-reference-audit/camry-rpf-extracted
-          cargo run --manifest-path LocalEngine/Cargo.toml --example inspect_reference --             "$RPF"             rpf-reference-audit/camry-rpf-extracted             "$YFT"             "$YTD"             rpf-reference-audit/camry-engine-validation.json
+          cargo run --manifest-path LocalEngine/Cargo.toml --example inspect_reference -- \
+            "$RPF" \
+            rpf-reference-audit/camry-rpf-extracted \
+            "$YFT" \
+            "$YTD" \
+            rpf-reference-audit/camry-ytd-dds \
+            rpf-reference-audit/camry-engine-validation.json
 
       - name: Build a real Orbis OTD from the Camry YTD using Zokii RageBuilder
         shell: bash
