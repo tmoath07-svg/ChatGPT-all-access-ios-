@@ -7,7 +7,11 @@ struct OrbxAutoInstallTests {
             .appendingPathComponent("inrpf-auto-fixture-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let addon = root.appendingPathComponent("Data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+        let packageRoot = root.appendingPathComponent("PS4-Orbx-Fixture", isDirectory: true)
+        try FileManager.default.createDirectory(at: packageRoot, withIntermediateDirectories: true)
+        let addon = packageRoot.appendingPathComponent("Data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+        let resolvedAddon = try INRPFOrbxAutoInstallPlanner.addonFolder(in: packageRoot)
+        precondition(resolvedAddon.path == addon.path, "Canonical Data folder resolution failed")
         let alpha = addon.appendingPathComponent("alpha_pack", isDirectory: true)
         let beta = addon.appendingPathComponent("car_2026", isDirectory: true)
         let optima = addon.appendingPathComponent("optima", isDirectory: true)
@@ -47,6 +51,13 @@ struct OrbxAutoInstallTests {
         precondition(names == ["alpha_pack", "car_2026", "optima", "Rbtitt"].sorted(), "DLC folder discovery did not return expected names")
         precondition(INRPFOrbxAutoInstallPlanner.remoteAddon == "/Data/orbx/gta/rpf/dlc_addon", "Incorrect PS4 addon path")
         precondition(INRPFOrbxAutoInstallPlanner.remoteDLClistDirectory == "/Data/orbx/gta", "Incorrect PS4 dlclist path")
+
+        let legacyRoot = root.appendingPathComponent("PS4-Orbx-Legacy", isDirectory: true)
+        let legacyData = legacyRoot.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+        try FileManager.default.createDirectory(at: legacyData, withIntermediateDirectories: true)
+        let resolvedLegacyAddon = try INRPFOrbxAutoInstallPlanner.addonFolder(in: legacyRoot)
+        precondition(resolvedLegacyAddon.path == legacyData.path,
+                     "Legacy lower-case data folder was not resolved")
 
         let gtaRoot = root.appendingPathComponent("Data/orbx/gta", isDirectory: true)
         try FileManager.default.createDirectory(at: gtaRoot, withIntermediateDirectories: true)

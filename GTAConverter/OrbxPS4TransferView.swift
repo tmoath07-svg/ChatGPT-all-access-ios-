@@ -175,7 +175,14 @@ struct OrbxPS4TransferView: View {
             isError = true
             return
         }
-        let addon = package.appendingPathComponent("Data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+        let addon: URL
+        do {
+            addon = try INRPFOrbxAutoInstallPlanner.addonFolder(in: package)
+        } catch {
+            status = "تعذر العثور على Data/orbx/gta/rpf/dlc_addon داخل الحزمة. أعد تجهيز الحزمة."
+            isError = true
+            return
+        }
         let names: [String]
         do {
             names = try INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)
@@ -280,7 +287,17 @@ struct OrbxPS4TransferView: View {
                             _ = try LocalEngineBridge.ftpUpload(host: base, port: portValue, username: user,
                                 password: pass, path: remoteParent, name: file.lastPathComponent, localFile: file)
                             count += 1
+                            await MainActor.run { uploadedFiles = count }
                         }
+                    }
+
+                    let remoteFiles = try LocalEngineBridge.ftpList(host: base, port: portValue,
+                        username: user, password: pass, path: remotePack)["entries"] as? [[String: Any]] ?? []
+                    guard remoteFiles.contains(where: {
+                        ($0["name"] as? String)?.caseInsensitiveCompare("dlc.rpf") == .orderedSame
+                    }) else {
+                        throw NSError(domain: "INRPF.Transfer", code: 9,
+                            userInfo: [NSLocalizedDescriptionKey: "لم يتم التحقق من رفع dlc.rpf للحزمة: \(name)"])
                     }
                 }
 
@@ -307,7 +324,7 @@ struct OrbxPS4TransferView: View {
                 }
             } catch {
                 await MainActor.run {
-                    status = "توقف تركيب Auto: \(error.localizedDescription)"
+                    status = "توقف تركيب Auto بعد رفع \(uploadedFiles) ملف: \(error.localizedDescription)"
                     isBusy = false
                     isError = true
                 }
@@ -357,7 +374,15 @@ struct OrbxPS4TransferView: View {
 
     private func loadSelectedPackageNames() {
         guard let selectedPackageURL else { packNames = []; return }
-        let addon = selectedPackageURL.appendingPathComponent("Data/orbx/gta/rpf/dlc_addon", isDirectory: true)
-        packNames = (try? INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)) ?? []
+        do {
+            let addon = try INRPFOrbxAutoInstallPlanner.addonFolder(in: selectedPackageURL)
+            packNames = try INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)
+            status = "تم اكتشاف \(packNames.count) حزمة جاهزة داخل مجلد Data."
+            isError = false
+        } catch {
+            packNames = []
+            status = "تعذر قراءة الحزم من الحزمة المختارة: \(error.localizedDescription)"
+            isError = true
+        }
     }
 }

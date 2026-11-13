@@ -28,6 +28,26 @@ enum INRPFOrbxAutoInstallPlanner {
     static let remoteAddon = remoteRoot + "/dlc_addon"
     static let remoteDLClistDirectory = "/Data/orbx/gta"
 
+    /// Resolve the generated add-on folder without assuming filesystem case.
+    /// New packages use canonical "Data"; legacy "data" packages remain readable.
+    static func addonFolder(in packageURL: URL) throws -> URL {
+        let children = try FileManager.default.contentsOfDirectory(
+            at: packageURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]
+        )
+        let matches = children.filter {
+            $0.lastPathComponent.caseInsensitiveCompare("Data") == .orderedSame &&
+            ((try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true)
+        }
+        guard matches.count == 1, let dataRoot = matches.first else {
+            throw PlanError.missingAddonFolder
+        }
+        let addon = dataRoot.appendingPathComponent("orbx/gta/rpf/dlc_addon", isDirectory: true)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: addon.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else { throw PlanError.missingAddonFolder }
+        return addon
+    }
+
     /// Removes exactly one redundant same-name wrapper folder, without flattening valid DLC subfolders.
     static func packageContentRoot(for packageFolder: URL) throws -> URL {
         let children = try FileManager.default.contentsOfDirectory(
