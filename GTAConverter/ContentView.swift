@@ -30,6 +30,7 @@ struct ContentView: View {
     @AppStorage("gta_language") private var appLanguage = "ar"
     @AppStorage("gta_welcome_message") private var welcomeMessage = "حيّاك في INRPF"
     @AppStorage("gta_background_color") private var backgroundStyle = "midnight"
+    @AppStorage("inrpf_theme_id") private var themeID = "purple-night"
     @AppStorage("inrpf_home_menu_order") private var homeMenuOrder = ""
     @AppStorage("inrpf_home_menu_style") private var homeMenuStyle = "pill"
     @AppStorage("inrpf_home_menu_position") private var homeMenuPosition = "top"
@@ -85,39 +86,12 @@ struct ContentView: View {
             ZStack {
                 GTAAppBackground()
                 ScrollView {
-                    VStack(spacing: homeDensity == "compact" ? 10 : 16) {
-                        header.gtaScrollGlassMotion(motionEnabled)
-                        readyModQuestionCard.gtaScrollGlassMotion(motionEnabled)
-                        if homeMenuPosition == "top" { topMenu.gtaScrollGlassMotion(motionEnabled) }
-                        conversionCard.gtaScrollGlassMotion(motionEnabled)
-                        if homeMenuPosition == "afterConversion" { topMenu.gtaScrollGlassMotion(motionEnabled) }
-                        importCard.gtaScrollGlassMotion(motionEnabled)
-                        if homeMenuPosition == "afterImport" { topMenu.gtaScrollGlassMotion(motionEnabled) }
-                        directLinkCard.gtaScrollGlassMotion(motionEnabled)
-                        packCard.gtaScrollGlassMotion(motionEnabled)
-                        actionButtons.gtaScrollGlassMotion(motionEnabled)
-                        if let outputFolder { outputCard(outputFolder) }
-                        if let modAnalysis { modAnalysisCard(modAnalysis) }
-                        if let outputFolder, let modAnalysis,
-                           !modAnalysis.dlcFiles.isEmpty, !modAnalysis.packNames.isEmpty {
-                            NavigationLink(destination: DLCPS4PreparationView(
-                                root: outputFolder,
-                                dlcFiles: modAnalysis.dlcFiles,
-                                packNames: modAnalysis.packNames
-                            )) {
-                                Label("تجهيز وإرسال المود إلى PS4 عبر Orbx", systemImage: "gamecontroller.fill")
-                                    .font(.headline.bold())
-                                    .frame(maxWidth: .infinity)
-                                    .padding(15)
-                                    .background(purple.opacity(0.86))
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                                    .foregroundStyle(.white)
-                            }
-                            .buttonStyle(.plain)
+                    VStack(spacing: homeDensity == "compact" ? 8 : 13) {
+                        ForEach(themeLayoutOrder, id: \.self) { section in
+                            homeSection(section)
+                                .gtaScrollGlassMotion(motionEnabled)
+                                .modifier(INRPFThemeSurface(themeIndex: activeThemeIndex, tint: purple))
                         }
-                        if let generatedURL { xmlShareCard(generatedURL) }
-                        statusCard
-                        footer
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
@@ -193,6 +167,43 @@ struct ContentView: View {
         }
     }
 
+    private var themeIDs: [String] {
+        ["purple-night","blue-ocean","emerald","sunset","ruby","cyber-cyan","pink-neon","teal-matrix","gold-lux","crimson","ice-storm","lime-dark","royal-violet","blue-carbon","green-midnight","orange-black","pink-graphite","cyan-midnight","gold-navy","red-carbon"]
+    }
+    private var activeThemeIndex: Int { themeIDs.firstIndex(of: themeID) ?? 0 }
+    private var themeLayoutOrder: [String] {
+        let sections = ["header","ready","conversion","import","link","packs","actions","output","analysis","orbx","xml","status","menu","footer"]
+        let index = activeThemeIndex
+        let arranged = index >= 14 ? Array(sections.reversed()) : sections
+        let offset = index % sections.count
+        return Array(arranged[offset...] + arranged[..<offset])
+    }
+    @ViewBuilder private func homeSection(_ key: String) -> some View {
+        switch key {
+        case "header": header
+        case "ready": readyModQuestionCard
+        case "conversion": conversionCard
+        case "import": importCard
+        case "link": directLinkCard
+        case "packs": packCard
+        case "actions": actionButtons
+        case "output": if let outputFolder { outputCard(outputFolder) } else { EmptyView() }
+        case "analysis": if let modAnalysis { modAnalysisCard(modAnalysis) } else { EmptyView() }
+        case "orbx":
+            if let outputFolder, let modAnalysis, !modAnalysis.dlcFiles.isEmpty, !modAnalysis.packNames.isEmpty {
+                NavigationLink(destination: DLCPS4PreparationView(root: outputFolder, dlcFiles: modAnalysis.dlcFiles, packNames: modAnalysis.packNames)) {
+                    Label("تجهيز وإرسال المود إلى PS4 عبر Orbx", systemImage: "gamecontroller.fill")
+                        .font(.headline.bold()).frame(maxWidth: .infinity).padding(15)
+                        .background(purple.opacity(0.86)).clipShape(RoundedRectangle(cornerRadius: 14)).foregroundStyle(.white)
+                }.buttonStyle(.plain)
+            } else { EmptyView() }
+        case "xml": if let generatedURL { xmlShareCard(generatedURL) } else { EmptyView() }
+        case "status": statusCard
+        case "menu": topMenu
+        default: footer
+        }
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center) {
@@ -205,6 +216,7 @@ struct ContentView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 19).fill(LinearGradient(colors: [purple, Color(red: 0.34, green: 0.16, blue: 0.72)], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 58, height: 58)
                     Image(systemName: "car.side.fill").font(.system(size: 27, weight: .bold)).foregroundStyle(.white)
+                        .symbolEffect(.pulse, options: .repeating, isActive: motionEnabled && ["cyber-cyan","pink-neon","teal-matrix","ice-storm","cyan-midnight"].contains(themeID))
                 }
             }
             HStack(spacing: 8) { featureTag("ZIP"); featureTag("RAR"); featureTag("مجلدات"); Spacer();
@@ -1335,91 +1347,104 @@ private struct INRPFThemePickerView: View {
     let language: String
     @AppStorage("gta_accent_color") private var accent = "purple"
     @AppStorage("gta_background_color") private var background = "midnight"
-
+    @AppStorage("inrpf_theme_id") private var themeID = "purple-night"
     private struct Theme: Identifiable {
-        let id: String
-        let ar: String
-        let en: String
-        let accent: String
-        let background: String
+        let id, ar, en, accent, background, layout: String
         let colors: [Color]
+        let animated: Bool
     }
-
     private let themes: [Theme] = [
-        .init(id:"purple-night",ar:"بنفسجي ليلي",en:"Purple Night",accent:"purple",background:"midnight",colors:[Color(red:0.57,green:0.30,blue:0.98),Color(red:0.035,green:0.025,blue:0.065)]),
-        .init(id:"blue-ocean",ar:"محيط أزرق",en:"Ocean Blue",accent:"blue",background:"navy",colors:[.blue,Color(red:0.015,green:0.045,blue:0.12)]),
-        .init(id:"emerald",ar:"زمردي",en:"Emerald",accent:"green",background:"black",colors:[.green,.black]),
-        .init(id:"sunset",ar:"غروب",en:"Sunset",accent:"orange",background:"graphite",colors:[.orange,Color(red:0.075,green:0.08,blue:0.11)]),
-        .init(id:"ruby",ar:"ياقوتي",en:"Ruby",accent:"red",background:"black",colors:[.red,.black]),
-        .init(id:"cyber-cyan",ar:"سايبر سماوي",en:"Cyber Cyan",accent:"cyan",background:"navy",colors:[Color.cyan,Color(red:0.015,green:0.045,blue:0.12)]),
-        .init(id:"pink-neon",ar:"نيون وردي",en:"Pink Neon",accent:"pink",background:"black",colors:[.pink,.black]),
-        .init(id:"teal-matrix",ar:"تيال ماتريكس",en:"Teal Matrix",accent:"teal",background:"graphite",colors:[.teal,Color(red:0.075,green:0.08,blue:0.11)]),
-        .init(id:"gold-lux",ar:"ذهبي فاخر",en:"Gold Luxe",accent:"gold",background:"black",colors:[Color(red:0.91,green:0.67,blue:0.18),.black]),
-        .init(id:"crimson",ar:"قرمزي",en:"Crimson",accent:"crimson",background:"midnight",colors:[Color(red:0.78,green:0.10,blue:0.22),Color(red:0.035,green:0.025,blue:0.065)]),
-        .init(id:"ice-storm",ar:"جليدي",en:"Ice Storm",accent:"ice",background:"navy",colors:[Color(red:0.55,green:0.78,blue:1.0),Color(red:0.015,green:0.045,blue:0.12)]),
-        .init(id:"lime-dark",ar:"ليموني داكن",en:"Lime Dark",accent:"lime",background:"black",colors:[Color(red:0.58,green:0.82,blue:0.20),.black]),
-        .init(id:"royal-violet",ar:"بنفسجي ملكي",en:"Royal Violet",accent:"violet",background:"graphite",colors:[Color(red:0.42,green:0.20,blue:0.85),Color(red:0.075,green:0.08,blue:0.11)]),
-        .init(id:"blue-carbon",ar:"كربون أزرق",en:"Blue Carbon",accent:"blue",background:"graphite",colors:[.blue,Color(red:0.075,green:0.08,blue:0.11)]),
-        .init(id:"green-midnight",ar:"أخضر منتصف الليل",en:"Midnight Green",accent:"green",background:"midnight",colors:[.green,Color(red:0.035,green:0.025,blue:0.065)]),
-        .init(id:"orange-black",ar:"برتقالي وأسود",en:"Orange Black",accent:"orange",background:"black",colors:[.orange,.black]),
-        .init(id:"pink-graphite",ar:"وردي فحمي",en:"Pink Graphite",accent:"pink",background:"graphite",colors:[.pink,Color(red:0.075,green:0.08,blue:0.11)]),
-        .init(id:"cyan-midnight",ar:"سماوي ليلي",en:"Cyan Midnight",accent:"cyan",background:"midnight",colors:[.cyan,Color(red:0.035,green:0.025,blue:0.065)]),
-        .init(id:"gold-navy",ar:"ذهبي وكحلي",en:"Gold Navy",accent:"gold",background:"navy",colors:[Color(red:0.91,green:0.67,blue:0.18),Color(red:0.015,green:0.045,blue:0.12)]),
-        .init(id:"red-carbon",ar:"أحمر كربوني",en:"Red Carbon",accent:"crimson",background:"graphite",colors:[Color(red:0.78,green:0.10,blue:0.22),Color(red:0.075,green:0.08,blue:0.11)])
+        .init(id:"purple-night",ar:"بنفسجي ليلي",en:"Purple Night",accent:"purple",background:"midnight",layout:"لوحة كلاسيكية",colors:[Color(red:0.57,green:0.30,blue:0.98),Color(red:0.035,green:0.025,blue:0.065)],animated:false),
+        .init(id:"blue-ocean",ar:"محيط أزرق",en:"Ocean Blue",accent:"blue",background:"navy",layout:"شبكة مربعات",colors:[.blue,Color(red:0.015,green:0.045,blue:0.12)],animated:false),
+        .init(id:"emerald",ar:"زمردي",en:"Emerald",accent:"green",background:"black",layout:"قائمة جانبية",colors:[.green,.black],animated:false),
+        .init(id:"sunset",ar:"غروب",en:"Sunset",accent:"orange",background:"graphite",layout:"بطاقة رئيسية",colors:[.orange,Color(red:0.075,green:0.08,blue:0.11)],animated:false),
+        .init(id:"ruby",ar:"ياقوتي",en:"Ruby",accent:"red",background:"black",layout:"قائمة مضغوطة",colors:[.red,.black],animated:false),
+        .init(id:"cyber-cyan",ar:"سايبر سماوي",en:"Cyber Cyan",accent:"cyan",background:"navy",layout:"سايبر",colors:[.cyan,Color(red:0.015,green:0.045,blue:0.12)],animated:true),
+        .init(id:"pink-neon",ar:"نيون وردي",en:"Pink Neon",accent:"pink",background:"black",layout:"شبكة عائمة",colors:[.pink,.black],animated:true),
+        .init(id:"teal-matrix",ar:"تيال ماتريكس",en:"Teal Matrix",accent:"teal",background:"graphite",layout:"طرفية تقنية",colors:[.teal,Color(red:0.075,green:0.08,blue:0.11)],animated:true),
+        .init(id:"gold-lux",ar:"ذهبي فاخر",en:"Gold Luxe",accent:"gold",background:"black",layout:"تحرير فاخر",colors:[Color(red:0.91,green:0.67,blue:0.18),.black],animated:false),
+        .init(id:"crimson",ar:"قرمزي",en:"Crimson",accent:"crimson",background:"midnight",layout:"بطاقات حادة",colors:[Color(red:0.78,green:0.10,blue:0.22),Color(red:0.035,green:0.025,blue:0.065)],animated:false),
+        .init(id:"ice-storm",ar:"جليدي",en:"Ice Storm",accent:"ice",background:"navy",layout:"زجاج متحرك",colors:[Color(red:0.55,green:0.78,blue:1.0),Color(red:0.015,green:0.045,blue:0.12)],animated:true),
+        .init(id:"lime-dark",ar:"ليموني داكن",en:"Lime Dark",accent:"lime",background:"black",layout:"لوحة أدوات",colors:[Color(red:0.58,green:0.82,blue:0.20),.black],animated:false),
+        .init(id:"royal-violet",ar:"بنفسجي ملكي",en:"Royal Violet",accent:"violet",background:"graphite",layout:"تخطيط متدرج",colors:[Color(red:0.42,green:0.20,blue:0.85),Color(red:0.075,green:0.08,blue:0.11)],animated:false),
+        .init(id:"blue-carbon",ar:"كربون أزرق",en:"Blue Carbon",accent:"blue",background:"graphite",layout:"كربون هندسي",colors:[.blue,Color(red:0.075,green:0.08,blue:0.11)],animated:false),
+        .init(id:"green-midnight",ar:"أخضر منتصف الليل",en:"Midnight Green",accent:"green",background:"midnight",layout:"تنقل سفلي",colors:[.green,Color(red:0.035,green:0.025,blue:0.065)],animated:false),
+        .init(id:"orange-black",ar:"برتقالي وأسود",en:"Orange Black",accent:"orange",background:"black",layout:"لوحة تحكم",colors:[.orange,.black],animated:false),
+        .init(id:"pink-graphite",ar:"وردي فحمي",en:"Pink Graphite",accent:"pink",background:"graphite",layout:"بطاقات متداخلة",colors:[.pink,Color(red:0.075,green:0.08,blue:0.11)],animated:false),
+        .init(id:"cyan-midnight",ar:"سماوي ليلي",en:"Cyan Midnight",accent:"cyan",background:"midnight",layout:"نيون ليلي",colors:[.cyan,Color(red:0.035,green:0.025,blue:0.065)],animated:true),
+        .init(id:"gold-navy",ar:"ذهبي وكحلي",en:"Gold Navy",accent:"gold",background:"navy",layout:"تقسيم احترافي",colors:[Color(red:0.91,green:0.67,blue:0.18),Color(red:0.015,green:0.045,blue:0.12)],animated:false),
+        .init(id:"red-carbon",ar:"أحمر كربوني",en:"Red Carbon",accent:"crimson",background:"graphite",layout:"قائمة صناعية",colors:[Color(red:0.78,green:0.10,blue:0.22),Color(red:0.075,green:0.08,blue:0.11)],animated:false)
     ]
-
-    private var selected: Theme? { themes.first { $0.accent == accent && $0.background == background } }
-
+    private var selected: Theme? { themes.first { $0.id == themeID } }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(language == "ar" ? "20 ثيم جاهز" : "20 ready-made themes")
-                    .font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.65))
+                Text(language == "ar" ? "20 تصميم مستقل" : "20 distinct designs").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.65))
                 Spacer()
-                if let selected {
-                    Text(language == "ar" ? selected.ar : selected.en)
-                        .font(.caption.bold()).foregroundStyle(selected.colors[0])
-                }
+                if let selected { Text(language == "ar" ? selected.ar : selected.en).font(.caption.bold()).foregroundStyle(selected.colors[0]) }
             }
             LazyVGrid(columns: [GridItem(.flexible()),GridItem(.flexible())], spacing: 10) {
-                ForEach(themes) { theme in
-                    let isSelected = theme.accent == accent && theme.background == background
+                ForEach(Array(themes.enumerated()), id: \.element.id) { index, theme in
+                    let isSelected = theme.id == themeID
                     Button {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+                            themeID = theme.id
                             accent = theme.accent
                             background = theme.background
                         }
                     } label: {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 7) {
                             ZStack(alignment: .topTrailing) {
-                                RoundedRectangle(cornerRadius: 14)
+                                RoundedRectangle(cornerRadius: index % 4 == 0 ? 7 : 14)
                                     .fill(LinearGradient(colors: theme.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                                    .frame(height: 66)
+                                    .frame(height: 72)
                                     .overlay(alignment: .bottomLeading) {
-                                        HStack(spacing: 5) {
-                                            Image(systemName: "sparkles").font(.caption.bold())
-                                            Text("INRPF").font(.system(size: 11,weight:.black)).tracking(1)
-                                        }.foregroundStyle(.white).padding(10)
+                                        HStack(alignment: .bottom, spacing: 4) {
+                                            ForEach(0..<5, id: \.self) { n in
+                                                RoundedRectangle(cornerRadius: index % 4 == 0 ? 1 : 5)
+                                                    .fill(.white.opacity(n == 0 ? 0.95 : 0.38))
+                                                    .frame(width: n == 0 ? 24 : 13, height: CGFloat(10 + ((n + index) % 3) * 6))
+                                            }
+                                        }.padding(9)
                                     }
-                                if isSelected {
-                                    Image(systemName:"checkmark.circle.fill").font(.title3)
-                                        .foregroundStyle(.white).padding(7)
-                                }
+                                if theme.animated { Image(systemName: "waveform.path").font(.caption.bold()).foregroundStyle(.white).padding(7) }
+                                if isSelected { Image(systemName:"checkmark.circle.fill").font(.title3).foregroundStyle(.white).padding(7) }
                             }
-                            Text(language == "ar" ? theme.ar : theme.en)
-                                .font(.caption.weight(.bold)).foregroundStyle(.white).lineLimit(1)
+                            Text(language == "ar" ? theme.ar : theme.en).font(.caption.weight(.bold)).foregroundStyle(.white).lineLimit(1)
+                            HStack(spacing: 4) {
+                                Text(language == "ar" ? theme.layout : (theme.animated ? "Animated" : "Layout"))
+                                    .font(.system(size: 9,weight:.medium)).foregroundStyle(theme.colors[0])
+                                if theme.animated { Text("• حركة").font(.system(size: 9,weight:.bold)).foregroundStyle(.white.opacity(0.6)) }
+                            }
                         }
                         .padding(8).frame(maxWidth:.infinity,alignment:.leading)
-                        .background(isSelected ? theme.colors[0].opacity(0.2) : .white.opacity(0.045))
-                        .clipShape(RoundedRectangle(cornerRadius:16))
-                        .overlay(RoundedRectangle(cornerRadius:16).stroke(isSelected ? theme.colors[0] : .white.opacity(0.08),lineWidth:isSelected ? 1.5 : 1))
-                    }
-                    .buttonStyle(.plain)
+                        .background(isSelected ? theme.colors[0].opacity(0.18) : .white.opacity(0.045))
+                        .clipShape(RoundedRectangle(cornerRadius: index % 4 == 0 ? 8 : 16))
+                        .overlay(RoundedRectangle(cornerRadius: index % 4 == 0 ? 8 : 16).stroke(isSelected ? theme.colors[0] : .white.opacity(0.08),lineWidth:isSelected ? 1.6 : 1))
+                    }.buttonStyle(.plain)
                 }
             }
-            Text(language == "ar" ? "تتغير ألوان الواجهة والخلفية مباشرة، وتقدر ترجع لأي ثيم متى ما بغيت." : "Interface colors and background update instantly. Switch themes whenever you like.")
+            Text(language == "ar" ? "كل ثيم يحفظ هويته وترتيب أقسام الصفحة الرئيسية. بعض الثيمات فيها حركة خفيفة، وتقدر توقفها من إعدادات الحركة." : "Each theme saves its own home layout. Selected themes include subtle motion.")
                 .font(.caption2).foregroundStyle(.white.opacity(0.48))
         }
+    }
+}
+
+private struct INRPFThemeSurface: ViewModifier {
+    let themeIndex: Int
+    let tint: Color
+    func body(content: Content) -> some View {
+        let radius: CGFloat = [26,18,12,22,9][themeIndex % 5]
+        content
+            .padding(.vertical, themeIndex % 4 == 0 ? 1 : 0)
+            .overlay {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(tint.opacity(themeIndex % 3 == 0 ? 0.20 : 0.09),
+                            style: StrokeStyle(lineWidth: themeIndex % 5 == 3 ? 1.5 : 0.8,
+                                               dash: themeIndex % 5 == 2 ? [4,3] : []))
+                    .allowsHitTesting(false)
+            }
+            .shadow(color: tint.opacity(themeIndex % 5 == 1 ? 0.09 : 0.025), radius: themeIndex % 5 == 1 ? 13 : 5, y: 3)
     }
 }
 

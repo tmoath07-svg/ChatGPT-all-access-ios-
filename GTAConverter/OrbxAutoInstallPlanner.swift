@@ -14,7 +14,7 @@ enum INRPFOrbxAutoInstallPlanner {
 
         var errorDescription: String? {
             switch self {
-            case .missingAddonFolder: return "مجلد data/orbx/gta/rpf/dlc_addon غير موجود."
+            case .missingAddonFolder: return "مجلد Data/orbx/gta/rpf/dlc_addon غير موجود."
             case .noPackages: return "لم يتم العثور على مجلدات DLC صالحة داخل dlc_addon."
             case .missingDlcRPF(let name): return "الحزمة \(name) لا تحتوي على ملف dlc.rpf مباشرة داخل مجلدها."
             case .invalidPackageName(let name): return "اسم حزمة غير صالح: \(name)"
@@ -24,9 +24,9 @@ enum INRPFOrbxAutoInstallPlanner {
         }
     }
 
-    static let remoteRoot = "/data/orbx/gta/rpf"
+    static let remoteRoot = "/Data/orbx/gta/rpf"
     static let remoteAddon = remoteRoot + "/dlc_addon"
-    static let remoteDLClistDirectory = "/data/orbx/gta"
+    static let remoteDLClistDirectory = "/Data/orbx/gta"
 
     /// Removes exactly one redundant same-name wrapper folder, without flattening valid DLC subfolders.
     static func packageContentRoot(for packageFolder: URL) throws -> URL {

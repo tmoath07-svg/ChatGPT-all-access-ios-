@@ -7,7 +7,7 @@ struct OrbxAutoInstallTests {
             .appendingPathComponent("inrpf-auto-fixture-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let addon = root.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+        let addon = root.appendingPathComponent("Data/orbx/gta/rpf/dlc_addon", isDirectory: true)
         let alpha = addon.appendingPathComponent("alpha_pack", isDirectory: true)
         let beta = addon.appendingPathComponent("car_2026", isDirectory: true)
         let optima = addon.appendingPathComponent("optima", isDirectory: true)
@@ -45,17 +45,17 @@ struct OrbxAutoInstallTests {
 
         let names = try INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)
         precondition(names == ["alpha_pack", "car_2026", "optima", "Rbtitt"].sorted(), "DLC folder discovery did not return expected names")
-        precondition(INRPFOrbxAutoInstallPlanner.remoteAddon == "/data/orbx/gta/rpf/dlc_addon", "Incorrect PS4 addon path")
-        precondition(INRPFOrbxAutoInstallPlanner.remoteDLClistDirectory == "/data/orbx/gta", "Incorrect PS4 dlclist path")
+        precondition(INRPFOrbxAutoInstallPlanner.remoteAddon == "/Data/orbx/gta/rpf/dlc_addon", "Incorrect PS4 addon path")
+        precondition(INRPFOrbxAutoInstallPlanner.remoteDLClistDirectory == "/Data/orbx/gta", "Incorrect PS4 dlclist path")
 
-        let gtaRoot = root.appendingPathComponent("data/orbx/gta", isDirectory: true)
+        let gtaRoot = root.appendingPathComponent("Data/orbx/gta", isDirectory: true)
         try FileManager.default.createDirectory(at: gtaRoot, withIntermediateDirectories: true)
         let dlclistFile = gtaRoot.appendingPathComponent("dlclist.xml")
         let original = """
         <?xml version="1.0" encoding="UTF-8"?>
         <SMandatoryPacksData>
           <Paths>
-            <Item>/data/orbx/gta/rpf/dlc_addon/old_pack/</Item>
+            <Item>/Data/orbx/gta/rpf/dlc_addon/old_pack/</Item>
           </Paths>
         </SMandatoryPacksData>
         """
@@ -65,11 +65,11 @@ struct OrbxAutoInstallTests {
         try merged.write(to: dlclistFile, atomically: true, encoding: .utf8)
         let onDiskMerged = try String(contentsOf: dlclistFile, encoding: .utf8)
         precondition(onDiskMerged == merged, "dlclist.xml fixture was not written correctly")
-        precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/old_pack/"), "Existing XML entries were not preserved")
-        precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/alpha_pack/"), "First package path missing")
-        precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/car_2026/"), "Second package path missing")
-        precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/optima/"), "optima package path missing")
-        precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/Rbtitt/"), "Rbtitt package path missing")
+        precondition(merged.contains("/Data/orbx/gta/rpf/dlc_addon/old_pack/"), "Existing XML entries were not preserved")
+        precondition(merged.contains("/Data/orbx/gta/rpf/dlc_addon/alpha_pack/"), "First package path missing")
+        precondition(merged.contains("/Data/orbx/gta/rpf/dlc_addon/car_2026/"), "Second package path missing")
+        precondition(merged.contains("/Data/orbx/gta/rpf/dlc_addon/optima/"), "optima package path missing")
+        precondition(merged.contains("/Data/orbx/gta/rpf/dlc_addon/Rbtitt/"), "Rbtitt package path missing")
 
         let repeated = try INRPFOrbxAutoInstallPlanner.mergedDLClist(existing: merged, packageNames: names)
         precondition(repeated == merged, "Merge is not idempotent; duplicate paths may be added")
@@ -93,8 +93,8 @@ struct OrbxAutoInstallTests {
         }
 
         print("ORBX AUTO INSTALL TESTS: PASS")
-        print("Fixture folder: data/orbx/gta/rpf/dlc_addon/")
-        print("Fixture file: ORBX/GTA/dlclist.xml (data/orbx/gta/dlclist.xml)")
+        print("Fixture folder: Data/orbx/gta/rpf/dlc_addon/")
+        print("Fixture file: ORBX/GTA/dlclist.xml (Data/orbx/gta/dlclist.xml)")
         print("Package layout: each addon contains dlc.rpf directly; same-name wrappers are normalized.")
         print("Packages: \(names.joined(separator: ", "))")
         print("XML: existing entries preserved, paths merged, duplicate-safe, malformed XML rejected.")
