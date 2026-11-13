@@ -1025,6 +1025,142 @@ fn convert_resource_folder(input: &Path, output: &Path) -> Result<(usize, usize,
     result
 }
 
+
+/// Build an OPEN RPF7 archive from an already converted resource directory.
+/// This validates the archive container only; it does not claim Orbis DLC compatibility.
+fn build_open_rpf_from_directory(input: &Path, output: &Path) -> Result<(usize, u64, usize), String> {
+    if !input.is_dir() {
+        return Err("مجلد التحويل غير موجود لبناء RPF.".to_string());
+    }
+    if output.exists() {
+        return Err("ملف RPF موجود مسبقاً. اختر اسماً جديداً حتى لا نستبدل ملفك.".to_string());
+    }
+    if !contains_vehicle_metadata(input, 6) {
+        return Err("مجلد التحويل لا يحتوي بيانات مركبة معروفة؛ أوقف بناء RPF.".to_string());
+    }
+
+    let mut files = Vec::new();
+    let mut total_bytes = 0u64;
+    collect_files(input, input, 0, &mut files, &mut total_bytes)?;
+    if files.is_empty() {
+        return Err("لا توجد ملفات لبناء أرشيف RPF.".to_string());
+    }
+
+    let mut builder = RpfBuilder::new(RpfEncryption::Open);
+    for (archive_path, source_path, _) in &files {
+        let data = fs::read(source_path)
+            .map_err(|error| format!("تعذرت قراءة {} أثناء بناء RPF: {error}", source_path.display()))?;
+        builder.add_file(archive_path, data);
+    }
+    let archive_bytes = builder.build(None)
+        .map_err(|error| format!("فشل إنشاء جدول RPF7: {error:#}"))?;
+    let parsed = RpfArchive::parse(&archive_bytes, "inrpf-converted.rpf", None)
+        .map_err(|error| format!("فشل فحص RPF الناتج بعد البناء: {error:#}"))?;
+    ensure_rpf_archive_names_readable(&parsed)?;
+    let file_entries = parsed.entries.iter()
+        .filter(|entry| !matches!(entry.kind, RpfEntryKind::Directory { .. }))
+        .count();
+    if file_entries < files.len() {
+        return Err(format!(
+            "فشل التحقق من RPF: المتوقع {} ملفاً، لكن الأرشيف أعاد {}.",
+            files.len(), file_entries
+        ));
+    }
+
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("تعذر إنشاء مجلد حفظ RPF: {error}"))?;
+    }
+    let temp = output.with_file_name(format!(
+        ".{}.{}.tmp",
+        output.file_name().and_then(|name| name.to_str()).unwrap_or("converted.rpf"),
+        std::process::id()
+    ));
+    if temp.exists() {
+        fs::remove_file(&temp).map_err(|error| format!("تعذر تنظيف ملف RPF مؤقت قديم: {error}"))?;
+    }
+    let write_result = (|| -> Result<(), String> {
+        let mut file = fs::File::create(&temp)
+            .map_err(|error| format!("تعذر إنشاء ملف RPF مؤقت: {error}"))?;
+        file.write_all(&archive_bytes)
+            .map_err(|error| format!("تعذرت كتابة بيانات RPF: {error}"))?;
+        file.sync_all()
+            .map_err(|error| format!("تعذر حفظ بيانات RPF: {error}"))?;
+        fs::rename(&temp, output)
+            .map_err(|error| format!("تعذر اعتماد ملف RPF النهائي: {error}"))?;
+        Ok(())
+    })();
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&temp);
+        return Err(error);
+    }
+    Ok((files.len(), total_bytes, parsed.entries.len()))
+}
+
+/// Full first-stage pipeline: convert supported Y* resources, then pack the
+/// converted tree into an OPEN RPF7 archive. YTD is intentionally rejected
+/// until a native Orbis OTD serializer is implemented and verified.
+fn convert_folder_and_build_rpf(input: &Path, output: &Path) -> Result<serde_json::Value, String> {
+    if !input.is_dir() {
+        return Err("مجلد المود المصدر غير موجود.".to_string());
+    }
+    if output.extension().and_then(|value| value.to_str())
+        .is_none_or(|extension| !extension.eq_ignore_ascii_case("rpf")) {
+        return Err("امتداد الناتج يجب أن يكون .rpf.".to_string());
+    }
+    if output.exists() {
+        return Err("ملف RPF موجود مسبقاً. اختر اسماً جديداً.".to_string());
+    }
+    if output.starts_with(input) || input.starts_with(output) {
+        return Err("احفظ RPF خارج مجلد المصدر لتجنب إدخاله داخل نفسه.".to_string());
+    }
+    if !has_vehicle_metadata_near(input) {
+        return Err("لم يتم العثور على vehicles.meta أو بيانات مركبة معروفة قرب مجلد المصدر.".to_string());
+    }
+
+    let parent = output.parent().ok_or_else(|| "مسار RPF النهائي غير صالح.".to_string())?;
+    fs::create_dir_all(parent).map_err(|error| format!("تعذر إنشاء مجلد الناتج: {error}"))?;
+    let stage_name = format!(
+        ".inrpf-stage-{}-{}",
+        output.file_stem().and_then(|name| name.to_str()).unwrap_or("vehicle"),
+        std::process::id()
+    );
+    let stage = parent.join(stage_name);
+    if stage.exists() {
+        return Err("يوجد مجلد عمل سابق بنفس الاسم. احذفه أو أعد المحاولة بعد تنظيف مساحة العمل.".to_string());
+    }
+
+    let conversion = convert_resource_folder(input, &stage);
+    let (converted, copied, markers, input_bytes, output_bytes) = match conversion {
+        Ok(result) => result,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&stage);
+            return Err(format!("فشلت مرحلة تحويل الموارد قبل بناء RPF: {error}"));
+        }
+    };
+
+    let archive_result = build_open_rpf_from_directory(&stage, output);
+    let _ = fs::remove_dir_all(&stage);
+    let (files, archive_input_bytes, entries) = archive_result?;
+
+    Ok(json!({
+        "ok": true,
+        "format": "RPF7",
+        "encryption": "OPEN",
+        "converted_resources": converted,
+        "copied_files": copied,
+        "patched_markers": markers,
+        "files_in_archive": files,
+        "archive_entries": entries,
+        "source_bytes": input_bytes,
+        "converted_tree_bytes": output_bytes,
+        "archive_input_bytes": archive_input_bytes,
+        "output_bytes": fs::metadata(output).map(|metadata| metadata.len()).unwrap_or(0),
+        "output": output.to_string_lossy(),
+        "warning": "تم تحويل الموارد المدعومة وبناء وفحص حاوية RPF7 المفتوحة. هذا ليس إثبات توافق Orbis/PS4. أي YTD يوقف العملية لأن OTD الخاص بـOrbis لم يُنفذ بعد."
+    }))
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn gta_engine_convert_folder(
     input_directory: *const c_char,
@@ -1709,6 +1845,43 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
+
+    #[test]
+    fn converts_supported_vehicle_tree_and_builds_validated_rpf7() {
+        use flate2::write::DeflateEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+
+        let root = std::env::temp_dir().join(format!("inrpf-convert-rpf-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let input = root.join("input");
+        let output = root.join("vehicle-ps4.rpf");
+        fs::create_dir_all(input.join("stream")).unwrap();
+        fs::create_dir_all(input.join("common/data")).unwrap();
+        fs::write(input.join("common/data/vehicles.meta"), b"<vehicles/>").unwrap();
+
+        let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(b"synthetic vehicle payload").unwrap();
+        let compressed = encoder.finish().unwrap();
+        let mut resource = Vec::from(&b"RSC7"[..]);
+        resource.extend_from_slice(&[13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        resource.extend_from_slice(&compressed);
+        fs::write(input.join("stream/demo.yft"), resource).unwrap();
+
+        let report = convert_folder_and_build_rpf(&input, &output).unwrap();
+        assert!(output.is_file());
+        assert_eq!(report["format"], "RPF7");
+        assert_eq!(report["converted_resources"], 1);
+        assert!(report["files_in_archive"].as_u64().unwrap() >= 2);
+
+        let bytes = fs::read(&output).unwrap();
+        let archive = RpfArchive::parse(&bytes, "vehicle-ps4.rpf", None).unwrap();
+        ensure_rpf_archive_names_readable(&archive).unwrap();
+        assert!(archive.entries.iter().any(|entry| entry.name_lower.ends_with("demo.oft")));
+        assert!(archive.entries.iter().any(|entry| entry.name_lower == "vehicles.meta"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn batch_conversion_refuses_ytd_without_orbis_otd_builder() {
         let root = std::env::temp_dir().join(format!("gta-engine-ytd-batch-test-{}", std::process::id()));
@@ -1748,6 +1921,26 @@ mod tests {
     }
 }
 
+
+
+#[no_mangle]
+pub unsafe extern "C" fn gta_engine_convert_and_build_rpf(
+    input_directory: *const c_char,
+    output_file: *const c_char,
+) -> *mut c_char {
+    let input = match read_c_path(input_directory) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    let output = match read_c_path(output_file) {
+        Ok(value) => PathBuf::from(value),
+        Err(error) => return result_error(error),
+    };
+    match convert_folder_and_build_rpf(&input, &output) {
+        Ok(report) => result_ok(report),
+        Err(error) => result_error(error),
+    }
+}
 
 // MARK: - Native FTP transport (SuppaFTP over Rust std::net)
 
