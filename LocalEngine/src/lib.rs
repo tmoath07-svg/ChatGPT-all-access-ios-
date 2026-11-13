@@ -1282,6 +1282,43 @@ pub unsafe extern "C" fn gta_engine_convert_fivem_resource(
     }
 }
 
+fn validate_ytd_for_dds_export(textures: &[rage_formats::YtdTexture]) -> Result<(), String> {
+    if textures.is_empty() {
+        return Err("قاموس YTD لا يحتوي خامات.".to_string());
+    }
+    let mut hashes = std::collections::HashSet::new();
+    for (index, texture) in textures.iter().enumerate() {
+        let label = if texture.name.is_empty() { format!("texture_{index}") } else { texture.name.clone() };
+        if texture.width == 0 || texture.height == 0 || texture.width > 8192 || texture.height > 8192 {
+            return Err(format!("أبعاد الخامة {label} غير صالحة: {}x{}.", texture.width, texture.height));
+        }
+        if texture.levels == 0 {
+            return Err(format!("الخامة {label} لا تحتوي مستويات Mipmap."));
+        }
+        if texture.format == rage_formats::TextureFormat::Unknown || texture.pixel_data.is_empty() {
+            return Err(format!("الخامة {label} تستخدم تنسيقاً غير مدعوم أو بيانات فارغة."));
+        }
+        if !hashes.insert(texture.name_hash) {
+            return Err(format!("تصادم اسم/Hash في قاموس YTD عند الخامة {label}."));
+        }
+        let dds = texture.to_dds();
+        if dds.len() < 128 || &dds[..4] != b"DDS " {
+            return Err(format!("تعذر إنشاء ترويسة DDS سليمة للخامة {label}."));
+        }
+        let reparsed = rage_formats::parse_dds(&dds)
+            .map_err(|error| format!("فشل التحقق من DDS للخامة {label}: {error:#}"))?;
+        if reparsed.width != texture.width
+            || reparsed.height != texture.height
+            || reparsed.levels != texture.levels
+            || reparsed.format != texture.format
+            || reparsed.pixel_data.is_empty()
+        {
+            return Err(format!("بيانات DDS للخامة {label} لم تجتز اختبار إعادة القراءة."));
+        }
+    }
+    Ok(())
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn gta_engine_extract_ytd(
     input_path: *const c_char,
@@ -1319,6 +1356,9 @@ pub unsafe extern "C" fn gta_engine_extract_ytd(
     if textures.is_empty() {
         return result_error("تم فتح YTD لكن لم يتم العثور على خامات قابلة للاستخراج.");
     }
+    if let Err(error) = validate_ytd_for_dds_export(&textures) {
+        return result_error(format!("فشل فحص خامات YTD قبل التصدير: {error}"));
+    }
     if let Err(error) = fs::create_dir_all(&output_dir) {
         return result_error(format!("تعذر إنشاء مجلد الخامات: {error}"));
     }
@@ -1330,7 +1370,7 @@ pub unsafe extern "C" fn gta_engine_extract_ytd(
 
     for (index, texture) in textures.iter().enumerate() {
         if texture.pixel_data.is_empty() || texture.format == rage_formats::TextureFormat::Unknown {
-            continue;
+            return result_error(format!("توقّف التصدير عند خامة غير مدعومة: {}.", texture.name));
         }
         let mut name = safe_texture_filename(&texture.name, index, texture.name_hash);
         if !used_names.insert(name.to_ascii_lowercase()) {
@@ -1839,6 +1879,39 @@ mod tests {
         assert_eq!(output, source);
         assert_eq!(patched, 0);
         assert_eq!(mode, "extension-only");
+    }
+
+    #[test]
+    fn validates_every_ytd_texture_before_export_and_dds_roundtrip() {
+        let texture = rage_formats::YtdTexture {
+            name: "validated_texture".to_string(),
+            name_hash: 0x12345678,
+            width: 4,
+            height: 4,
+            depth: 1,
+            format: rage_formats::TextureFormat::DXT1,
+            levels: 1,
+            stride: 2,
+            pixel_data: vec![0u8; 8],
+        };
+        assert!(validate_ytd_for_dds_export(&[texture]).is_ok());
+    }
+
+    #[test]
+    fn rejects_unknown_or_empty_ytd_texture_instead_of_silently_skipping() {
+        let texture = rage_formats::YtdTexture {
+            name: "broken_texture".to_string(),
+            name_hash: 0x12345679,
+            width: 4,
+            height: 4,
+            depth: 1,
+            format: rage_formats::TextureFormat::Unknown,
+            levels: 1,
+            stride: 0,
+            pixel_data: Vec::new(),
+        };
+        let error = validate_ytd_for_dds_export(&[texture]).unwrap_err();
+        assert!(error.contains("غير مدعوم"));
     }
 
     #[test]
