@@ -49,7 +49,7 @@ struct FTPDirectoryUploadTests {
         try Data("synthetic-vehicle-meta".utf8).write(to: orbx.appendingPathComponent("vehicles.meta"));
         try Data("synthetic-model".utf8).write(to: orbx.appendingPathComponent("stream/Rbtitt.oft"));
         let virtualFTPPlan = try INRPFDirectoryUploadPlanner.plan(for: root)
-        let virtualFTPPaths = Set(virtualFTPPlan.map(\\.relativePath))
+        let virtualFTPPaths = Set(virtualFTPPlan.map(\.relativePath))
         require(virtualFTPPaths.contains("data/orbx/gta/rpf/dlc_addon/Rbtitt/dlc.rpf"),
                 "virtual ORBX FTP tree includes the package dlc.rpf")
         require(virtualFTPPaths.contains("data/orbx/gta/rpf/dlc_addon/Rbtitt/vehicles.meta"),
