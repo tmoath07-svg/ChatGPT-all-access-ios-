@@ -37,9 +37,9 @@ jobs:
           ditto "$XCFRAMEWORK" vendor/Python.xcframework
           DEVICE_SLICE="$(find vendor/Python.xcframework -mindepth 1 -maxdepth 1 -type d -name 'ios-arm64' -print -quit)"
           test -n "$DEVICE_SLICE"
-          ditto "$DEVICE_SLICE" RPFStudio/Resources/python
+          ditto "$DEVICE_SLICE" vendor/Python-ios-slice
           test -d vendor/Python.xcframework
-          test -d RPFStudio/Resources/python
+          test -d vendor/Python-ios-slice/lib-arm64
 
       - name: Generate Xcode project
         run: xcodegen generate
