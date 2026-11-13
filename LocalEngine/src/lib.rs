@@ -1026,6 +1026,52 @@ fn convert_resource_folder(input: &Path, output: &Path) -> Result<(usize, usize,
 }
 
 
+fn verify_rpf_roundtrip(
+    archive: &RpfArchive,
+    archive_bytes: &[u8],
+    start: u32,
+    count: u32,
+    prefix: &str,
+    expected: &std::collections::BTreeMap<String, PathBuf>,
+    verified: &mut usize,
+) -> Result<(), String> {
+    let begin = start as usize;
+    let end = begin.checked_add(count as usize)
+        .ok_or_else(|| "نطاق جدول RPF غير صالح أثناء التحقق من الملفات.".to_string())?;
+    if end > archive.entries.len() {
+        return Err("جدول RPF يشير إلى مدخلات خارج حدود الأرشيف أثناء التحقق.".to_string());
+    }
+    for entry in &archive.entries[begin..end] {
+        validate_rpf_entry_name(&entry.name)?;
+        let path = if prefix.is_empty() {
+            entry.name.clone()
+        } else {
+            format!("{prefix}/{}", entry.name)
+        };
+        match &entry.kind {
+            RpfEntryKind::Directory { entries_index, entries_count } => {
+                verify_rpf_roundtrip(
+                    archive, archive_bytes, *entries_index, *entries_count,
+                    &path, expected, verified,
+                )?;
+            }
+            RpfEntryKind::BinaryFile { .. } | RpfEntryKind::ResourceFile { .. } => {
+                let source = expected.get(&path)
+                    .ok_or_else(|| format!("ظهر ملف غير متوقع داخل RPF: {path}"))?;
+                let original = fs::read(source)
+                    .map_err(|error| format!("تعذرت إعادة قراءة الملف الأصلي {}: {error}", source.display()))?;
+                let extracted = archive.extract_entry(archive_bytes, entry, None)
+                    .map_err(|error| format!("تعذر استخراج {path} للتحقق من سلامة RPF: {error:#}"))?;
+                if extracted != original {
+                    return Err(format!("فشل فحص المطابقة الثنائية للملف {path}: بيانات RPF تختلف عن المصدر."));
+                }
+                *verified += 1;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Build an OPEN RPF7 archive from an already converted resource directory.
 /// This validates the archive container only; it does not claim Orbis DLC compatibility.
 fn build_open_rpf_from_directory(input: &Path, output: &Path) -> Result<(usize, u64, usize), String> {
@@ -1057,13 +1103,18 @@ fn build_open_rpf_from_directory(input: &Path, output: &Path) -> Result<(usize, 
     let parsed = RpfArchive::parse(&archive_bytes, "inrpf-converted.rpf", None)
         .map_err(|error| format!("فشل فحص RPF الناتج بعد البناء: {error:#}"))?;
     ensure_rpf_archive_names_readable(&parsed)?;
-    let file_entries = parsed.entries.iter()
-        .filter(|entry| !matches!(&entry.kind, RpfEntryKind::Directory { .. }))
-        .count();
-    if file_entries < files.len() {
+    let (root_start, root_count) = resolve_rpf_root_range(&parsed.entries)?;
+    let expected = files.iter()
+        .map(|(archive_path, source_path, _)| (archive_path.clone(), source_path.clone()))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut verified_files = 0usize;
+    verify_rpf_roundtrip(
+        &parsed, &archive_bytes, root_start, root_count, "", &expected, &mut verified_files,
+    )?;
+    if verified_files != files.len() {
         return Err(format!(
-            "فشل التحقق من RPF: المتوقع {} ملفاً، لكن الأرشيف أعاد {}.",
-            files.len(), file_entries
+            "فشل التحقق الكامل من RPF: تحققنا من {} ملفاً من أصل {}.",
+            verified_files, files.len()
         ));
     }
 
@@ -1152,6 +1203,7 @@ fn convert_folder_and_build_rpf(input: &Path, output: &Path) -> Result<serde_jso
         "patched_markers": markers,
         "files_in_archive": files,
         "archive_entries": entries,
+        "roundtrip_verified_files": files,
         "source_bytes": input_bytes,
         "converted_tree_bytes": output_bytes,
         "archive_input_bytes": archive_input_bytes,
