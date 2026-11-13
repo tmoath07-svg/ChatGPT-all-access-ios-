@@ -273,6 +273,27 @@ pub unsafe extern "C" fn gta_engine_preview_vehicle_model(path: *const c_char) -
     }))
 }
 
+fn resolve_rpf_root_range(entries: &[rpf_archive::RpfEntry]) -> Result<(u32, u32), String> {
+    let root = entries.first().ok_or_else(|| "جدول RPF فارغ.".to_string())?;
+    match &root.kind {
+        RpfEntryKind::Directory { entries_index, entries_count } => {
+            let start = *entries_index as usize;
+            let end = start.checked_add(*entries_count as usize)
+                .ok_or_else(|| "نطاق مجلد جذر RPF غير صالح.".to_string())?;
+            if (start == 0 && *entries_count > 0) || end > entries.len() {
+                return Err("نطاق مجلد جذر RPF خارج جدول الأرشيف أو يشير إلى نفسه.".to_string());
+            }
+            Ok((*entries_index, *entries_count))
+        }
+        _ if entries.iter().all(|entry| !matches!(&entry.kind, RpfEntryKind::Directory { .. })) => {
+            let count = u32::try_from(entries.len())
+                .map_err(|_| "عدد عناصر RPF يتجاوز الحد المدعوم.".to_string())?;
+            Ok((0, count))
+        }
+        _ => Err("الأرشيف لا يحتوي على مجلد جذر، كما أن جدول الملفات يتضمن مجلدات داخلية؛ تم إيقاف الاستخراج لتجنب ترتيب ملفات خاطئ.".to_string()),
+    }
+}
+
 fn collect_rpf_listing(
     archive: &RpfArchive,
     start: u32,
@@ -353,13 +374,9 @@ pub unsafe extern "C" fn gta_engine_list_rpf(path: *const c_char) -> *mut c_char
         Ok(value) => value,
         Err(error) => return result_error(format!("تعذر تحليل RPF: {error:#}")),
     };
-    let root = match archive.entries.first() {
-        Some(value) => value,
-        None => return result_error("جدول RPF فارغ."),
-    };
-    let (start, count) = match &root.kind {
-        RpfEntryKind::Directory { entries_index, entries_count } => (*entries_index, *entries_count),
-        _ => return result_error("مدخل الجذر في RPF ليس مجلداً."),
+    let (start, count) = match resolve_rpf_root_range(&archive.entries) {
+        Ok(value) => value,
+        Err(error) => return result_error(error),
     };
     let mut items = Vec::new();
     if let Err(error) = collect_rpf_listing(&archive, start, count, "", 0, &mut items) {
@@ -509,17 +526,12 @@ fn extract_rpf_entries(
                         }
                         fs::create_dir_all(&destination)
                             .map_err(|error| format!("تعذر إنشاء مجلد الأرشيف الداخلي: {error}"))?;
-                        let root = nested.entries.first()
-                            .ok_or_else(|| format!("الأرشيف الداخلي {} فارغ أو غير صالح.", entry.name))?;
-                        match &root.kind {
-                            RpfEntryKind::Directory { entries_index, entries_count } => {
-                                extract_rpf_entries(
-                                    &nested, &bytes, *entries_index, *entries_count, &destination,
-                                    depth + 1, files_written, total_bytes,
-                                )?;
-                            }
-                            _ => return Err(format!("جذر الأرشيف الداخلي {} غير صالح.", entry.name)),
-                        }
+                        let (nested_start, nested_count) = resolve_rpf_root_range(&nested.entries)
+                            .map_err(|error| format!("جذر الأرشيف الداخلي {}: {error}", entry.name))?;
+                        extract_rpf_entries(
+                            &nested, &bytes, nested_start, nested_count, &destination,
+                            depth + 1, files_written, total_bytes,
+                        )?;
                     } else {
                         fs::write(&destination, &bytes)
                             .map_err(|error| format!("تعذرت كتابة {}: {error}", destination.display()))?;
@@ -562,12 +574,7 @@ fn extract_rpf_to_directory(input: &Path, output: &Path) -> Result<(usize, u64, 
     if archive.encryption.is_encrypted() {
         return Err("هذا الأرشيف مشفر. فك التشفير يحتاج مفاتيح اللعبة الأصلية.".to_string());
     }
-    let root = archive.entries.first()
-        .ok_or_else(|| "جدول RPF فارغ.".to_string())?;
-    let (start, count) = match &root.kind {
-        RpfEntryKind::Directory { entries_index, entries_count } => (*entries_index, *entries_count),
-        _ => return Err("مدخل الجذر في RPF7 ليس مجلداً.".to_string()),
-    };
+    let (start, count) = resolve_rpf_root_range(&archive.entries)?;
     fs::create_dir_all(output)
         .map_err(|error| format!("تعذر إنشاء مجلد الاستخراج: {error}"))?;
     let (mut files_written, mut total_bytes) = (0usize, 0u64);
@@ -1265,6 +1272,72 @@ pub unsafe extern "C" fn gta_engine_build_ytd(
 mod tests {
     use super::*;
     use rpf_archive::{RpfArchive, RpfBuilder, RpfEncryption};
+
+    #[test]
+    fn resolves_flat_rpf_root_without_directory_wrapper() {
+        let entries = vec![
+            rpf_archive::RpfEntry {
+                name: "vehicles.meta".to_string(),
+                name_lower: "vehicles.meta".to_string(),
+                kind: RpfEntryKind::BinaryFile {
+                    file_offset: 1, file_size: 0, uncompressed_size: 16, is_encrypted: false,
+                },
+            },
+            rpf_archive::RpfEntry {
+                name: "demo.yft".to_string(),
+                name_lower: "demo.yft".to_string(),
+                kind: RpfEntryKind::ResourceFile {
+                    file_offset: 2, file_size: 32, system_flags: 0, graphics_flags: 0, is_encrypted: false,
+                },
+            },
+        ];
+        assert_eq!(resolve_rpf_root_range(&entries).unwrap(), (0, 2));
+    }
+
+    #[test]
+    fn resolves_standard_rpf_root_directory() {
+        let entries = vec![
+            rpf_archive::RpfEntry {
+                name: String::new(),
+                name_lower: String::new(),
+                kind: RpfEntryKind::Directory { entries_index: 1, entries_count: 1 },
+            },
+            rpf_archive::RpfEntry {
+                name: "vehicles.meta".to_string(),
+                name_lower: "vehicles.meta".to_string(),
+                kind: RpfEntryKind::BinaryFile {
+                    file_offset: 1, file_size: 0, uncompressed_size: 16, is_encrypted: false,
+                },
+            },
+        ];
+        assert_eq!(resolve_rpf_root_range(&entries).unwrap(), (1, 1));
+    }
+
+    #[test]
+    fn rejects_ambiguous_root_with_unattached_subdirectories() {
+        let entries = vec![
+            rpf_archive::RpfEntry {
+                name: "vehicles.meta".to_string(),
+                name_lower: "vehicles.meta".to_string(),
+                kind: RpfEntryKind::BinaryFile {
+                    file_offset: 1, file_size: 0, uncompressed_size: 16, is_encrypted: false,
+                },
+            },
+            rpf_archive::RpfEntry {
+                name: "stream".to_string(),
+                name_lower: "stream".to_string(),
+                kind: RpfEntryKind::Directory { entries_index: 2, entries_count: 1 },
+            },
+            rpf_archive::RpfEntry {
+                name: "demo.yft".to_string(),
+                name_lower: "demo.yft".to_string(),
+                kind: RpfEntryKind::ResourceFile {
+                    file_offset: 2, file_size: 32, system_flags: 0, graphics_flags: 0, is_encrypted: false,
+                },
+            },
+        ];
+        assert!(resolve_rpf_root_range(&entries).is_err());
+    }
 
     #[test]
     fn builds_parses_and_extracts_open_rpf7() {
