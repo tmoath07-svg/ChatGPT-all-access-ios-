@@ -203,24 +203,26 @@ jobs:
             rpf-reference-audit/camry-ytd-dds \
             rpf-reference-audit/camry-engine-validation.json
 
-      - name: Build a real Orbis OTD from the Camry YTD using Zokii RageBuilder
+      - name: Build a real PS4 OTD from Camry YTD using Zokii RageBuilder
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends wine
           ZOKII_ROOT="rpf-reference-audit/extracted/zokii/Zokii Studio (5)/assets/oldtool"
-          RPF_BUILDER="$ZOKII_ROOT/RPFBuilder"
-          mkdir -p "$RPF_BUILDER/texture_input"
-          cp rpf-reference-audit/camry-ytd-dds/*.dds "$RPF_BUILDER/texture_input/"
+          mkdir -p "$ZOKII_ROOT/texture_input"
+          cp rpf-reference-audit/camry-ytd-dds/*.dds "$ZOKII_ROOT/texture_input/"
+          cp "$ZOKII_ROOT/texture_builder.lua" "$ZOKII_ROOT/texture_builder_ps4.lua"
+          sed -i 's/set_platform("orbis")/set_platform("ps4")/' "$ZOKII_ROOT/texture_builder_ps4.lua"
           export WINEPREFIX="$RUNNER_TEMP/inrpf-wine"
           export WINEDEBUG=-all
           wine --version
-          python3 "$RPF_BUILDER/build_otd.py"
-          OTD="$RPF_BUILDER/texture.otd"
+          rm -f "$ZOKII_ROOT/texture.otd"
+          (cd "$ZOKII_ROOT" && timeout 180 wine "$PWD/ragebuilder.exe" "$PWD/texture_builder_ps4.lua")
+          OTD="$ZOKII_ROOT/texture.otd"
           test -s "$OTD"
           python3 - "$OTD" rpf-reference-audit/camry-orbis-otd-validation.json <<'PY'
-          import hashlib, json, pathlib, struct, sys
+          import hashlib, json, pathlib, sys
           p=pathlib.Path(sys.argv[1]); b=p.read_bytes()
           report={
             "path":str(p),
@@ -230,7 +232,8 @@ jobs:
             "rsc7_header":b[:4] == b"RSC7",
             "header_hex":b[:16].hex(),
             "payload_bytes":max(0,len(b)-16),
-            "container_validation":"RageBuilder created a non-empty OTD; deeper Orbis resource parsing and in-game validation remain required."
+            "platform_token":"ps4",
+            "validation":"RageBuilder created a non-empty PS4 OTD resource; deeper format parsing and in-game validation remain required."
           }
           pathlib.Path(sys.argv[2]).write_text(json.dumps(report,indent=2),encoding="utf-8")
           print(json.dumps(report,indent=2))
