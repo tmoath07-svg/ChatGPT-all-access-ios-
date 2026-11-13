@@ -7,9 +7,6 @@ packages:
   libarchive-for-swift:
     url: https://github.com/matteo-pacini/libarchive-for-swift.git
     exactVersion: 1.0.0
-  SwiftLlama:
-    url: https://github.com/pgorzelany/swift-llama-cpp.git
-    revision: 0afc721b11e24c619229ee191edd7c5fde003b9c
 targets:
   GTAConverter:
     type: application
@@ -21,23 +18,21 @@ targets:
     dependencies:
       - package: libarchive-for-swift
         product: SwiftArchive
-      - package: SwiftLlama
-        product: SwiftLlama
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tmoath07.gta-converter
         PRODUCT_NAME: INRPF
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CURRENT_PROJECT_VERSION: "37"
+        CURRENT_PROJECT_VERSION: "38"
         VERSIONING_SYSTEM: apple-generic
-        PRODUCT_BUNDLE_VERSION: "37"
-        MARKETING_VERSION: "3.60"
+        PRODUCT_BUNDLE_VERSION: "38"
+        MARKETING_VERSION: "3.70"
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: "INRPF"
-        INFOPLIST_KEY_CFBundleVersion: "37"
-        INFOPLIST_KEY_CFBundleShortVersionString: "3.60"
+        INFOPLIST_KEY_CFBundleVersion: "38"
+        INFOPLIST_KEY_CFBundleShortVersionString: "3.70"
         INFOPLIST_KEY_LSRequiresIPhoneOS: YES
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "يحتاج INRPF إلى الوصول للشبكة المحلية للاتصال بجهاز PS4 ونقل ملفات DLC عبر FTP."
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark

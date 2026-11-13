@@ -2,7 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 import SwiftArchive
 import UIKit
-import SwiftLlama
 
 struct ContentView: View {
     let initialSourceURL: URL?
@@ -22,7 +21,6 @@ struct ContentView: View {
     @State private var isDropTargeted = false
     @State private var lastErrorDetails = ""
     @State private var modAnalysis: ModAnalysisReport?
-    @State private var aiDiagnosis = ""
     @AppStorage("gta_conversion_mode") private var conversionMode = "auto"
     @AppStorage("gta_cover_style") private var coverStyle = "neon"
     @AppStorage("gta_accent_color") private var accentColor = "purple"
@@ -85,7 +83,23 @@ struct ContentView: View {
                         actionButtons.gtaScrollGlassMotion(motionEnabled)
                         if let outputFolder { outputCard(outputFolder) }
                         if let modAnalysis { modAnalysisCard(modAnalysis) }
-                        if !aiDiagnosis.isEmpty { aiDiagnosisCard }
+                        if let outputFolder, let modAnalysis,
+                           !modAnalysis.dlcFiles.isEmpty, !modAnalysis.packNames.isEmpty {
+                            NavigationLink(destination: DLCPS4PreparationView(
+                                root: outputFolder,
+                                dlcFiles: modAnalysis.dlcFiles,
+                                packNames: modAnalysis.packNames
+                            )) {
+                                Label("تجهيز وإرسال المود إلى PS4 عبر Orbx", systemImage: "gamecontroller.fill")
+                                    .font(.headline.bold())
+                                    .frame(maxWidth: .infinity)
+                                    .padding(15)
+                                    .background(purple.opacity(0.86))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                    .foregroundStyle(.white)
+                            }
+                            .buttonStyle(.plain)
+                        }
                         if let generatedURL { xmlShareCard(generatedURL) }
                         statusCard
                         footer
@@ -405,20 +419,6 @@ struct ContentView: View {
         .padding(16).panel()
     }
 
-
-    private var aiDiagnosisCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("تشخيص الذكاء الاصطناعي المحلي", systemImage: "brain.head.profile")
-                .font(.headline.bold()).foregroundStyle(.purple)
-            Text(aiDiagnosis)
-                .font(.subheadline).foregroundStyle(.white.opacity(0.86))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text("التشخيص مبني على الملفات والبيانات التي أمكن قراءتها. لم يتم تغيير الملفات الأصلية أو تطبيق تعديل تخميني على ملفات YFT/YTD/RPF.")
-                .font(.caption2).foregroundStyle(.orange.opacity(0.9))
-        }
-        .padding(16).panel()
-    }
 
     private func modAnalysisCard(_ report: ModAnalysisReport) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -756,13 +756,6 @@ struct ContentView: View {
                 outputFolder = root
                 incompleteRoot = nil
                 modAnalysis = analysis
-                aiDiagnosis = ""
-                progressText = "الذكاء الاصطناعي المحلي يفحص المود ويبحث عن حلول..."
-                do {
-                    aiDiagnosis = try await INRPFLocalAIDiagnosis.analyze(reportText: analysis.reportText)
-                } catch {
-                    aiDiagnosis = "تعذر تشغيل التشخيص الذكي المحلي: \(error.localizedDescription)\nتم إكمال الفحص البنيوي الأساسي، ولم يتم تعديل أي ملف."
-                }
                 if !analysis.packNames.isEmpty {
                     packNames = analysis.packNames.joined(separator: "\n")
                 }

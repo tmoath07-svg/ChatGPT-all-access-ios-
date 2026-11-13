@@ -140,14 +140,6 @@ struct FeatureHubView: View {
         .init(id:8,title:"استوديو ألوان السيارات",category:"السيارات",icon:"paintpalette.fill",status:"مخطط",detail:"معاينة وتعديل ألوان الخامات تتطلب فك YTD ومحرر خامات."),
         .init(id:9,title:"محلل Handling",category:"السيارات",icon:"gauge.with.dots.needle.67percent",status:"متاح",detail:"قراءة قيم handling.meta من النص وخصائص value في XML، مع دعم تكرار الحقول لعدة مركبات. العرض للقراءة فقط.",route:"handling"),
         .init(id:10,title:"معرض موداتك",category:"السيارات",icon:"rectangle.stack.fill",status:"متاح",detail:"استعراض وتحليل ومشاركة المودات التي استوردتها داخل مساحة INRPF المحلية.",route:"library"),
-        .init(id:11,title:"AI Mod Scanner",category:"الذكاء الاصطناعي",icon:"sparkles",status:"محلي",detail:"افحص تقرير المود محلياً واكتشف الملفات الناقصة والتعارضات المحتملة، مع توضيح الأدلة",route:"ai"),
-        .init(id:12,title:"AI Error Fixer",category:"الذكاء الاصطناعي",icon:"wrench.and.screwdriver.fill",status:"محلي",detail:"حلّل سجل الخطأ واقترح خطوات إصلاح قابلة للمراجعة. لا تعدّل الملفات تلقائياً",route:"ai"),
-        .init(id:13,title:"AI XML Builder",category:"الذكاء الاصطناعي",icon:"curlybraces",status:"محلي",detail:"أنشئ مسودة XML بناءً على الطلب والبيانات، ثم تحقق من صلاحية XML قبل استخدامه",route:"ai"),
-        .init(id:14,title:"AI DLC Assistant",category:"الذكاء الاصطناعي",icon:"shippingbox.fill",status:"محلي",detail:"اشرح بنية DLC والمسارات والملفات المطلوبة اعتماداً على تقرير المود",route:"ai"),
-        .init(id:15,title:"AI Vehicle Finder",category:"الذكاء الاصطناعي",icon:"car.side",status:"محلي",detail:"استنتج اسم السيارة المحتمل من أسماء الملفات وبيانات META، واذكر مستوى الثقة",route:"ai"),
-        .init(id:16,title:"AI Texture Inspector",category:"الذكاء الاصطناعي",icon:"eye.fill",status:"محلي",detail:"فسّر تقرير الخامات والامتدادات والأحجام، ولا تخمّن خصائص غير موجودة",route:"ai"),
-        .init(id:17,title:"AI Mod Translator",category:"الذكاء الاصطناعي",icon:"character.bubble",status:"محلي",detail:"ترجم نصوص README والأوصاف مع إبقاء أسماء الملفات والمسارات كما هي",route:"ai"),
-        .init(id:18,title:"AI Compatibility",category:"الذكاء الاصطناعي",icon:"checkmark.shield.fill",status:"محلي",detail:"قيّم مؤشرات التوافق مع PS4 اعتماداً على الأدلة، ولا تدّعِ ضمان التشغيل",route:"ai"),
         .init(id:19,title:"PS4 Package Studio",category:"PS4",icon:"shippingbox",status:"جزئي",detail:"تجهيز ونقل حزم Orbx ودمج dlclist.xml. لا ينشئ هذا وحده محتوى DLC متوافقاً مع PS4.",route:"dlc"),
         .init(id:20,title:"XML Studio",category:"PS4",icon:"list.bullet.rectangle",status:"جزئي",detail:"محرر XML محلي مع فحص الصياغة وحفظ نسخة جديدة من dlclist.xml.",route:"xml"),
         .init(id:21,title:"Cloud Converter",category:"PS4",icon:"cloud.gear.fill",status:"متاح يدوياً",detail:"محرك Ps4tools موجود في GitHub Actions. تشغيله حالياً يتم من GitHub يدوياً برابط تنزيل مباشر.",route:"cloud"),
@@ -156,7 +148,7 @@ struct FeatureHubView: View {
         .init(id:24,title:"Mod Marketplace",category:"الإدارة",icon:"storefront",status:"مخطط",detail:"كتالوج مودات وروابطها ومعلومات التوافق. لن يستضيف ملفات محمية أو يعيد توزيعها دون إذن."),
         .init(id:25,title:"Mod Library المحلية",category:"الإدارة",icon:"cloud.fill",status:"متاح",detail:"مكتبة ملفات محلية تعمل دون سيرفر أو مزامنة سحابية، مع استعراض وتحليل ومشاركة العناصر المستوردة.",route:"library"),
         .init(id:26,title:"One Click Build",category:"PS4",icon:"bolt.fill",status:"مخطط",detail:"تشغيل سلسلة فحوص وتجهيز وتحويل وتغليف بعد ربط كل مراحل المحرك."),
-        .init(id:27,title:"Mod Timeline",category:"الإدارة",icon:"timeline.selection",status:"متاح",detail:"سجل محلي لعمليات التحليل والتجهيز والنسخ والذكاء الاصطناعي على هذا الجهاز.",route:"timeline"),
+        .init(id:27,title:"Mod Timeline",category:"الإدارة",icon:"timeline.selection",status:"متاح",detail:"سجل محلي لعمليات التحليل والتجهيز والنسخ على هذا الجهاز.",route:"timeline"),
         .init(id:28,title:"Batch Converter",category:"PS4",icon:"square.stack.3d.up.fill",status:"جزئي",detail:"تحويل مجلد موارد Y* المدعومة دفعة واحدة عبر المحرك المحلي. لا يعني ذلك إنشاء DLC PS4 كامل.",route:"rpf"),
         .init(id:29,title:"Mod Preview",category:"الملفات",icon:"play.rectangle",status:"جزئي",detail:"معاينة الصور والملفات المدعومة. معاينة المجسمات تتطلب عارضاً ثلاثي الأبعاد."),
         .init(id:30,title:"Auto DLC Naming",category:"PS4",icon:"tag.fill",status:"متاح",detail:"توليد اسم مجلد DLC آمن وفريد بصيغة ASCII مع فحص التعارض.",route:"utility"),
@@ -275,7 +267,6 @@ struct FeatureHubView: View {
         case "ytd": YTDTextureLabView()
         case "handling": HandlingAnalyzerView()
         case "compare": ModComparisonView()
-        case "ai": LocalAIAssistantView(featureID: item.id)
         case "utility": LocalUtilityFeatureView(featureID: item.id)
         case "library": LocalModLibraryView(featureID: item.id)
         case "timeline": LocalTimelineView()

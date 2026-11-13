@@ -19,27 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache bundled Arabic GGUF model
-        uses: actions/cache@v4
-        with:
-          path: GTAConverter/Resources/qwen2.5-1.5b-instruct-q4_k_m.gguf
-          key: inrpf-qwen25-15b-q4km-6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
-
-      - name: Prepare bundled offline Arabic AI model
-        run: |
-          set -euo pipefail
-          mkdir -p GTAConverter/Resources
-          MODEL="GTAConverter/Resources/qwen2.5-1.5b-instruct-q4_k_m.gguf"
-          MODEL_URL="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/dd26da440ef0330c47919d1ecae0966d24022222/qwen2.5-1.5b-instruct-q4_k_m.gguf"
-          if [ ! -s "$MODEL" ]; then
-            curl --fail --location --retry 4 --retry-delay 5 "$MODEL_URL" --output "$MODEL"
-          fi
-          echo "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e  $MODEL" | shasum -a 256 --check
-          LICENSE_URL="https://www.apache.org/licenses/LICENSE-2.0.txt"
-          curl --fail --location --retry 3 "$LICENSE_URL" --output GTAConverter/Resources/Qwen-LICENSE.txt
-          test -s GTAConverter/Resources/Qwen-LICENSE.txt
-          echo "Bundled Qwen2.5 1.5B Q4_K_M verified by SHA-256; inference runs in-process on device."
-
       - name: Generate app icon
         run: |
           set -euo pipefail
@@ -65,8 +44,8 @@ jobs:
           set -euo pipefail
           swiftc GTAConverter/ModAnalyzer.swift Tests/fivem_mod_analyzer_tests.swift -o /tmp/fivem-mod-analyzer-tests
           /tmp/fivem-mod-analyzer-tests
-          grep -q 'MARKETING_VERSION: "3.60"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "37"' project.yml
+          grep -q 'MARKETING_VERSION: "3.70"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "38"' project.yml
 
       - name: Test feature analysis core
         run: |
@@ -155,18 +134,18 @@ jobs:
           INFO="Payload/INRPF.app/Info.plist"
           # XcodeGen may omit version keys from the generated plist on some runner/Xcode combinations.
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.60' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 3.60' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 37' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 37' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.70' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 3.70' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 38' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 38' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
           BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")
 
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
-          test "$VERSION" = "3.60"
-          test "$BUILD" = "37"
-          zip -qry INRPF-3.60-unsigned.ipa Payload
-          unzip -t INRPF-3.60-unsigned.ipa
+          test "$VERSION" = "3.70"
+          test "$BUILD" = "38"
+          zip -qry INRPF-3.70-unsigned.ipa Payload
+          unzip -t INRPF-3.70-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"
           nm -g "Payload/INRPF.app/$EXECUTABLE" > build/exported-symbols.txt
           grep -q "_gta_engine_build_rpf7" build/exported-symbols.txt
@@ -175,12 +154,12 @@ jobs:
           grep -q "_gta_engine_build_ytd" build/exported-symbols.txt
 
           mkdir -p release-package
-          cp INRPF-3.60-unsigned.ipa release-package/INRPF-3.60-unsigned.ipa
+          cp INRPF-3.70-unsigned.ipa release-package/INRPF-3.70-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
-          INRPF 3.60 - IPA غير موقّع
+          INRPF 3.70 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
-          2) استخرج ملف INRPF-3.60-unsigned.ipa.
+          2) استخرج ملف INRPF-3.70-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
           يتضمن هذا الإصدار محركاً محلياً لموارد المركبات، وفاحص RPF يعرض بيانات META الخاصة بالمركبات فقط، وتحليلاً وتحويلاً بنيوياً للموارد المدعومة، واستخراج وبناء قواميس YTD بصيغتها المدعومة. لا يتضمن استخراجاً عاماً لأرشيف RPF.
@@ -196,7 +175,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: INRPF-3.60-Install-Package
+          name: INRPF-3.70-Install-Package
           path: release-package/
           if-no-files-found: error
           retention-days: 14
