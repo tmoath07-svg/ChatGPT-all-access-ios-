@@ -125,7 +125,7 @@ struct RPFStudioView: View {
             defer { if access { source.stopAccessingSecurityScopedResource() } }
             do {
                 let local = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("RPF-\\(UUID().uuidString).rpf")
+                    .appendingPathComponent("RPF-\(UUID().uuidString).rpf")
                 try? FileManager.default.removeItem(at: local)
                 try FileManager.default.copyItem(at: source, to: local)
                 let result = try PythonRuntime.shared.inspect(file: local)
