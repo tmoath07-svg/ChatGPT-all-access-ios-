@@ -544,13 +544,19 @@ struct LocalEngineView: View {
             do {
                 let result = try LocalEngineBridge.inspectRPF(at: file)
                 await MainActor.run {
+                    let tocReadable = result["toc_readable"] as? Bool ?? true
+                    let entryCount = tocReadable ? String(result["entries"] as? Int ?? 0) : "غير متاح"
+                    let directoryCount = tocReadable ? String(result["directories"] as? Int ?? 0) : "غير متاح"
+                    let binaryCount = tocReadable ? String(result["binary_files"] as? Int ?? 0) : "غير متاح"
+                    let resourceCount = tocReadable ? String(result["resource_files"] as? Int ?? 0) : "غير متاح"
                     report = """
                     الصيغة: \(result["format"] as? String ?? "غير معروفة")
                     التشفير: \(result["encryption"] as? String ?? "غير معروف")
-                    عدد المدخلات: \(result["entries"] as? Int ?? 0)
-                    المجلدات: \(result["directories"] as? Int ?? 0)
-                    الملفات الثنائية: \(result["binary_files"] as? Int ?? 0)
-                    موارد RSC7: \(result["resource_files"] as? Int ?? 0)
+                    حالة الفهرس: \(tocReadable ? "مقروء" : "مشفر، لم تُقرأ الأسماء")
+                    عدد المدخلات: \(entryCount)
+                    المجلدات: \(directoryCount)
+                    الملفات الثنائية: \(binaryCount)
+                    موارد RSC7: \(resourceCount)
                     \(result["warning"] as? String ?? "")
                     """
                     isBusy = false
