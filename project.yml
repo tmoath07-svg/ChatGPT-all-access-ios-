@@ -48,6 +48,10 @@ targets:
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
+        SWIFT_OBJC_BRIDGING_HEADER: RPFStudio/RPFStudio-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/vendor/Python.xcframework/ios-arm64/Python.framework/Headers"
         INFOPLIST_KEY_CFBundleDisplayName: "RPF Studio"
         INFOPLIST_KEY_CFBundleVersion: "1"
         INFOPLIST_KEY_CFBundleShortVersionString: "0.1.0"
@@ -61,7 +65,6 @@ targets:
           RESOURCES_DIR="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
           mkdir -p "$RESOURCES_DIR"
           ditto "$SRCROOT/RPFStudio/Resources/engine" "$RESOURCES_DIR/engine"
-          mkdir -p "$RESOURCES_DIR/python"
           PYTHON_SLICE="$SRCROOT/vendor/Python-ios-slice"
           test -d "$PYTHON_SLICE/lib-arm64"
           mkdir -p "$RESOURCES_DIR/python"
