@@ -963,7 +963,7 @@ struct ContentView: View {
 
     private func generateXML() {
         guard !names.isEmpty else { return }
-        let entries = names.map { "        <Item>/data/orbx/gta/rpf/dlc_addon/\($0)/</Item>" }
+        let entries = names.map { "        <Item>/Data/orbx/gta/rpf/dlc_addon/\($0)/</Item>" }
             .joined(separator: "\n")
         let xml = """
         <?xml version="1.0" encoding="UTF-8"?>
