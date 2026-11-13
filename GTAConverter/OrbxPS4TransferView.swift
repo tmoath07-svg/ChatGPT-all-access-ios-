@@ -202,6 +202,8 @@ struct OrbxPS4TransferView: View {
                         throw NSError(domain: "INRPF.Transfer", code: 8,
                             userInfo: [NSLocalizedDescriptionKey: "حزمة المركبة لا تحتوي dlc.rpf في المسار المتوقع: \(name)"])
                     }
+                    // Keep the installer strict: generic RPF browsing must not make non-vehicle archives installable.
+                    _ = try LocalEngineBridge.inspectRPF(at: localDLC)
                     _ = try LocalEngineBridge.listRPF(at: localDLC)
                 }
 
