@@ -1934,6 +1934,24 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
+
+    #[test]
+    fn convert_and_build_rpf_refuses_ytd_atomically() {
+        let root = std::env::temp_dir().join(format!("inrpf-ytd-rpf-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let input = root.join("input");
+        let output = root.join("blocked.rpf");
+        fs::create_dir_all(input.join("common/data")).unwrap();
+        fs::write(input.join("common/data/vehicles.meta"), b"<vehicles/>").unwrap();
+        fs::write(input.join("stream.ytd"), b"synthetic-ytd-placeholder").unwrap();
+
+        let error = convert_folder_and_build_rpf(&input, &output).unwrap_err();
+        assert!(error.contains("YTD"));
+        assert!(!output.exists(), "a partial RPF must never be published");
+        assert!(!root.join(".inrpf-stage-blocked-").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn batch_conversion_refuses_ytd_without_orbis_otd_builder() {
         let root = std::env::temp_dir().join(format!("gta-engine-ytd-batch-test-{}", std::process::id()));
