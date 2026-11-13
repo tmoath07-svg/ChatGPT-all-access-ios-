@@ -3,6 +3,7 @@ import SwiftUI
 struct OrbxPS4TransferView: View {
     let packageURL: URL?
     let initialPackNames: [String]
+    let autoStart: Bool
 
     @AppStorage("inrpf_ps4_host") private var host = ""
     @AppStorage("inrpf_ps4_port") private var port = "2121"
@@ -15,15 +16,17 @@ struct OrbxPS4TransferView: View {
     @State private var status = "أدخل عنوان PS4 بعد تفعيل FTP في GoldHEN. سيتم رفع مجلدات DLC ودمج dlclist.xml."
     @State private var isError = false
     @State private var uploadedFiles = 0
+    @State private var didAutoStart = false
 
     private let remoteRoot = "/data/orbx/gta/rpf"
     private let remoteDLClistDirectory = "/data/orbx/gta"
     private var purple: Color { Color(red: 0.70, green: 0.42, blue: 0.88) }
     private var selectedPackageURL: URL? { availablePackages.first { $0.path == selectedPackagePath } }
 
-    init(packageURL: URL? = nil, packNames: [String] = []) {
+    init(packageURL: URL? = nil, packNames: [String] = [], autoStart: Bool = false) {
         self.packageURL = packageURL
         self.initialPackNames = packNames
+        self.autoStart = autoStart
         _selectedPackagePath = State(initialValue: packageURL?.path ?? "")
         _packNames = State(initialValue: packNames)
     }
@@ -123,7 +126,12 @@ struct OrbxPS4TransferView: View {
         .navigationTitle("إرسال إلى PS4")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.layoutDirection, .rightToLeft)
-        .onAppear(perform: discoverPackages)
+        .onAppear {
+            discoverPackages()
+            guard autoStart, !didAutoStart else { return }
+            didAutoStart = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { sendPackage() }
+        }
     }
 
     private func field(_ title: String, text: Binding<String>, placeholder: String) -> some View {
@@ -145,6 +153,11 @@ struct OrbxPS4TransferView: View {
         let base = host.trimmingCharacters(in: .whitespacesAndNewlines)
         let user = username
         let pass = password
+        guard !base.isEmpty else {
+            status = "أدخل IP جهاز PS4 أولاً. لم يبدأ النقل."
+            isError = true
+            return
+        }
         guard let package = selectedPackageURL else {
             status = "اختر حزمة Orbx جاهزة أولاً."
             isError = true

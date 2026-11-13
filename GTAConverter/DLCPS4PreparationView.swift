@@ -9,6 +9,8 @@ struct DLCPS4PreparationView: View {
     @State private var status = "سيجمع ملفات DLC المكتشفة داخل بنية Orbx المطلوبة للـPS4."
     @State private var isError = false
     @State private var isBusy = false
+    @State private var navigateToTransfer = false
+    @AppStorage("inrpf_auto_send_after_package") private var autoSendAfterPackage = false
 
     private let background = Color(red: 0.035, green: 0.025, blue: 0.065)
 
@@ -44,6 +46,13 @@ struct DLCPS4PreparationView: View {
                     }
                     .padding(16).background(.white.opacity(0.055))
                     .clipShape(RoundedRectangle(cornerRadius: 18))
+
+                    Toggle("إرسال الحزمة تلقائياً إلى PS4 بعد التجهيز", isOn: $autoSendAfterPackage)
+                        .tint(.purple).foregroundStyle(.white)
+                        .padding(13).background(.white.opacity(0.055))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    Text("يتطلب حفظ IP والمنفذ واسم المستخدم في شاشة الإرسال. إذا كان FTP يحتاج كلمة مرور، افتح شاشة الإرسال وأرسل يدوياً لأن كلمة المرور لا تُخزّن تلقائياً.")
+                        .font(.caption2).foregroundStyle(.white.opacity(0.55))
 
                     Button(action: buildPackage) {
                         Label(isBusy ? "جاري تجهيز الحزم..." : "تجهيز حزم PS4 وملف XML",
@@ -213,6 +222,7 @@ struct DLCPS4PreparationView: View {
                     status = "اكتمل تجهيز \(copiedCount) حزم وملف dlclist.xml. لم يتم تحويل محتوى RPF."
                     isBusy = false
                     isError = false
+                    if autoSendAfterPackage { navigateToTransfer = true }
                 }
             } catch {
                 await MainActor.run {
