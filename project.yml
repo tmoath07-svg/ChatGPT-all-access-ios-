@@ -62,4 +62,7 @@ targets:
           mkdir -p "$RESOURCES_DIR"
           ditto "$SRCROOT/RPFStudio/Resources/engine" "$RESOURCES_DIR/engine"
           mkdir -p "$RESOURCES_DIR/python"
-          rsync -a --exclude "Python.framework" "$SRCROOT/RPFStudio/Resources/python/" "$RESOURCES_DIR/python/"
+          PYTHON_SLICE="$SRCROOT/vendor/Python-ios-slice"
+          test -d "$PYTHON_SLICE/lib-arm64"
+          mkdir -p "$RESOURCES_DIR/python"
+          rsync -a --exclude "Python.framework" --exclude "platform-config" "$PYTHON_SLICE/lib-arm64/" "$RESOURCES_DIR/python/"
