@@ -67,7 +67,7 @@ struct OrbxPS4TransferView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 15))
 
                     VStack(spacing: 11) {
-                        field("IP جهاز PS4", text: $host, placeholder: "مثال: 192.168.1.50")
+                        field("عنوان جهاز PS4 (IP)", text: $host, placeholder: "192.168.1.50")
                             .keyboardType(.numbersAndPunctuation)
                         field("المنفذ", text: $port, placeholder: "2121")
                             .keyboardType(.numberPad)
@@ -76,6 +76,8 @@ struct OrbxPS4TransferView: View {
                             Text("كلمة المرور").font(.caption).foregroundStyle(.white.opacity(0.6))
                             SecureField("كلمة المرور", text: $password)
                                 .textInputAutocapitalization(.never).autocorrectionDisabled()
+                                .environment(\.layoutDirection, .leftToRight)
+                                .multilineTextAlignment(.leading)
                                 .padding(12).background(.black.opacity(0.22))
                                 .clipShape(RoundedRectangle(cornerRadius: 11)).foregroundStyle(.white)
                         }
@@ -86,10 +88,18 @@ struct OrbxPS4TransferView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Label("المسار المستهدف", systemImage: "folder.fill")
                             .font(.subheadline.bold()).foregroundStyle(purple)
+                        Text("مجلد الحزم على PS4")
+                            .font(.caption).foregroundStyle(.white.opacity(0.65))
                         Text(remoteRoot + "/dlc_addon/")
-                            .font(.caption.monospaced()).foregroundStyle(.white).textSelection(.enabled)
-                        Text("ملف القائمة: ORBX/GTA/dlclist.xml  •  /data/orbx/gta/dlclist.xml")
-                            .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.7)).textSelection(.enabled)
+                            .font(.caption.monospaced()).foregroundStyle(.white)
+                            .environment(\.layoutDirection, .leftToRight)
+                            .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                        Text("ملف القائمة على PS4")
+                            .font(.caption).foregroundStyle(.white.opacity(0.65))
+                        Text(remoteDLClistDirectory + "/dlclist.xml")
+                            .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.85))
+                            .environment(\.layoutDirection, .leftToRight)
+                            .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
                         Text("الحزم: " + packNames.joined(separator: "، "))
                             .font(.caption).foregroundStyle(.white.opacity(0.62))
                     }
@@ -139,6 +149,8 @@ struct OrbxPS4TransferView: View {
             Text(title).font(.caption).foregroundStyle(.white.opacity(0.6))
             TextField(placeholder, text: text)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
+                .environment(\.layoutDirection, .leftToRight)
+                .multilineTextAlignment(.leading)
                 .padding(12).background(.black.opacity(0.22))
                 .clipShape(RoundedRectangle(cornerRadius: 11)).foregroundStyle(.white)
         }

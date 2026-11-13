@@ -10,10 +10,12 @@ struct OrbxAutoInstallTests {
         let addon = root.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
         let alpha = addon.appendingPathComponent("alpha_pack", isDirectory: true)
         let beta = addon.appendingPathComponent("car_2026", isDirectory: true)
+        let optima = addon.appendingPathComponent("optima", isDirectory: true)
         let wrappedAlpha = alpha.appendingPathComponent("alpha_pack", isDirectory: true)
         try FileManager.default.createDirectory(at: wrappedAlpha.appendingPathComponent("stream", isDirectory: true),
                                                 withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: beta, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: optima, withIntermediateDirectories: true)
         try Data("fixture-model".utf8).write(to: wrappedAlpha.appendingPathComponent("stream/car.oft"))
         try Data("fixture-rpf-alpha".utf8).write(to: wrappedAlpha.appendingPathComponent("dlc.rpf"))
         let normalizedAlpha = try INRPFOrbxAutoInstallPlanner.packageContentRoot(for: alpha)
@@ -24,8 +26,10 @@ struct OrbxAutoInstallTests {
         precondition(normalizedBeta == beta, "A valid package folder was incorrectly flattened")
         try Data("fixture-meta".utf8).write(to: beta.appendingPathComponent("vehicles.meta"))
         try Data("fixture-rpf-beta".utf8).write(to: beta.appendingPathComponent("dlc.rpf"))
+        try Data("fixture-rpf-optima".utf8).write(to: optima.appendingPathComponent("dlc.rpf"))
         try INRPFOrbxAutoInstallPlanner.validateDlcRPF(in: alpha)
         try INRPFOrbxAutoInstallPlanner.validateDlcRPF(in: beta)
+        try INRPFOrbxAutoInstallPlanner.validateDlcRPF(in: optima)
 
         let missingArchive = root.appendingPathComponent("missing_rpf", isDirectory: true)
         try FileManager.default.createDirectory(at: missingArchive, withIntermediateDirectories: true)
@@ -37,7 +41,9 @@ struct OrbxAutoInstallTests {
         }
 
         let names = try INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)
-        precondition(names == ["alpha_pack", "car_2026"], "DLC folder discovery did not return expected names")
+        precondition(names == ["alpha_pack", "car_2026", "optima"], "DLC folder discovery did not return expected names")
+        precondition(INRPFOrbxAutoInstallPlanner.remoteAddon == "/data/orbx/gta/rpf/dlc_addon", "Incorrect PS4 addon path")
+        precondition(INRPFOrbxAutoInstallPlanner.remoteDLClistDirectory == "/data/orbx/gta", "Incorrect PS4 dlclist path")
 
         let gtaRoot = root.appendingPathComponent("data/orbx/gta", isDirectory: true)
         try FileManager.default.createDirectory(at: gtaRoot, withIntermediateDirectories: true)
@@ -59,6 +65,7 @@ struct OrbxAutoInstallTests {
         precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/old_pack/"), "Existing XML entries were not preserved")
         precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/alpha_pack/"), "First package path missing")
         precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/car_2026/"), "Second package path missing")
+        precondition(merged.contains("/data/orbx/gta/rpf/dlc_addon/optima/"), "optima package path missing")
 
         let repeated = try INRPFOrbxAutoInstallPlanner.mergedDLClist(existing: merged, packageNames: names)
         precondition(repeated == merged, "Merge is not idempotent; duplicate paths may be added")
