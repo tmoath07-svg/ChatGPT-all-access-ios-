@@ -1,0 +1,82 @@
+name: Build RPF Studio IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [rpf-studio-bootstrap]
+    paths:
+      - "RPFStudio/**"
+      - "project.yml"
+      - ".github/workflows/build-rpf-studio-ipa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Download Python for iOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vendor/python RPFStudio/Resources
+          curl -fL --retry 3 \
+            https://github.com/beeware/Python-Apple-support/releases/download/3.14-b10/Python-3.14-iOS-support.b10.tar.gz \
+            -o /tmp/python-ios.tar.gz
+          tar -xzf /tmp/python-ios.tar.gz -C vendor/python
+          XCFRAMEWORK="$(find vendor/python -type d -name Python.xcframework -print -quit)"
+          test -n "$XCFRAMEWORK"
+          mkdir -p vendor
+          ditto "$XCFRAMEWORK" vendor/Python.xcframework
+          DEVICE_SLICE="$(find vendor/Python.xcframework -mindepth 1 -maxdepth 1 -type d -name 'ios-arm64' -print -quit)"
+          test -n "$DEVICE_SLICE"
+          ditto "$DEVICE_SLICE" RPFStudio/Resources/python
+          test -d vendor/Python.xcframework
+          test -d RPFStudio/Resources/python
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build unsigned iOS app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project GTAConverter.xcodeproj \
+            -scheme RPFStudio \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/RPFStudioDerived \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package and validate IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="build/RPFStudioDerived/Build/Products/Release-iphoneos/RPF Studio.app"
+          test -d "$APP_PATH"
+          test -f "$APP_PATH/Info.plist"
+          test -d "$APP_PATH/python"
+          mkdir -p Payload
+          ditto "$APP_PATH" "Payload/RPF Studio.app"
+          zip -qry RPF-Studio-unsigned.ipa Payload
+          unzip -t RPF-Studio-unsigned.ipa
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "Payload/RPF Studio.app/Info.plist")
+          test "$BUNDLE_ID" = "com.tmoath07.rpfstudio"
+          echo "IPA package validated: $BUNDLE_ID"
+          echo "This is an unsigned IPA and requires signing before installation."
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: RPF-Studio-IPA-Unsigned
+          path: RPF-Studio-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
