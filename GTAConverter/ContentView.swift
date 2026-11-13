@@ -176,7 +176,7 @@ struct ContentView: View {
         let index = activeThemeIndex
         let arranged = index >= 14 ? Array(sections.reversed()) : sections
         let offset = index % sections.count
-        return Array(arranged[offset...] + arranged[..<offset])
+        return Array(arranged[offset...]) + Array(arranged[..<offset])
     }
     @ViewBuilder private func homeSection(_ key: String) -> some View {
         switch key {
@@ -1384,7 +1384,8 @@ private struct INRPFThemePickerView: View {
                 if let selected { Text(language == "ar" ? selected.ar : selected.en).font(.caption.bold()).foregroundStyle(selected.colors[0]) }
             }
             LazyVGrid(columns: [GridItem(.flexible()),GridItem(.flexible())], spacing: 10) {
-                ForEach(Array(themes.enumerated()), id: \.element.id) { index, theme in
+                ForEach(themes.indices, id: \.self) { index in
+                    let theme = themes[index]
                     let isSelected = theme.id == themeID
                     Button {
                         withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
