@@ -48,7 +48,7 @@ struct LocalEngineView: View {
                         Text("محرر ومحرك الملفات المحلي").font(.title2.bold()).foregroundStyle(.white)
                         Text(LocalEngineBridge.version)
                             .font(.caption.monospaced()).foregroundStyle(.white.opacity(0.55))
-                        Text("افحص ترويسة أرشيف المركبات واعرض ملفات META الخاصة بالمركبات فقط، ثم جهّز RPF7 من مجلد مود مركبة. يدعم أيضاً فحص الموارد واستخراج وبناء YTD ضمن الصيغ المدعومة.")
+                        Text("افحص ترويسة RPF، واعرض شجرة الملفات العامة للأرشيفات القابلة للقراءة، وافحص بيانات META الخاصة بالمركبات المدعومة. يدعم أيضاً بناء RPF7 من مجلد مود مركبة وفحص الموارد واستخراج وبناء YTD ضمن الصيغ المدعومة.")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.72))
                     }
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
@@ -95,7 +95,7 @@ struct LocalEngineView: View {
                     .buttonStyle(.plain).disabled(isBusy)
 
                     Button { openPicker(.listRPF) } label: {
-                        Label("استعراض شجرة أرشيف المركبات", systemImage: "list.bullet.indent")
+                        Label("استعراض شجرة RPF العامة", systemImage: "list.bullet.indent")
                             .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
                             .background(.white.opacity(0.08))
                             .clipShape(RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
@@ -231,7 +231,7 @@ struct LocalEngineView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Label("حدود المرحلة الحالية", systemImage: "info.circle.fill")
                             .font(.subheadline.bold()).foregroundStyle(.orange)
-                        Text("فحص RPF يعرض بيانات META الخاصة بالمركبات فقط، ولا يستخرج الأرشيف كاملاً. تحويل الموارد واستخراج YTD يعملان ضمن الصيغ المدعومة فقط. بناء OTD بصيغة Orbis وتجميع DLC متوافق بالكامل مع PS4 ما زالا قيد النقل والاختبار. حد المعالجة 512MB.")
+                        Text("استعراض RPF يعرض شجرة الملفات والمجلدات العامة للأرشيفات القابلة للقراءة. فحص META وتحليل المركبات يظل محدوداً بالبيانات المدعومة، ولا يتوفر استخراج كامل للأرشيف. تحويل الموارد واستخراج YTD يعملان ضمن الصيغ المدعومة فقط. بناء OTD بصيغة Orbis وتجميع DLC متوافق بالكامل مع PS4 ما زالا قيد النقل والاختبار. حد المعالجة 512MB.")
                             .font(.caption).foregroundStyle(.white.opacity(0.68))
                     }
                     .padding(14).background(.orange.opacity(0.07))

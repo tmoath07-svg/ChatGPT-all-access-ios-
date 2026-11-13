@@ -382,7 +382,7 @@ pub unsafe extern "C" fn gta_engine_list_rpf(path: *const c_char) -> *mut c_char
         "encryption": format!("{:?}", archive.encryption),
         "count": items.len(),
         "items": items,
-        "warning": "يعرض فاحص RPF ملفات بيانات المركبات المعروفة فقط. لا يتيح استخراج محتويات الأرشيف العامة."
+        "warning": "يعرض مستعرض RPF شجرة الملفات والمجلدات العامة للأرشيف القابل للقراءة. هذا العرض لا يستخرج محتويات الأرشيف."
     }))
 }
 
