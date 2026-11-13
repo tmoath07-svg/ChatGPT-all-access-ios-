@@ -41,7 +41,11 @@ enum INRPFOrbxAutoInstallPlanner {
         guard matches.count == 1, let dataRoot = matches.first else {
             throw PlanError.missingAddonFolder
         }
-        let addon = dataRoot.appendingPathComponent("orbx/gta/rpf/dlc_addon", isDirectory: true)
+        let addon = dataRoot
+            .appendingPathComponent("orbx", isDirectory: true)
+            .appendingPathComponent("gta", isDirectory: true)
+            .appendingPathComponent("rpf", isDirectory: true)
+            .appendingPathComponent("dlc_addon", isDirectory: true)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: addon.path, isDirectory: &isDirectory),
               isDirectory.boolValue else { throw PlanError.missingAddonFolder }
