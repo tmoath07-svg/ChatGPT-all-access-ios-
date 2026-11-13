@@ -197,6 +197,43 @@ jobs:
           mkdir -p rpf-reference-audit/camry-rpf-extracted
           cargo run --manifest-path LocalEngine/Cargo.toml --example inspect_reference --             "$RPF"             rpf-reference-audit/camry-rpf-extracted             "$YFT"             "$YTD"             rpf-reference-audit/camry-engine-validation.json
 
+      - name: Build a real Orbis OTD from the Camry YTD using Zokii RageBuilder
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wine64
+          ZOKII_ROOT="rpf-reference-audit/extracted/zokii/Zokii Studio (5)/assets/oldtool"
+          RPF_BUILDER="$ZOKII_ROOT/RPFBuilder"
+          mkdir -p "$RPF_BUILDER/texture_input"
+          cp rpf-reference-audit/camry-ytd-dds/*.dds "$RPF_BUILDER/texture_input/"
+          export WINEPREFIX="$RUNNER_TEMP/inrpf-wine"
+          export WINEDEBUG=-all
+          wineboot --init || true
+          python3 "$RPF_BUILDER/build_otd.py"
+          OTD="$RPF_BUILDER/texture.otd"
+          test -s "$OTD"
+          python3 - "$OTD" rpf-reference-audit/camry-orbis-otd-validation.json <<'PY'
+          import hashlib, json, pathlib, struct, sys
+          p=pathlib.Path(sys.argv[1]); b=p.read_bytes()
+          report={
+            "path":str(p),
+            "bytes":len(b),
+            "sha256":hashlib.sha256(b).hexdigest(),
+            "magic4":b[:4].decode("latin1"),
+            "rsc7_header":b[:4] == b"RSC7",
+            "header_hex":b[:16].hex(),
+            "payload_bytes":max(0,len(b)-16),
+            "container_validation":"RageBuilder created a non-empty OTD; deeper Orbis resource parsing and in-game validation remain required."
+          }
+          pathlib.Path(sys.argv[2]).write_text(json.dumps(report,indent=2),encoding="utf-8")
+          print(json.dumps(report,indent=2))
+          if not report["rsc7_header"]:
+            raise SystemExit("OTD output does not have the expected RSC7 resource header")
+          PY
+          cp "$OTD" rpf-reference-audit/camry-orbis-otd
+          sha256sum "$OTD"
+
       - name: Run current Rust engine tests
         run: cargo test --manifest-path LocalEngine/Cargo.toml --all-targets
 
