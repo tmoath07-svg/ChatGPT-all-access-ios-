@@ -221,7 +221,7 @@ struct ContentView: View {
                 menuLink("الميزات", icon: "square.grid.2x2", destination: FeatureHubView())
                 menuLink("ملفاتي", icon: "folder.fill", destination: AppFilesView())
                 menuLink("الإعدادات", icon: "gearshape.fill", destination: AppSettingsView())
-                menuLink("التشخيص", icon: "waveform.path.ecg", destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails))
+                menuLink("استكشاف المشاكل وحلها", icon: "wrench.and.screwdriver.fill", destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails))
                 menuLink("المبدع", icon: "person.crop.circle.fill", destination: CreatorPageView())
             }
         }
