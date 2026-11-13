@@ -10,6 +10,7 @@ struct OrbxAutoInstallTests {
         let packageRoot = root.appendingPathComponent("PS4-Orbx-Fixture", isDirectory: true)
         try FileManager.default.createDirectory(at: packageRoot, withIntermediateDirectories: true)
         let addon = packageRoot.appendingPathComponent("Data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+        try FileManager.default.createDirectory(at: addon, withIntermediateDirectories: true)
         let resolvedAddon = try INRPFOrbxAutoInstallPlanner.addonFolder(in: packageRoot)
         precondition(resolvedAddon.path == addon.path, "Canonical Data folder resolution failed")
         let alpha = addon.appendingPathComponent("alpha_pack", isDirectory: true)
