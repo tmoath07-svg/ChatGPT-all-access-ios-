@@ -7,6 +7,7 @@ struct ContentView: View {
     let initialSourceURL: URL?
     @State private var didApplyInitialSource = false
     @State private var showingImporter = false
+    @State private var readyModMode = false
     @State private var sourceURL: URL?
     @State private var selectedFileName = "ما تم اختيار ملف"
     @State private var directURL = ""
@@ -78,6 +79,7 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: homeDensity == "compact" ? 10 : 16) {
                         header.gtaScrollGlassMotion(motionEnabled)
+                        readyModQuestionCard.gtaScrollGlassMotion(motionEnabled)
                         if homeMenuPosition == "top" { topMenu.gtaScrollGlassMotion(motionEnabled) }
                         conversionCard.gtaScrollGlassMotion(motionEnabled)
                         if homeMenuPosition == "afterConversion" { topMenu.gtaScrollGlassMotion(motionEnabled) }
@@ -308,6 +310,40 @@ struct ContentView: View {
         case "creator": CreatorPageView()
         default: HomeMenuCustomizationView()
         }
+    }
+
+    private var readyModQuestionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("هل لديك ملف جاهز؟", icon: "shippingbox.fill")
+            Text("إذا وصلك مود محوّل ومتوافق مع PS4، استورده مباشرة بدون إعادة تحويله.")
+                .font(.caption).foregroundStyle(.white.opacity(0.62))
+            HStack(spacing: 10) {
+                Button {
+                    readyModMode = true
+                    importKind = .archive
+                    showingImporter = true
+                } label: {
+                    Label("نعم، لدي ملف جاهز", systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
+                        .background(purple.opacity(0.30)).clipShape(RoundedRectangle(cornerRadius: 13))
+                        .foregroundStyle(.white)
+                }.buttonStyle(.plain)
+                Button {
+                    readyModMode = false
+                    status = "تم اختيار التحويل المعتاد. استورد مود PC أو FiveM للبدء."
+                    isError = false
+                } label: {
+                    Label("لا، أريد التحويل", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
+                        .background(.white.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 13))
+                        .foregroundStyle(.white)
+                }.buttonStyle(.plain)
+            }
+            if readyModMode {
+                Text("اختر ZIP أو RAR يحتوي حزمة DLC جاهزة. سيتحقق INRPF من وجود dlc.rpf قبل إكمال التجهيز.")
+                    .font(.caption2).foregroundStyle(.green.opacity(0.9))
+            }
+        }.padding(16).panel()
     }
 
     private var conversionCard: some View {
@@ -826,6 +862,10 @@ struct ContentView: View {
                 let analysis = try await Task.detached(priority: .utility) {
                     try ModAnalyzer.analyze(at: root)
                 }.value
+                if readyModMode && analysis.dlcFiles.isEmpty {
+                    throw NSError(domain: "INRPF.ReadyMod", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "الملف المحدد ليس مود DLC جاهزاً: لم يتم العثور على dlc.rpf. اختر حزمة PS4 محوّلة مسبقاً بصيغة ZIP أو RAR."])
+                }
                 outputFolder = root
                 incompleteRoot = nil
                 modAnalysis = analysis
@@ -833,7 +873,10 @@ struct ContentView: View {
                     packNames = analysis.packNames.joined(separator: "\n")
                 }
                 GTATransferHistoryStore.record(title: "فك وتحليل مود", detail: "\(analysis.fileCount) ملف • \(resolvedMode(for: analysis))")
-                if analysis.isFiveMVehicleResource {
+                if readyModMode {
+                    status = "تم التحقق من المود الجاهز والعثور على \(analysis.dlcFiles.count) ملف dlc.rpf. لم تتم إعادة تحويله. استخدم زر تجهيز حزم DLC للـPS4 (Orbx) لإكمال وضعه في مسار التثبيت."
+                    readyModMode = false
+                } else if analysis.isFiveMVehicleResource {
                     status = "تم التعرف على مورد سيارة FiveM. ملفات YFT: \(analysis.yftFiles.count)، ملفات YTD: \(analysis.ytdFiles.count)، ملفات META: \(analysis.vehicleMetaFiles.count). تم الفحص فقط؛ تحويل PS4 يحتاج بناء DLC."
                 } else {
                     status = "اكتمل فك الملفات. المسار المختار: \(resolvedMode(for: analysis)). تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf. هذا تجهيز وفحص، وليس تحويل PC إلى PS4 تلقائياً."
@@ -921,6 +964,7 @@ struct ContentView: View {
 
     private func fail(_ message: String, underlyingError: Error? = nil) {
         status = message
+        readyModMode = false
         let archiveError = underlyingError as? ArchiveError
         let nsError = underlyingError.map { $0 as NSError } ?? NSError(domain: "GTAConverter", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
         let reason = archiveError?.message.isEmpty == false
