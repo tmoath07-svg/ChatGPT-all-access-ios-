@@ -275,6 +275,63 @@ private final class GitHubIntegrationClient: ObservableObject {
         status = "تم إنشاء المستودع \(name)."
     }
 
+    func ensureConversionAssets(for repository: GHRepository, branch: String, toolkitPath: String) async throws {
+        let branchEncoded = branch.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? branch
+        status = "جاري تجهيز مستودعك بملفات INRPF الأساسية..."
+        let workflowURL = URL(string: "https://raw.githubusercontent.com/tmoath07-svg/ChatGPT-all-access-ios-/feature/inrpf-github-device-flow/.github/workflows/convert-pc-to-ps4.yml")!
+        let toolkitURL = URL(string: "https://raw.githubusercontent.com/tmoath07-svg/Ps4tools/main/ZokiiStudio-Toolkit-FIXED.zip")!
+        let (workflowData, workflowResponse) = try await URLSession.shared.data(from: workflowURL)
+        guard (workflowResponse as? HTTPURLResponse)?.statusCode == 200, !workflowData.isEmpty else {
+            throw GHError.message("تعذر تنزيل ملف Workflow الأساسي.")
+        }
+        let (toolkitData, toolkitResponse) = try await URLSession.shared.data(from: toolkitURL)
+        guard (toolkitResponse as? HTTPURLResponse)?.statusCode == 200,
+              !toolkitData.isEmpty, toolkitData.count <= 25 * 1024 * 1024 else {
+            throw GHError.message("تعذر تنزيل حزمة أدوات التحويل أو تجاوزت الحجم المسموح.")
+        }
+        try await uploadRepositoryAsset(workflowData, to: repository,
+            path: ".github/workflows/convert-pc-to-ps4.yml", branch: branchEncoded,
+            message: "INRPF: install conversion workflow", skipIfExists: false)
+        status = "تم تجهيز Workflow. جاري رفع حزمة أدوات التحويل..."
+        try await uploadRepositoryAsset(toolkitData, to: repository,
+            path: toolkitPath, branch: branchEncoded,
+            message: "INRPF: install conversion toolkit", skipIfExists: true)
+        status = "اكتمل تجهيز المستودع: Workflow ومحرك التحويل جاهزان."
+    }
+
+    private func uploadRepositoryAsset(_ data: Data, to repository: GHRepository, path: String,
+                                       branch: String, message: String, skipIfExists: Bool) async throws {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
+        let encodedPath = path.split(separator: "/").map {
+            String($0).addingPercentEncoding(withAllowedCharacters: allowed) ?? String($0)
+        }.joined(separator: "/")
+        let existing: GHContentResult? = try? await api(
+            "/repos/\\(repository.full_name)/contents/\\(encodedPath)?ref=\\(branch)"
+        )
+        if let current = existing?.content, let sha = current.sha {
+            if skipIfExists {
+                status = "حزمة التحويل موجودة مسبقاً؛ تم تجاوز إعادة رفعها."
+                return
+            }
+            if let encoded = current.content?.components(separatedBy: .whitespacesAndNewlines).joined(),
+               let currentData = Data(base64Encoded: encoded), currentData == data {
+                status = "ملف Workflow مطابق وموجود مسبقاً."
+                return
+            }
+            let _: GHContentResult = try await api(
+                "/repos/\\(repository.full_name)/contents/\\(encodedPath)",
+                method: "PUT",
+                body: ["message": message, "content": data.base64EncodedString(), "sha": sha, "branch": branch]
+            )
+        } else {
+            let _: GHContentResult = try await api(
+                "/repos/\\(repository.full_name)/contents/\\(encodedPath)",
+                method: "PUT",
+                body: ["message": message, "content": data.base64EncodedString(), "branch": branch]
+            )
+        }
+    }
+
     func uploadFile(_ url: URL, to repository: GHRepository, repositoryPath: String) async throws {
         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
         guard size > 0 && size <= 90 * 1024 * 1024 else {
@@ -437,7 +494,11 @@ private final class GitHubIntegrationClient: ObservableObject {
 private struct GHContentResult: Decodable {
     let content: GHContent?
 }
-private struct GHContent: Decodable { let name: String? }
+private struct GHContent: Decodable {
+    let name: String?
+    let sha: String?
+    let content: String?
+}
 
 private struct CameraCapturePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
@@ -496,7 +557,6 @@ struct GitHubIntegrationView: View {
     @State private var inputFolder = "uploads/inrpf-input"
     @State private var conversionMode = "أوتو"
     @State private var toolkitZip = "tools-source/ZokiiStudio-Toolkit-FIXED.zip"
-    @State private var releaseTag = ""
     @State private var vehicleSpawnName = "buccaneer2"
 
     private var selectedRepository: GHRepository? {
@@ -833,8 +893,18 @@ struct GitHubIntegrationView: View {
                     client.workflows = []
                     client.runs = []
                     Task {
-                        await client.loadWorkflows(for: repository)
-                        await client.loadRuns(for: repository)
+                        do {
+                            try await client.ensureConversionAssets(
+                                for: repository,
+                                branch: branchName,
+                                toolkitPath: toolkitZip
+                            )
+                            await client.loadWorkflows(for: repository)
+                            await client.loadRuns(for: repository)
+                        } catch {
+                            client.workflows = []
+                            client.status = "تعذر تجهيز المستودع تلقائياً: \\(error.localizedDescription)"
+                        }
                     }
                 } label: {
                     HStack {
@@ -1106,8 +1176,6 @@ struct GitHubIntegrationView: View {
                 .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
             TextField("مسار ZIP الأدوات", text: $toolkitZip)
                 .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
-            TextField("Release Tag (اتركه فارغاً عند رفع ملفاتك)", text: $releaseTag)
-                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
             TextField("اسم Spawn للسيارة", text: $vehicleSpawnName)
                 .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
             Button("رفع الملفات ثم تشغيل Workflow") {
@@ -1130,7 +1198,6 @@ struct GitHubIntegrationView: View {
                         try await client.dispatch(workflow, repository: repository, ref: branchName, inputs: [
                             "mode": resolvedConversionMode,
                             "toolkit_zip": toolkitZip,
-                            "release_tag": releaseTag,
                             "url": "",
                             "input_folder": folder,
                             "vehicle_spawn_name": vehicleSpawnName
