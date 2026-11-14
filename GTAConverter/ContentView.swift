@@ -33,7 +33,6 @@ struct ContentView: View {
     @AppStorage("inrpf_home_menu_order") private var homeMenuOrder = ""
     @AppStorage("inrpf_home_menu_style") private var homeMenuStyle = "pill"
     @AppStorage("inrpf_home_menu_position") private var homeMenuPosition = "top"
-    @AppStorage("gta_onboarding_complete") private var onboardingComplete = false
 
     init(initialSourceURL: URL? = nil) {
         self.initialSourceURL = initialSourceURL
