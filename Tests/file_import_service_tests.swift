@@ -4,7 +4,7 @@ import Foundation
 struct FileImportServiceTests {
     static func main() throws {
         let fm = FileManager.default
-        let fixtureRoot = fm.temporaryDirectory.appendingPathComponent("INRPF-Import-Fixtures-\\(UUID().uuidString)", isDirectory: true)
+        let fixtureRoot = fm.temporaryDirectory.appendingPathComponent("INRPF-Import-Fixtures-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: fixtureRoot, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: fixtureRoot) }
 

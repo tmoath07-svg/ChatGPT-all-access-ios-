@@ -605,11 +605,27 @@ struct GitHubIntegrationView: View {
                 Button("اختيار ملفات") {
                     client.status = "اختر الملفات المراد رفعها من تطبيق «الملفات»."
                     showingFilesImporter = true
-                }.buttonStyle(.bordered)
+                }
+                .buttonStyle(.bordered)
+                .fileImporter(
+                    isPresented: $showingFilesImporter,
+                    allowedContentTypes: [.item],
+                    allowsMultipleSelection: true,
+                    onCompletion: { importGitHubItems($0, itemDescription: "ملف") },
+                    onCancellation: { client.status = "تم إلغاء اختيار الملفات." }
+                )
                 Button("اختيار مجلد") {
                     client.status = "اختر مجلد المود من تطبيق «الملفات»."
                     showingFolderImporter = true
-                }.buttonStyle(.bordered)
+                }
+                .buttonStyle(.bordered)
+                .fileImporter(
+                    isPresented: $showingFolderImporter,
+                    allowedContentTypes: [.folder],
+                    allowsMultipleSelection: false,
+                    onCompletion: { importGitHubItems($0, itemDescription: "مجلد") },
+                    onCancellation: { client.status = "تم إلغاء اختيار المجلد." }
+                )
             }
             HStack {
                 PhotosPicker(selection: $photoSelections, maxSelectionCount: 20, matching: .images) {
@@ -672,20 +688,7 @@ struct GitHubIntegrationView: View {
             }
             return !providers.isEmpty
         }
-        .fileImporter(
-            isPresented: $showingFilesImporter,
-            allowedContentTypes: [.item],
-            allowsMultipleSelection: true,
-            onCompletion: { importGitHubItems($0, itemDescription: "ملف") },
-            onCancellation: { client.status = "تم إلغاء اختيار الملفات." }
-        )
-        .fileImporter(
-            isPresented: $showingFolderImporter,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false,
-            onCompletion: { importGitHubItems($0, itemDescription: "مجلد") },
-            onCancellation: { client.status = "تم إلغاء اختيار المجلد." }
-        )
+
     }
 
 

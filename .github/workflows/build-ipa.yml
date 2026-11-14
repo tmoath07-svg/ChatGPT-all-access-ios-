@@ -49,6 +49,7 @@ jobs:
           grep -Fq 'fileImporter(' GTAConverter/ContentView.swift
           grep -Fq 'showingArchiveImporter' GTAConverter/ContentView.swift
           grep -Fq 'showingFolderImporter' GTAConverter/ContentView.swift
+          ! grep -Eq 'showingImporter|importKind' GTAConverter/ContentView.swift
           grep -Fq 'showingFilesImporter' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'showingFolderImporter' GTAConverter/GitHubIntegrationView.swift
           ! grep -q 'UIDocumentPickerViewController' GTAConverter/ContentView.swift GTAConverter/FileImportService.swift

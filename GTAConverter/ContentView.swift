@@ -182,16 +182,6 @@ struct ContentView: View {
         case "conversion": conversionCard
         case "import":
             importCard
-                .fileImporter(
-                    isPresented: $showingArchiveImporter,
-                    allowedContentTypes: [.item],
-                    onCompletion: handleSingleImport
-                )
-                .fileImporter(
-                    isPresented: $showingFolderImporter,
-                    allowedContentTypes: [.folder],
-                    onCompletion: handleSingleImport
-                )
         case "link": directLinkCard
         case "packs": packCard
         case "actions": actionButtons
@@ -352,8 +342,7 @@ struct ContentView: View {
             HStack(spacing: 10) {
                 Button {
                     readyModMode = true
-                    importKind = .archive
-                    showingImporter = true
+                    showingArchiveImporter = true
                 } label: {
                     Label("نعم، لدي ملف جاهز", systemImage: "checkmark.circle.fill")
                         .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
@@ -457,29 +446,49 @@ struct ContentView: View {
             }.padding(13).background(.white.opacity(0.055)).clipShape(RoundedRectangle(cornerRadius: 15))
         }.padding(17).panel()
     }
+    @ViewBuilder
     private func importButton(_ title: String, icon: String, kind: ImportKind) -> some View {
-        Button {
-            switch kind {
-            case .archive:
+        switch kind {
+        case .archive:
+            Button {
                 status = "اختر ملف الأرشيف من تطبيق «الملفات»."
                 showingArchiveImporter = true
-            case .folder:
+            } label: {
+                importButtonLabel(title, icon: icon)
+            }
+            .buttonStyle(.plain)
+            .fileImporter(
+                isPresented: $showingArchiveImporter,
+                allowedContentTypes: [.item],
+                onCompletion: handleSingleImport
+            )
+        case .folder:
+            Button {
                 status = "اختر المجلد من تطبيق «الملفات»."
                 showingFolderImporter = true
+            } label: {
+                importButtonLabel(title, icon: icon)
             }
-        } label: {
-            VStack(spacing: 8) {
-                Image(systemName: icon).font(.system(size: 22, weight: .semibold))
-                Text(title).font(.caption.weight(.bold)).lineLimit(1).minimumScaleFactor(0.8)
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity).frame(height: 76)
-            .background(purple.opacity(0.22))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(purple.opacity(0.32)))
-            .contentShape(RoundedRectangle(cornerRadius: 14))
+            .buttonStyle(.plain)
+            .fileImporter(
+                isPresented: $showingFolderImporter,
+                allowedContentTypes: [.folder],
+                onCompletion: handleSingleImport
+            )
         }
-        .buttonStyle(.plain)
+    }
+
+    private func importButtonLabel(_ title: String, icon: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon).font(.system(size: 22, weight: .semibold))
+            Text(title).font(.caption.weight(.bold)).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity).frame(height: 76)
+        .background(purple.opacity(0.22))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(purple.opacity(0.32)))
+        .contentShape(RoundedRectangle(cornerRadius: 14))
     }
 
     private var directLinkCard: some View {
