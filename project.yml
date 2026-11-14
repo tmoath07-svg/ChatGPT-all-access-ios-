@@ -29,16 +29,16 @@ targets:
         PRODUCT_NAME: INRPF
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Classic AppIcon-Cyber AppIcon-Carbon AppIcon-Gold"
-        CURRENT_PROJECT_VERSION: "71"
+        CURRENT_PROJECT_VERSION: "72"
         VERSIONING_SYSTEM: apple-generic
-        PRODUCT_BUNDLE_VERSION: "71"
-        MARKETING_VERSION: "5.36"
+        PRODUCT_BUNDLE_VERSION: "72"
+        MARKETING_VERSION: "5.37"
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: "INRPF"
-        INFOPLIST_KEY_CFBundleVersion: "71"
-        INFOPLIST_KEY_CFBundleShortVersionString: "5.36"
+        INFOPLIST_KEY_CFBundleVersion: "72"
+        INFOPLIST_KEY_CFBundleShortVersionString: "5.37"
         INFOPLIST_KEY_LSRequiresIPhoneOS: YES
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "يحتاج INRPF إلى الوصول للشبكة المحلية للاتصال بجهاز PS4 ونقل ملفات DLC عبر FTP."
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
