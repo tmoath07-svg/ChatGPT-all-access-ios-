@@ -272,11 +272,14 @@ struct LocalEngineView: View {
         }
         .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
         .environment(\.locale, Locale(identifier: appLanguage))
-        .fileImporter(
+        .inrpfDocumentPicker(
             isPresented: $showingFileImporter,
-            allowedContentTypes: activePicker?.contentTypes ?? [.item],
+            contentTypes: activePicker?.contentTypes ?? [.item],
             allowsMultipleSelection: false,
-            onCompletion: handleEngineImport
+            onCompletion: handleEngineImport,
+            onCancellation: {
+                activePicker = nil
+            }
         )
     }
 
