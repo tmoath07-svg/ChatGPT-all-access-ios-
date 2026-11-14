@@ -301,20 +301,18 @@ struct FTPBrowserView: View {
         }
         .navigationTitle("FTP جهاز PS4")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showingUpload) {
-            INRPFDocumentPickerPresenter(
-                contentTypes: [.item, .folder],
-                onCompletion: { result in
-                    showingUpload = false
-                    switch result {
-                    case .success(let urls):
-                        if let url = urls.first { model.upload(url) }
-                    case .failure(let failure):
-                        model.error = failure.localizedDescription
-                    }
-                }
-            )
-            .ignoresSafeArea()
+        .fileImporter(
+            isPresented: $showingUpload,
+            allowedContentTypes: [.item, .folder],
+            allowsMultipleSelection: false
+        ) { result in
+            showingUpload = false
+            switch result {
+            case .success(let urls):
+                if let url = urls.first { model.upload(url) }
+            case .failure(let failure):
+                model.error = failure.localizedDescription
+            }
         }
         .alert("مجلد جديد", isPresented: $showingNewFolder) {
             TextField("اسم المجلد", text: $folderName)
