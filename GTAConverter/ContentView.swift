@@ -1075,36 +1075,6 @@ private extension UTType {
 }
 
 
-private struct DocumentPickerBridge: UIViewControllerRepresentable {
-    let contentTypes: [UTType]
-    let completion: (Result<[URL], Error>) -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
-
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: false)
-        picker.delegate = context.coordinator
-        picker.allowsMultipleSelection = false
-        picker.shouldShowFileExtensions = true
-        return picker
-    }
-
-    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
-
-    final class Coordinator: NSObject, UIDocumentPickerDelegate {
-        let completion: (Result<[URL], Error>) -> Void
-        init(completion: @escaping (Result<[URL], Error>) -> Void) { self.completion = completion }
-
-        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            completion(.success(urls))
-        }
-
-        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-            completion(.success([]))
-        }
-    }
-}
-
 private struct AppFilesView: View {
     var directory: URL? = nil
     @AppStorage("gta_show_hidden_files") private var showHiddenFiles = false
