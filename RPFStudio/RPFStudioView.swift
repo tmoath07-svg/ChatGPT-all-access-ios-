@@ -57,6 +57,27 @@ struct RPFStudioView: View {
                 .frame(maxWidth: .infinity)
             }
         }
+        .fileImporter(
+            isPresented: $importing,
+            allowedContentTypes: [UTType(filenameExtension: "rpf", conformingTo: .data) ?? .data, .data],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else {
+                    report = "لم يرجع تطبيق الملفات أي ملف."
+                    error = true
+                    return
+                }
+                selectedFile = url
+                selectedFileName = url.lastPathComponent
+                startInspection(for: url)
+            case .failure(let issue):
+                report = "تعذر اختيار الملف: \(issue.localizedDescription)"
+                error = true
+                busy = false
+            }
+        }
         .navigationTitle("RPF Studio")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -108,29 +129,8 @@ struct RPFStudioView: View {
             .background(.white.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
         .contentShape(Rectangle())
-        .fileImporter(
-            isPresented: $importing,
-            allowedContentTypes: [UTType(filenameExtension: "rpf", conformingTo: .data) ?? .data, .data],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else {
-                    report = "لم يرجع تطبيق الملفات أي ملف."
-                    error = true
-                    return
-                }
-                selectedFile = url
-                selectedFileName = url.lastPathComponent
-                startInspection(for: url)
-            case .failure(let issue):
-                report = "تعذر اختيار الملف: \(issue.localizedDescription)"
-                error = true
-                busy = false
-            }
-        }
     }
 
     private func runInspection() {
