@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftArchive
 import UniformTypeIdentifiers
 import Security
 import UIKit
@@ -487,6 +488,8 @@ struct GitHubIntegrationView: View {
     @State private var selectedFileURLs: [URL] = []
     @State private var appFiles: [URL] = []
     @State private var monitorRefreshToken = 0
+    @State private var autoDetectedMode: String?
+    @State private var isDetectingFileTypes = false
     @State private var photoSelections: [PhotosPickerItem] = []
     @State private var cameraImage: UIImage?
     @State private var isDropTargeted = false
@@ -505,6 +508,7 @@ struct GitHubIntegrationView: View {
 
     private var resolvedConversionMode: String {
         guard conversionMode == "أوتو" else { return conversionMode }
+        if let autoDetectedMode { return autoDetectedMode }
         let extensions = Set(selectedFileURLs.map { $0.pathExtension.lowercased() })
         if extensions.contains("rpf") { return "تحويل DLC الكمبيوتر إلى DLC السوني" }
         if extensions.contains("yft") || extensions.contains("ytd") {
@@ -521,8 +525,60 @@ struct GitHubIntegrationView: View {
 
     private var autoDetectionSummary: String {
         guard !selectedFileURLs.isEmpty else { return "أضف ملفاتك، وراح يحدد INRPF نوعها تلقائياً." }
+        if isDetectingFileTypes { return "جاري فحص محتويات الملفات والأرشيفات..." }
         let names = selectedFileURLs.map { $0.pathExtension.isEmpty ? "مجلد" : $0.pathExtension.uppercased() }
         return "تم التعرف على: \(Array(Set(names)).sorted().joined(separator: "، ")) — الإجراء: \(resolvedConversionMode)"
+    }
+
+    private func updateAutoDetection(for urls: [URL]) async {
+        guard conversionMode == "أوتو" else { return }
+        guard !urls.isEmpty else {
+            autoDetectedMode = nil
+            isDetectingFileTypes = false
+            return
+        }
+        isDetectingFileTypes = true
+        defer { isDetectingFileTypes = false }
+        var paths: [String] = []
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { continue }
+            if isDirectory.boolValue {
+                if let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
+                    for case let child as URL in enumerator {
+                        if (try? child.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true {
+                            paths.append(String(child.path.dropFirst(url.path.count)).lowercased())
+                        }
+                        if paths.count >= 20_000 { break }
+                    }
+                }
+            } else if ["zip", "rar", "7z", "tar", "gz"].contains(url.pathExtension.lowercased()) {
+                do {
+                    let reader = try await ArchiveReader(reading: .fileURL(url))
+                    var inspected = 0
+                    while let entry = try await reader.nextEntry(), inspected < 20_000 {
+                        paths.append(entry.path.lowercased())
+                        inspected += 1
+                    }
+                } catch {
+                    paths.append(url.lastPathComponent.lowercased())
+                }
+            } else {
+                paths.append(url.lastPathComponent.lowercased())
+            }
+        }
+        let joined = paths.joined(separator: "\n")
+        if joined.contains("/stream/") && joined.contains("/data/") && joined.contains(".yft") {
+            autoDetectedMode = "تحويل مود FiveM متعدد السيارات إلى DLC للسوني"
+        } else if paths.contains(where: { $0.hasSuffix(".rpf") }) {
+            autoDetectedMode = "تحويل DLC الكمبيوتر إلى DLC السوني"
+        } else if paths.contains(where: { $0.hasSuffix(".yft") || $0.hasSuffix(".ytd") }) {
+            autoDetectedMode = "تحويل YFT وYTD وبناء DLC متعدد السيارات للسوني"
+        } else if paths.contains(where: { [".zip", ".rar", ".7z"].contains(URL(fileURLWithPath: $0).pathExtension.lowercased()) }) {
+            autoDetectedMode = "تحويل ملفات PC إلى PS4"
+        } else {
+            autoDetectedMode = "تحويل الملفات وبناء RPF"
+        }
     }
 
     private func isFiveMResourceFolder(_ url: URL) -> Bool {
@@ -606,6 +662,14 @@ struct GitHubIntegrationView: View {
                 let isRunning = client.runs.contains { $0.status == "queued" || $0.status == "in_progress" || $0.status == "waiting" }
                 guard isRunning else { break }
                 try? await Task.sleep(for: .seconds(12))
+            }
+        }
+        .onChange(of: selectedFileURLs) { _, urls in
+            Task { await updateAutoDetection(for: urls) }
+        }
+        .onChange(of: conversionMode) { _, mode in
+            if mode == "أوتو" {
+                Task { await updateAutoDetection(for: selectedFileURLs) }
             }
         }
         .onChange(of: photoSelections) { _, items in
