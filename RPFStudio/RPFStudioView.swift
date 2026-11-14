@@ -59,24 +59,6 @@ struct RPFStudioView: View {
         }
         .navigationTitle("RPF Studio")
         .navigationBarTitleDisplayMode(.inline)
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else {
-                    report = "لم يرجع تطبيق الملفات أي ملف."
-                    error = true
-                    return
-                }
-                selectedFile = url
-                selectedFileName = url.lastPathComponent
-                // Pass the picked URL directly; SwiftUI state may not have updated yet.
-                startInspection(for: url)
-            case .failure(let issue):
-                report = "تعذر اختيار الملف: \(issue.localizedDescription)"
-                error = true
-                busy = false
-            }
-        }
     }
 
     private var header: some View {
@@ -98,7 +80,11 @@ struct RPFStudioView: View {
     }
 
     private var fileCard: some View {
-        Button { importing = true } label: {
+        Button {
+            report = "تم الضغط على اختيار الملف — جارٍ فتح تطبيق «الملفات»..."
+            error = false
+            importing = true
+        } label: {
             HStack(spacing: 12) {
                 Image(systemName: "doc.badge.plus")
                     .font(.title2)
@@ -108,19 +94,43 @@ struct RPFStudioView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
-                    Text("اختر الملف من تطبيق «الملفات» — يبدأ الفحص تلقائياً")
+                    Text("اضغط هنا لاختيار ملف RPF من تطبيق «الملفات»")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(.white.opacity(0.65))
                 }
-                Spacer()
+                Spacer(minLength: 8)
                 Image(systemName: "chevron.left")
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(.white.opacity(0.65))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
             .padding(16)
-            .background(.white.opacity(0.06))
+            .background(.white.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
+        .contentShape(Rectangle())
+        .fileImporter(
+            isPresented: $importing,
+            allowedContentTypes: [UTType(filenameExtension: "rpf", conformingTo: .data) ?? .data, .data],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else {
+                    report = "لم يرجع تطبيق الملفات أي ملف."
+                    error = true
+                    return
+                }
+                selectedFile = url
+                selectedFileName = url.lastPathComponent
+                startInspection(for: url)
+            case .failure(let issue):
+                report = "تعذر اختيار الملف: \(issue.localizedDescription)"
+                error = true
+                busy = false
+            }
+        }
     }
 
     private func runInspection() {
@@ -134,10 +144,19 @@ struct RPFStudioView: View {
         error = false
         report = "تم اختيار \(source.lastPathComponent)\nجارٍ فتح صلاحية الملف ونسخه وتشغيل Python..."
 
+        // Start the security-scoped access while still in the picker callback/UI context.
+        let scopeStarted = source.startAccessingSecurityScopedResource()
         Task.detached(priority: .userInitiated) {
+            defer {
+                if scopeStarted { source.stopAccessingSecurityScopedResource() }
+            }
             do {
-                // FileImportService owns security-scoped access and coordinated provider reads.
-                let local = try FileImportService.importItem(from: source, category: "RPFStudio")
+                // Keep the scope alive until the coordinated copy is complete.
+                let local = try FileImportService.importItem(
+                    from: source,
+                    category: "RPFStudio",
+                    securityScopeAlreadyStarted: scopeStarted
+                )
                 defer { try? FileManager.default.removeItem(at: local.deletingLastPathComponent()) }
 
                 var isDirectory: ObjCBool = false
