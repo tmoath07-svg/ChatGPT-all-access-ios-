@@ -149,7 +149,7 @@ private final class GitHubIntegrationClient: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = formBody(["client_id": clientID, "scope": "repo offline_access"])
+        request.httpBody = formBody(["client_id": clientID, "scope": "repo workflow offline_access"])
         let (data, response) = try await URLSession.shared.data(for: request)
         try check(response, data)
         return try JSONDecoder().decode(GHDeviceCode.self, from: data)
