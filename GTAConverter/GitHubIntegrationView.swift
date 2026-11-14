@@ -418,6 +418,7 @@ private struct GHContent: Decodable { let name: String? }
 
 private struct CameraCapturePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
+    let onDismiss: () -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
@@ -436,9 +437,11 @@ private struct CameraCapturePicker: UIViewControllerRepresentable {
         init(_ parent: CameraCapturePicker) { self.parent = parent }
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
             parent.image = info[.originalImage] as? UIImage
+            parent.onDismiss()
             picker.dismiss(animated: true)
         }
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.onDismiss()
             picker.dismiss(animated: true)
         }
     }
@@ -529,7 +532,7 @@ struct GitHubIntegrationView: View {
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .camera:
-                CameraCapturePicker(image: $cameraImage)
+                CameraCapturePicker(image: $cameraImage, onDismiss: { activeSheet = nil })
                     .ignoresSafeArea()
             case .files:
                 INRPFDocumentPicker(
