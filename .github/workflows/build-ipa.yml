@@ -72,7 +72,7 @@ jobs:
           ! grep -Fq '.fileImporter(' RPFStudio/RPFStudioView.swift
           grep -Fq 'UIDocumentPickerViewController' RPFStudio/RPFStudioView.swift
           grep -Fq 'asCopy: true' RPFStudio/RPFStudioView.swift
-          grep -Fq 'documentPicker(_:didPickDocumentsAt:)' RPFStudio/RPFStudioView.swift
+          grep -Fq 'didPickDocumentsAt urls:' RPFStudio/RPFStudioView.swift
           swiftc -typecheck GTAConverter/FileImportService.swift
           grep -Fq 'startAccessingSecurityScopedResource' GTAConverter/FileImportService.swift
           grep -Fq 'NSFileCoordinator' GTAConverter/FileImportService.swift
@@ -82,8 +82,8 @@ jobs:
           grep -Fq 'category: "RPFStudio"' RPFStudio/RPFStudioView.swift
           grep -Fq 'scopeStarted = source.startAccessingSecurityScopedResource()' RPFStudio/RPFStudioView.swift
           grep -Fq 'securityScopeAlreadyStarted: scopeStarted' RPFStudio/RPFStudioView.swift
-          grep -Fq 'allowedContentTypes: [UTType(filenameExtension: "rpf", conformingTo: .data) ?? .data, .data]' RPFStudio/RPFStudioView.swift
-          grep -Fq '.fileImporter(' RPFStudio/RPFStudioView.swift
+          grep -Fq 'forOpeningContentTypes: [rpfType, .data]' RPFStudio/RPFStudioView.swift
+          grep -Fq 'showingDocumentPicker = true' RPFStudio/RPFStudioView.swift
           grep -Fq 'if section == "menu"' GTAConverter/ContentView.swift
           grep -Fq 'if id == "rpf"' GTAConverter/ContentView.swift
           if grep -q 'UIDocumentPickerViewController' GTAConverter/ContentView.swift GTAConverter/FileImportService.swift; then
