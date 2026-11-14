@@ -120,13 +120,12 @@ struct ContentView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingImporter) {
-                INRPFDocumentPickerPresenter(
-                    contentTypes: importKind == .folder ? [.folder] : [.data],
-                    onCompletion: handleImport
-                )
-                .ignoresSafeArea()
-            }
+            .fileImporter(
+                isPresented: $showingImporter,
+                allowedContentTypes: importKind == .folder ? [.folder] : [.data],
+                allowsMultipleSelection: false,
+                onCompletion: handleImport
+            )
             .disabled(isBusy)
             .overlay {
                 if isBusy {
