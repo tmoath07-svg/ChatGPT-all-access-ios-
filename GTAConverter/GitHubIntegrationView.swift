@@ -445,19 +445,22 @@ private struct CameraCapturePicker: UIViewControllerRepresentable {
 }
 
 struct GitHubIntegrationView: View {
+    private enum ActiveSheet: String, Identifiable {
+        case camera, files, folder
+        var id: String { rawValue }
+    }
+
     @StateObject private var client = GitHubIntegrationClient()
     @State private var repositoryName = ""
     @State private var isPrivate = true
     @State private var selectedRepositoryID: Int?
     @State private var selectedWorkflowID: Int?
     @State private var branchName = "main"
-    @State private var showingFilesImporter = false
-    @State private var showingFolderImporter = false
+    @State private var activeSheet: ActiveSheet?
     @State private var selectedFileURLs: [URL] = []
     @State private var appFiles: [URL] = []
     @State private var photoSelections: [PhotosPickerItem] = []
     @State private var cameraImage: UIImage?
-    @State private var showingCamera = false
     @State private var isDropTargeted = false
     @State private var inputFolder = "uploads/inrpf-input"
     @State private var conversionMode = "تحويل ملفات PC إلى PS4"
@@ -522,9 +525,28 @@ struct GitHubIntegrationView: View {
             } catch { client.status = error.localizedDescription }
             cameraImage = nil
         }
-        .sheet(isPresented: $showingCamera) {
-            CameraCapturePicker(image: $cameraImage)
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .camera:
+                CameraCapturePicker(image: $cameraImage)
+                    .ignoresSafeArea()
+            case .files:
+                INRPFDocumentPicker(
+                    contentTypes: [.item],
+                    allowsMultipleSelection: true,
+                    onCompletion: { importGitHubItems($0, itemDescription: "ملف") },
+                    onCancellation: { client.status = "تم إلغاء اختيار الملفات." }
+                )
                 .ignoresSafeArea()
+            case .folder:
+                INRPFDocumentPicker(
+                    contentTypes: [.folder],
+                    allowsMultipleSelection: false,
+                    onCompletion: { importGitHubItems($0, itemDescription: "مجلد") },
+                    onCancellation: { client.status = "تم إلغاء اختيار المجلد." }
+                )
+                .ignoresSafeArea()
+            }
         }
     }
 
@@ -604,35 +626,21 @@ struct GitHubIntegrationView: View {
             HStack {
                 Button("اختيار ملفات") {
                     client.status = "اختر الملفات المراد رفعها من تطبيق «الملفات»."
-                    showingFilesImporter = true
+                    activeSheet = .files
                 }
                 .buttonStyle(.bordered)
-                .fileImporter(
-                    isPresented: $showingFilesImporter,
-                    allowedContentTypes: [.item],
-                    allowsMultipleSelection: true,
-                    onCompletion: { importGitHubItems($0, itemDescription: "ملف") },
-                    onCancellation: { client.status = "تم إلغاء اختيار الملفات." }
-                )
                 Button("اختيار مجلد") {
                     client.status = "اختر مجلد المود من تطبيق «الملفات»."
-                    showingFolderImporter = true
+                    activeSheet = .folder
                 }
                 .buttonStyle(.bordered)
-                .fileImporter(
-                    isPresented: $showingFolderImporter,
-                    allowedContentTypes: [.folder],
-                    allowsMultipleSelection: false,
-                    onCompletion: { importGitHubItems($0, itemDescription: "مجلد") },
-                    onCancellation: { client.status = "تم إلغاء اختيار المجلد." }
-                )
             }
             HStack {
                 PhotosPicker(selection: $photoSelections, maxSelectionCount: 20, matching: .images) {
                     Label("مكتبة الصور", systemImage: "photo.on.rectangle")
                 }.buttonStyle(.bordered)
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button { showingCamera = true } label: {
+                    Button { activeSheet = .camera } label: {
                         Label("الكاميرا", systemImage: "camera")
                     }.buttonStyle(.bordered)
                 }
