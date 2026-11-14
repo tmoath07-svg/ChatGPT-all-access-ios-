@@ -26,5 +26,6 @@ private struct INRPFRootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.22), value: isGitHubAuthenticated)
+        .onAppear { isGitHubAuthenticated = false }
     }
 }
