@@ -96,7 +96,7 @@ enum FileImportService {
                 throw ImportFailure.unsupportedItem
             }
             let normalized = relativeComponents.joined(separator: "/")
-            let target = destination.appendingPathComponent(parts.map(String.init).joined(separator: "/"))
+            let target = destination.appendingPathComponent(normalized, isDirectory: false)
             let values = try item.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
             if values.isSymbolicLink == true {
                 continue
