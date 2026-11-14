@@ -133,10 +133,7 @@ private final class GitHubIntegrationClient: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = formBody([
-            "client_id": clientID,
-            "scope": "repo offline_access"
-        ])
+        request.httpBody = formBody(["client_id": clientID, "scope": "repo offline_access"])
         let (data, response) = try await URLSession.shared.data(for: request)
         try check(response, data)
         return try JSONDecoder().decode(GHDeviceCode.self, from: data)
@@ -454,6 +451,7 @@ struct GitHubIntegrationView: View {
     }
 
     @StateObject private var client = GitHubIntegrationClient()
+    @AppStorage("gta_github_authenticated") private var githubAuthenticated = false
     @State private var repositoryName = ""
     @State private var isPrivate = true
     @State private var selectedRepositoryID: Int?
@@ -511,11 +509,17 @@ struct GitHubIntegrationView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .padding(16)
+            .frame(maxWidth: 620)
+            .frame(maxWidth: .infinity)
         }
         .background(Color.black.ignoresSafeArea())
-        .navigationTitle("GitHub")
+        .navigationTitle(client.isAuthorized ? "حساب GitHub" : "INRPF")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
+        .onAppear { githubAuthenticated = client.isAuthorized }
+        .onChange(of: client.isAuthorized) { _, authorized in
+            githubAuthenticated = authorized
+        }
         .onChange(of: photoSelections) { _, items in
             Task { await importPhotos(items) }
         }
@@ -571,24 +575,97 @@ struct GitHubIntegrationView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("INRPF GitHub Integration", systemImage: "chevron.left.forwardslash.chevron.right")
-                .font(.headline.bold())
-            Text(client.isAuthorized ? "متصل: @\(client.username)" : "سجّل الدخول لربط مستودعات GitHub وتشغيل عمليات البناء.")
-                .font(.subheadline).foregroundStyle(.secondary)
-            if client.isAuthorized {
-                Button("تحديث المستودعات") { Task { await client.loadRepositories() } }
-                    .buttonStyle(.borderedProminent)
-                Button("تسجيل الخروج", role: .destructive) { client.signOut() }
-            } else {
-                Button { client.beginLogin() } label: {
-                    Label("تسجيل الدخول إلى GitHub", systemImage: "person.crop.circle.badge.checkmark")
-                        .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                        .fill(LinearGradient(colors: [Color.white.opacity(0.19), Color.white.opacity(0.055)],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 62, height: 62)
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.system(size: 25, weight: .bold))
+                        .foregroundStyle(.white)
                 }
-                .buttonStyle(.borderedProminent).disabled(client.isBusy)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("INRPF").font(.system(size: 27, weight: .black, design: .rounded))
+                        .tracking(0.4).foregroundStyle(.white)
+                    Text("GITHUB CONNECTED WORKSPACE")
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .tracking(1.25).foregroundStyle(Color.white.opacity(0.52))
+                }
+                Spacer(minLength: 0)
+            }
+
+            if client.isAuthorized {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("الحساب متصل", systemImage: "checkmark.circle.fill")
+                        .font(.headline).foregroundStyle(.green)
+                    Text("@\(client.username)")
+                        .font(.title3.bold()).foregroundStyle(.white)
+                    Text("مستودعاتك وملفاتك وعمليات التحويل مرتبطة بحساب GitHub.")
+                        .font(.subheadline).foregroundStyle(.white.opacity(0.68))
+                    HStack(spacing: 10) {
+                        Button {
+                            Task { await client.loadRepositories() }
+                        } label: {
+                            Label("تحديث المستودعات", systemImage: "arrow.clockwise")
+                                .frame(maxWidth: .infinity)
+                        }.buttonStyle(.borderedProminent)
+                        Button("تسجيل الخروج", role: .destructive) {
+                            client.signOut()
+                        }.buttonStyle(.bordered)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("كل شغلك يبدأ من GitHub")
+                        .font(.system(size: 25, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("سجّل دخولك عشان تربط مستودعاتك، تنشئ مساحة لموداتك، وترفع الملفات وتشغّل GitHub Actions من داخل INRPF.")
+                        .font(.subheadline).foregroundStyle(.white.opacity(0.70))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button {
+                        client.beginLogin()
+                    } label: {
+                        HStack(spacing: 10) {
+                            if client.isBusy { ProgressView().tint(.black) }
+                            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                .font(.headline)
+                            Text(client.isBusy ? "جاري الاتصال بـ GitHub..." : "تسجيل الدخول باستخدام GitHub")
+                                .font(.headline.bold())
+                        }
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity).padding(.vertical, 16)
+                        .background(.white, in: RoundedRectangle(cornerRadius: 15))
+                    }
+                    .buttonStyle(.plain).disabled(client.isBusy)
+
+                    HStack(spacing: 5) {
+                        Text("ما عندك حساب؟").foregroundStyle(.white.opacity(0.58))
+                        Link("إنشاء حساب GitHub", destination: URL(string: "https://github.com/signup")!)
+                            .fontWeight(.semibold).foregroundStyle(Color(red: 0.55, green: 0.72, blue: 1))
+                    }
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 3)
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.shield.fill").foregroundStyle(.green)
+                        Text("تتم المصادقة عبر GitHub Device Flow، ويحفظ رمز الجلسة في Keychain.")
+                            .font(.caption2).foregroundStyle(.white.opacity(0.55))
+                    }
+                    .padding(.top, 5)
+                }
             }
         }
-        .padding(16).background(Color.purple.opacity(0.16)).clipShape(RoundedRectangle(cornerRadius: 18))
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(colors: [Color(red: 0.16, green: 0.12, blue: 0.28), Color(red: 0.055, green: 0.055, blue: 0.075)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(.white.opacity(0.11)))
     }
 
     private var repositorySection: some View {
@@ -729,8 +806,6 @@ struct GitHubIntegrationView: View {
                 return
             }
             client.status = "تم اختيار العناصر. جاري نسخها بأمان إلى مساحة INRPF..."
-            // Coordinated reads from iCloud and third-party providers may block;
-            // perform copying away from the UI thread.
             Task {
                 do {
                     let imported = try await Task.detached(priority: .userInitiated) {
