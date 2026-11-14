@@ -24,11 +24,6 @@ on:
         required: true
         type: string
         default: "tools-source/ZokiiStudio-Toolkit-FIXED.zip"
-      release_tag:
-        description: "Release Tag من مستودع Ps4tools (افتراضي: 25 ويحتوي rb3nasb.2.rar)"
-        required: false
-        type: string
-        default: "25"
       url:
         description: "رابط مباشر لملف ZIP/RAR/7Z/YFT/YTD/RPF (اختياري)"
         required: false
@@ -64,12 +59,6 @@ jobs:
     steps:
       - name: Checkout GTA Converter repository
         uses: actions/checkout@v4
-
-      - name: Checkout verified PS4 conversion toolkit
-        uses: actions/checkout@v4
-        with:
-          repository: tmoath07-svg/Ps4tools
-          path: tools-source
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -172,17 +161,12 @@ jobs:
       - name: Prepare mod input
         if: ${{ inputs.mode != 'فحص الأدوات' }}
         env:
-          TAG: ${{ inputs.release_tag }}
           URL: ${{ inputs.url }}
           INPUT_FOLDER: ${{ inputs.input_folder }}
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$INPUT_FOLDER"
-          if [ -n "$TAG" ]; then
-            gh release download "$TAG" --repo tmoath07-svg/Ps4tools --dir "$INPUT_FOLDER" --clobber
-          fi
           if [ -n "$URL" ]; then
             name="$(python - "$URL" <<'PY'
           import sys, urllib.parse, os
@@ -192,7 +176,7 @@ jobs:
             curl -fL --retry 3 --retry-delay 3 --connect-timeout 30 "$URL" -o "$INPUT_FOLDER/$name"
           fi
           if [ -z "$(find "$INPUT_FOLDER" -type f -print -quit)" ]; then
-            echo "ERROR: مجلد input فارغ. ارفع المود داخله أو استخدم Release Tag/URL."
+            echo "ERROR: مجلد الإدخال فارغ. ارفع ملفات المود داخل المستودع أو استخدم رابط URL."
             exit 1
           fi
           for pass in 1 2 3; do
