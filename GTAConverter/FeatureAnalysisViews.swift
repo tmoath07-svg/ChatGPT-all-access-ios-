@@ -57,7 +57,7 @@ struct ModComparisonView: View {
         }
         .navigationTitle("مقارنة المودات")
         .navigationBarTitleDisplayMode(.inline)
-        .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.folder], allowsMultipleSelection: false) { result in
+        .inrpfDocumentPicker(isPresented: $showingPicker, contentTypes: [.folder], allowsMultipleSelection: false) { result in
             do {
                 guard let url = try result.get().first else { return }
                 let targetPicker = activePicker
@@ -154,7 +154,7 @@ struct HandlingAnalyzerView: View {
         }
         .navigationTitle("Handling Analyzer")
         .navigationBarTitleDisplayMode(.inline)
-        .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.xml, .item], allowsMultipleSelection: false) { result in
+        .inrpfDocumentPicker(isPresented: $showingPicker, contentTypes: [.xml, .item], allowsMultipleSelection: false) { result in
             do {
                 guard let url = try result.get().first else { return }
                 fileName = url.lastPathComponent

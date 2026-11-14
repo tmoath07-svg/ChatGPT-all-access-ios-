@@ -136,7 +136,7 @@ struct YTDTextureLabView: View {
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
         .environment(\.locale, Locale(identifier: appLanguage))
-        .fileImporter(isPresented: $showingPicker, allowedContentTypes: pickerTypes, allowsMultipleSelection: false) { result in
+        .inrpfDocumentPicker(isPresented: $showingPicker, contentTypes: pickerTypes, allowsMultipleSelection: false) { result in
             handlePicker(result)
         }
     }

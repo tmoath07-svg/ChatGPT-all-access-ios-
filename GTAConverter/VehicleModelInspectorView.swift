@@ -59,7 +59,7 @@ struct VehicleModelInspectorView: View {
         }
         .navigationTitle("Vehicle 3D Viewer")
         .navigationBarTitleDisplayMode(.inline)
-        .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
+        .inrpfDocumentPicker(isPresented: $showingPicker, contentTypes: [.item], allowsMultipleSelection: false) { result in
             guard let url = try? result.get().first else { return }
             inspect(url)
         }

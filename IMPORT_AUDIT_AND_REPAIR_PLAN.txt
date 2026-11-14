@@ -176,3 +176,12 @@ INRPF 5.29 / BUILD 67 — FINAL FILE IMPORT HARDENING
 - CI checks native picker wiring and runs shared file-copy tests. These checks do not simulate an iPadOS Files UI tap.
 - Version 5.29 / Build 67 is restricted to picker callback reliability and import-copy responsiveness; no unrelated features are included.
 - Do not claim the runtime issue is definitively resolved until the installed IPA is tested on a physical iPad with local files, iCloud/provider files, folder selection, and GitHub multi-file/folder selection.
+
+
+CHANGES RECORDED IN INRPF 5.30 / BUILD 68 — UNIFIED PICKER REPAIR
+- Replaced the embedded UIDocumentPickerViewController representable with a hidden UIKit presenter host that presents the system picker modally from a view controller in the active window.
+- The picker coordinator refreshes its completion and cancellation closures on every SwiftUI update, preventing stale callback captures.
+- Main import, GitHub uploads, FTP upload, File Hash, XML editor, mod comparison, Handling Analyzer, FiveM Studio, local utilities, YTD Texture Lab, and Vehicle Model Inspector now use one shared native picker modifier.
+- CI rejects any remaining SwiftUI .fileImporter modifier anywhere under GTAConverter and checks that all known import surfaces use the shared presenter.
+- File-copy service tests remain separate from picker UI tests. A successful build/source check does not prove real Files-provider taps on iOS 27.
+- Required device verification: tap-select files from On My iPhone/iPad and iCloud Drive, folder selection, multi-select in GitHub/File Hash, cancellation, repeated selection, and app background/foreground.

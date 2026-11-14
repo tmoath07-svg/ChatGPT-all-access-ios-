@@ -448,7 +448,7 @@ private struct CameraCapturePicker: UIViewControllerRepresentable {
 }
 
 struct GitHubIntegrationView: View {
-    private enum ActiveSheet: String, Identifiable {
+    private enum ActiveSheet: String, Identifiable, Equatable {
         case camera, files, folder
         var id: String { rawValue }
     }
@@ -529,41 +529,45 @@ struct GitHubIntegrationView: View {
             cameraImage = nil
             activeSheet = nil
         }
-        .sheet(item: $activeSheet) { sheet in
-            switch sheet {
-            case .camera:
-                CameraCapturePicker(image: $cameraImage, onDismiss: { activeSheet = nil })
-                    .ignoresSafeArea()
-            case .files:
-                INRPFDocumentPicker(
-                    contentTypes: [.item],
-                    allowsMultipleSelection: true,
-                    onCompletion: {
-                        activeSheet = nil
-                        importGitHubItems($0, itemDescription: "ملف")
-                    },
-                    onCancellation: {
-                        activeSheet = nil
-                        client.status = "تم إلغاء اختيار الملفات."
-                    }
-                )
+        .sheet(isPresented: Binding(
+            get: { activeSheet == .camera },
+            set: { if !$0 && activeSheet == .camera { activeSheet = nil } }
+        )) {
+            CameraCapturePicker(image: $cameraImage, onDismiss: { activeSheet = nil })
                 .ignoresSafeArea()
-            case .folder:
-                INRPFDocumentPicker(
-                    contentTypes: [.folder],
-                    allowsMultipleSelection: false,
-                    onCompletion: {
-                        activeSheet = nil
-                        importGitHubItems($0, itemDescription: "مجلد")
-                    },
-                    onCancellation: {
-                        activeSheet = nil
-                        client.status = "تم إلغاء اختيار المجلد."
-                    }
-                )
-                .ignoresSafeArea()
-            }
         }
+        .inrpfDocumentPicker(
+            isPresented: Binding(
+                get: { activeSheet == .files },
+                set: { if !$0 && activeSheet == .files { activeSheet = nil } }
+            ),
+            contentTypes: [.item],
+            allowsMultipleSelection: true,
+            onCompletion: {
+                activeSheet = nil
+                importGitHubItems($0, itemDescription: "ملف")
+            },
+            onCancellation: {
+                activeSheet = nil
+                client.status = "تم إلغاء اختيار الملفات."
+            }
+        )
+        .inrpfDocumentPicker(
+            isPresented: Binding(
+                get: { activeSheet == .folder },
+                set: { if !$0 && activeSheet == .folder { activeSheet = nil } }
+            ),
+            contentTypes: [.folder],
+            allowsMultipleSelection: false,
+            onCompletion: {
+                activeSheet = nil
+                importGitHubItems($0, itemDescription: "مجلد")
+            },
+            onCancellation: {
+                activeSheet = nil
+                client.status = "تم إلغاء اختيار المجلد."
+            }
+        )
     }
 
     private var header: some View {

@@ -301,9 +301,9 @@ struct FTPBrowserView: View {
         }
         .navigationTitle("FTP جهاز PS4")
         .navigationBarTitleDisplayMode(.inline)
-        .fileImporter(
+        .inrpfDocumentPicker(
             isPresented: $showingUpload,
-            allowedContentTypes: [.item, .folder],
+            contentTypes: [.item, .folder],
             allowsMultipleSelection: false
         ) { result in
             showingUpload = false

@@ -161,19 +161,20 @@ struct ContentView: View {
         .fullScreenCover(isPresented: $showOnboarding) {
             GTAOnboardingView { onboardingComplete = true; showOnboarding = false }
         }
-        .sheet(item: $activeImportPicker) { kind in
-            INRPFDocumentPicker(
-                contentTypes: kind == .archive ? [.item] : [.folder],
-                allowsMultipleSelection: false,
-                onCompletion: handleImport,
-                onCancellation: {
-                    activeImportPicker = nil
-                    status = "تم إلغاء اختيار الملف."
-                    isError = false
-                }
-            )
-            .ignoresSafeArea()
-        }
+        .inrpfDocumentPicker(
+            isPresented: Binding(
+                get: { activeImportPicker != nil },
+                set: { if !$0 { activeImportPicker = nil } }
+            ),
+            contentTypes: activeImportPicker == .archive ? [.item] : [.folder],
+            allowsMultipleSelection: false,
+            onCompletion: handleImport,
+            onCancellation: {
+                activeImportPicker = nil
+                status = "تم إلغاء اختيار الملف."
+                isError = false
+            }
+        )
     }
 
     private var themeIDs: [String] {

@@ -124,9 +124,9 @@ struct FiveMStudioView: View {
         .navigationTitle("FiveM Studio")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.layoutDirection, .rightToLeft)
-        .fileImporter(
+        .inrpfDocumentPicker(
             isPresented: $showingFilePicker,
-            allowedContentTypes: [.data],
+            contentTypes: [.data],
             allowsMultipleSelection: false
         ) { result in
             showingFilePicker = false

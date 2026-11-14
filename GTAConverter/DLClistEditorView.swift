@@ -54,7 +54,7 @@ struct DLClistEditorView: View {
         }
         .navigationTitle("XML Studio")
         .navigationBarTitleDisplayMode(.inline)
-        .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.xml, .data], allowsMultipleSelection: false) { result in
+        .inrpfDocumentPicker(isPresented: $showingPicker, contentTypes: [.xml, .data], allowsMultipleSelection: false) { result in
             do {
                 guard let url = try result.get().first else { return }
                 let importedURL = try FileImportService.importItem(from: url, category: "XMLImports")

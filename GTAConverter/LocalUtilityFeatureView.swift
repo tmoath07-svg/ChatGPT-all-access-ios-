@@ -63,7 +63,7 @@ struct LocalUtilityFeatureView: View {
         }
         .navigationTitle(pageTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .fileImporter(isPresented: $showingPicker, allowedContentTypes: pickerTypes, allowsMultipleSelection: false) { handleImport($0) }
+        .inrpfDocumentPicker(isPresented: $showingPicker, contentTypes: pickerTypes, allowsMultipleSelection: false) { handleImport($0) }
         .environment(\.layoutDirection, .rightToLeft)
     }
 

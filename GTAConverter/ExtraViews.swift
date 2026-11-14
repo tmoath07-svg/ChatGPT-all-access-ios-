@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import CryptoKit
 import UIKit
 import PhotosUI
@@ -760,7 +761,7 @@ struct FileHashInspectorView: View {
                 }.padding(16)
             }
         }
-        .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+        .inrpfDocumentPicker(isPresented: $showingPicker, contentTypes: [.item], allowsMultipleSelection: true) { result in
             switch result {
             case .success(let urls): calculateHashes(urls)
             case .failure(let error): report = "تعذر اختيار الملفات: \(error.localizedDescription)"
