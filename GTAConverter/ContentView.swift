@@ -6,8 +6,7 @@ import UIKit
 struct ContentView: View {
     let initialSourceURL: URL?
     @State private var didApplyInitialSource = false
-    @State private var showingArchiveImporter = false
-    @State private var showingFolderImporter = false
+    @State private var activeImportPicker: ImportKind?
     @State private var readyModMode = false
     @State private var sourceURL: URL?
     @State private var selectedFileName = "ما تم اختيار ملف"
@@ -161,6 +160,18 @@ struct ContentView: View {
         }
         .fullScreenCover(isPresented: $showOnboarding) {
             GTAOnboardingView { onboardingComplete = true; showOnboarding = false }
+        }
+        .sheet(item: $activeImportPicker) { kind in
+            INRPFDocumentPicker(
+                contentTypes: kind == .archive ? [.item] : [.folder],
+                allowsMultipleSelection: false,
+                onCompletion: handleImport,
+                onCancellation: {
+                    status = "تم إلغاء اختيار الملف."
+                    isError = false
+                }
+            )
+            .ignoresSafeArea()
         }
     }
 
@@ -342,7 +353,7 @@ struct ContentView: View {
             HStack(spacing: 10) {
                 Button {
                     readyModMode = true
-                    showingArchiveImporter = true
+                    activeImportPicker = .archive
                 } label: {
                     Label("نعم، لدي ملف جاهز", systemImage: "checkmark.circle.fill")
                         .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(13)
@@ -452,29 +463,19 @@ struct ContentView: View {
         case .archive:
             Button {
                 status = "اختر ملف الأرشيف من تطبيق «الملفات»."
-                showingArchiveImporter = true
+                activeImportPicker = .archive
             } label: {
                 importButtonLabel(title, icon: icon)
             }
             .buttonStyle(.plain)
-            .fileImporter(
-                isPresented: $showingArchiveImporter,
-                allowedContentTypes: [.item],
-                onCompletion: handleSingleImport
-            )
         case .folder:
             Button {
                 status = "اختر المجلد من تطبيق «الملفات»."
-                showingFolderImporter = true
+                activeImportPicker = .folder
             } label: {
                 importButtonLabel(title, icon: icon)
             }
             .buttonStyle(.plain)
-            .fileImporter(
-                isPresented: $showingFolderImporter,
-                allowedContentTypes: [.folder],
-                onCompletion: handleSingleImport
-            )
         }
     }
 
@@ -713,18 +714,8 @@ struct ContentView: View {
         Label(title, systemImage: icon).font(.headline).foregroundStyle(.white)
     }
 
-    private func handleSingleImport(_ result: Result<URL, Error>) {
-        switch result {
-        case .success(let url):
-            handleImport(.success([url]))
-        case .failure(let error):
-            handleImport(.failure(error))
-        }
-    }
-
     private func handleImport(_ result: Result<[URL], Error>) {
-        showingArchiveImporter = false
-        showingFolderImporter = false
+        activeImportPicker = nil
         switch result {
         case .success(let urls):
             guard let pickedURL = urls.first else { return }
