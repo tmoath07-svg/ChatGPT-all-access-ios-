@@ -37,6 +37,8 @@ struct FileImportServiceTests {
         try fm.createSymbolicLink(at: link, withDestinationURL: nestedFile)
 
         let importedFolder = try FileImportService.importItem(from: sourceFolder, category: category)
+        // FileImportService copies the selected folder's contents directly into its
+        // generated destination directory; it does not add the source folder name.
         let copiedNestedFile = importedFolder.appendingPathComponent("vehicles/stream/vehicle.yft")
         let copiedNestedBytes = try Data(contentsOf: copiedNestedFile)
         precondition(copiedNestedBytes == nestedBytes, "Nested folder content was not copied correctly.")
