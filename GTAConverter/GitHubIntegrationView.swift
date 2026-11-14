@@ -315,8 +315,12 @@ private final class GitHubIntegrationClient: ObservableObject {
     func loadWorkflows(for repository: GHRepository) async {
         do {
             let response: GHWorkflowList = try await api("/repos/\(repository.full_name)/actions/workflows?per_page=100")
-            workflows = response.workflows.filter { $0.state == "active" }
-            status = "تم تحميل \(workflows.count) Workflow."
+            workflows = response.workflows.filter {
+                $0.state == "active" && $0.path.hasSuffix("convert-pc-to-ps4.yml")
+            }
+            status = workflows.isEmpty
+                ? "لم أجد Workflow التحويل convert-pc-to-ps4.yml في هذا المستودع."
+                : "تم العثور على Workflow التحويل الصحيح."
         } catch {
             workflows = []
             status = "تعذر قراءة Workflows: \(error.localizedDescription)"
@@ -761,12 +765,20 @@ struct GitHubIntegrationView: View {
             Button("رفع الملفات ثم تشغيل Workflow") {
                 guard let repository = selectedRepository, let workflow = selectedWorkflow else { return }
                 let urls = selectedFileURLs
-                let folder = inputFolder.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+                let baseFolder = inputFolder.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+                guard !baseFolder.isEmpty,
+                      !baseFolder.split(separator: "/").contains(".."),
+                      !baseFolder.split(separator: "/").contains(".") else {
+                    client.status = "مسار مجلد الإدخال غير صالح."
+                    return
+                }
+                let folder = "\(baseFolder)/inrpf-\(UUID().uuidString.lowercased())"
                 Task {
                     do {
-                        if !urls.isEmpty {
-                            try await client.uploadItems(urls, to: repository, inputFolder: folder)
+                        guard !urls.isEmpty else {
+                            throw GHError.message("اختر ملفات التحويل قبل تشغيل Workflow.")
                         }
+                        try await client.uploadItems(urls, to: repository, inputFolder: folder)
                         try await client.dispatch(workflow, repository: repository, ref: branchName, inputs: [
                             "mode": conversionMode,
                             "toolkit_zip": toolkitZip,
@@ -775,10 +787,12 @@ struct GitHubIntegrationView: View {
                             "input_folder": folder,
                             "vehicle_spawn_name": vehicleSpawnName
                         ])
+                        selectedFileURLs = []
+                        client.status = "تم رفع الملفات وتشغيل Workflow. مجلد الإدخال: \(folder)"
                     } catch { client.status = error.localizedDescription }
                 }
             }
-            .buttonStyle(.borderedProminent).disabled(selectedWorkflow == nil || selectedRepository == nil)
+            .buttonStyle(.borderedProminent).disabled(selectedWorkflow == nil || selectedRepository == nil || selectedFileURLs.isEmpty)
         }
         .padding(16).background(Color.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
     }
