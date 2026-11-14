@@ -59,7 +59,7 @@ struct RPFStudioView: View {
         }
         .navigationTitle("RPF Studio")
         .navigationBarTitleDisplayMode(.inline)
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
                 guard let url = urls.first else {
