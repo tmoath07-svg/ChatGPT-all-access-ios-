@@ -568,7 +568,7 @@ struct GitHubIntegrationView: View {
             }
         }
         let joined = paths.joined(separator: "\n")
-        if joined.contains("/stream/") && joined.contains("/data/") && joined.contains(".yft") {
+        if joined.contains("stream/") && joined.contains("data/") && joined.contains(".yft") && joined.contains(".meta") {
             autoDetectedMode = "تحويل مود FiveM متعدد السيارات إلى DLC للسوني"
         } else if paths.contains(where: { $0.hasSuffix(".rpf") }) {
             autoDetectedMode = "تحويل DLC الكمبيوتر إلى DLC السوني"
