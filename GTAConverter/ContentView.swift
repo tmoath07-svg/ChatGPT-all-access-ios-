@@ -120,13 +120,15 @@ struct ContentView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingImporter) {
-                INRPFDocumentPickerPresenter(
-                    contentTypes: importKind == .folder ? [.folder] : [.data],
-                    onCompletion: handleImport
-                )
-                .ignoresSafeArea()
-            }
+            // Use SwiftUI's native document importer directly. Wrapping
+            // UIDocumentPickerViewController inside a second sheet caused
+            // unresponsive selection taps on some iPadOS versions.
+            .fileImporter(
+                isPresented: $showingImporter,
+                allowedContentTypes: importKind == .folder ? [.folder] : [.data],
+                allowsMultipleSelection: false,
+                onCompletion: handleImport
+            )
             .disabled(isBusy)
             .overlay {
                 if isBusy {
