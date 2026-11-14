@@ -18,16 +18,16 @@ targets:
         product: SwiftArchive
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.tmoath07.gta-converter
-        PRODUCT_NAME: GTA Converter
-        PRODUCT_BUNDLE_VERSION: "2"
-        MARKETING_VERSION: "1.1.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.tmoath07.ps4toolsmobile
+        PRODUCT_NAME: "PS4TOOLS MOBILE"
+        PRODUCT_BUNDLE_VERSION: "3"
+        MARKETING_VERSION: "1.2.0"
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: "GTA Converter"
-        INFOPLIST_KEY_CFBundleVersion: "2"
-        INFOPLIST_KEY_CFBundleShortVersionString: "1.1.0"
+        INFOPLIST_KEY_CFBundleDisplayName: "PS4TOOLS MOBILE"
+        INFOPLIST_KEY_CFBundleVersion: "3"
+        INFOPLIST_KEY_CFBundleShortVersionString: "1.2.0"
         INFOPLIST_KEY_LSRequiresIPhoneOS: YES
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
