@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import Security
 import UIKit
+import PhotosUI
 
 private struct GHDeviceCode: Decodable {
     let device_code: String
@@ -413,6 +414,34 @@ private struct GHContentResult: Decodable {
 }
 private struct GHContent: Decodable { let name: String? }
 
+private struct CameraCapturePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: CameraCapturePicker
+        init(_ parent: CameraCapturePicker) { self.parent = parent }
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            parent.image = info[.originalImage] as? UIImage
+            picker.dismiss(animated: true)
+        }
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+        }
+    }
+}
+
 struct GitHubIntegrationView: View {
     @StateObject private var client = GitHubIntegrationClient()
     @State private var repositoryName = ""
@@ -424,6 +453,10 @@ struct GitHubIntegrationView: View {
     @State private var showingFolderImporter = false
     @State private var selectedFileURLs: [URL] = []
     @State private var appFiles: [URL] = []
+    @State private var photoSelections: [PhotosPickerItem] = []
+    @State private var cameraImage: UIImage?
+    @State private var showingCamera = false
+    @State private var isDropTargeted = false
     @State private var inputFolder = "uploads/inrpf-input"
     @State private var conversionMode = "تحويل ملفات PC إلى PS4"
     @State private var toolkitZip = "tools-source/ZokiiStudio-Toolkit-FIXED.zip"
@@ -484,6 +517,22 @@ struct GitHubIntegrationView: View {
                 } catch { client.status = "تعذر نسخ الملفات: \(error.localizedDescription)" }
             case .failure(let error): client.status = "تعذر اختيار الملفات: \(error.localizedDescription)"
             }
+        }
+        .onChange(of: photoSelections) { _, items in
+            Task { await importPhotos(items) }
+        }
+        .onChange(of: cameraImage) { _, image in
+            guard let image, let data = image.jpegData(compressionQuality: 0.92) else { return }
+            do {
+                let url = try saveImportedData(data, name: "camera-\(UUID().uuidString).jpg")
+                selectedFileURLs.append(url)
+                client.status = "تمت إضافة صورة الكاميرا إلى قائمة الرفع."
+            } catch { client.status = error.localizedDescription }
+            cameraImage = nil
+        }
+        .sheet(isPresented: $showingCamera) {
+            CameraCapturePicker(image: $cameraImage)
+                .ignoresSafeArea()
         }
         .fileImporter(isPresented: $showingFolderImporter, allowedContentTypes: [.folder], allowsMultipleSelection: true) { result in
             switch result {
@@ -574,6 +623,16 @@ struct GitHubIntegrationView: View {
                 Button("اختيار ملفات") { showingFileImporter = true }.buttonStyle(.bordered)
                 Button("اختيار مجلد") { showingFolderImporter = true }.buttonStyle(.bordered)
             }
+            HStack {
+                PhotosPicker(selection: $photoSelections, maxSelectionCount: 20, matching: .images) {
+                    Label("مكتبة الصور", systemImage: "photo.on.rectangle")
+                }.buttonStyle(.bordered)
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button { showingCamera = true } label: {
+                        Label("الكاميرا", systemImage: "camera")
+                    }.buttonStyle(.bordered)
+                }
+            }
             Text("عدد العناصر المحددة: \(selectedFileURLs.count)").font(.caption).foregroundStyle(.secondary)
             ForEach(selectedFileURLs, id: \.path) { file in
                 Label(file.lastPathComponent, systemImage: "doc.fill").font(.caption).lineLimit(1)
@@ -604,7 +663,49 @@ struct GitHubIntegrationView: View {
             Text("الحد الحالي 90MB لكل ملف. يتم الاحتفاظ ببنية المجلدات.")
                 .font(.caption2).foregroundStyle(.secondary)
         }
-        .padding(16).background(Color.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
+        .padding(16)
+        .background(isDropTargeted ? Color.purple.opacity(0.22) : Color.white.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
+            for provider in providers {
+                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                    let source: URL?
+                    if let value = item as? URL { source = value }
+                    else if let data = item as? Data { source = URL(dataRepresentation: data, relativeTo: nil) }
+                    else if let value = item as? String { source = URL(string: value) }
+                    else { source = nil }
+                    guard let source, source.isFileURL,
+                          let copied = try? FileImportService.importItem(from: source, category: "GitHubUploads") else { return }
+                    DispatchQueue.main.async {
+                        if !selectedFileURLs.contains(copied) { selectedFileURLs.append(copied) }
+                        client.status = "تمت إضافة الملف المسحوب إلى قائمة الرفع."
+                    }
+                }
+            }
+            return !providers.isEmpty
+        }
+    }
+
+    private func importPhotos(_ items: [PhotosPickerItem]) async {
+        for item in items {
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+            do {
+                let url = try saveImportedData(data, name: "photo-\(UUID().uuidString).\(ext)")
+                selectedFileURLs.append(url)
+            } catch { client.status = error.localizedDescription }
+        }
+        photoSelections = []
+        if !selectedFileURLs.isEmpty { client.status = "تمت إضافة الصور إلى قائمة الرفع." }
+    }
+
+    private func saveImportedData(_ data: Data, name: String) throws -> URL {
+        let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("GTA Converter/GitHubUploads", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let url = root.appendingPathComponent(name)
+        try data.write(to: url, options: .atomic)
+        return url
     }
 
     private func refreshAppFiles() {
