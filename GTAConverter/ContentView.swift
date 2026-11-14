@@ -714,7 +714,10 @@ struct ContentView: View {
         activeImportPicker = nil
         switch result {
         case .success(let urls):
-            guard let pickedURL = urls.first else { return }
+            guard let pickedURL = urls.first else {
+                fail("رجع iOS نتيجة اختيار فارغة؛ ما وصل أي ملف إلى INRPF. جرّب اختيار الملف مرة ثانية.")
+                return
+            }
             isBusy = true
             progressText = "جاري استيراد الملف إلى التطبيق..."
             Task {
