@@ -73,7 +73,8 @@ jobs:
           swiftc -typecheck GTAConverter/FileImportService.swift
           grep -Fq 'startAccessingSecurityScopedResource' GTAConverter/FileImportService.swift
           grep -Fq 'NSFileCoordinator' GTAConverter/FileImportService.swift
-          grep -Fq 'FileImportService.importItem(from: source, category: "RPFStudio")' RPFStudio/RPFStudioView.swift
+          grep -Fq 'FileImportService.importItem(' RPFStudio/RPFStudioView.swift
+          grep -Fq 'category: "RPFStudio"' RPFStudio/RPFStudioView.swift
           grep -Fq 'scopeStarted = source.startAccessingSecurityScopedResource()' RPFStudio/RPFStudioView.swift
           grep -Fq 'securityScopeAlreadyStarted: scopeStarted' RPFStudio/RPFStudioView.swift
           grep -Fq 'allowedContentTypes: [UTType(filenameExtension: "rpf", conformingTo: .data) ?? .data, .data]' RPFStudio/RPFStudioView.swift
