@@ -21,9 +21,9 @@ enum FileImportService {
                            securityScopeAlreadyStarted: Bool = false) throws -> URL {
         let fm = FileManager.default
         let startedHere = securityScopeAlreadyStarted ? false : source.startAccessingSecurityScopedResource()
-        guard securityScopeAlreadyStarted || startedHere else {
-            throw ImportFailure.accessDenied
-        }
+        // A false return can be normal for a URL already copied into this app's
+        // sandbox by UIDocumentPickerViewController(asCopy: true). Do not treat
+        // it as an automatic permission failure; verify access by coordinated I/O.
         defer {
             if startedHere { source.stopAccessingSecurityScopedResource() }
         }
