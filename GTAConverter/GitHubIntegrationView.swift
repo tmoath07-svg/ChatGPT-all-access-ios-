@@ -42,6 +42,18 @@ private struct GHWorkflow: Decodable, Identifiable {
     let path: String
     let state: String
 }
+private struct GHWorkflowRuns: Decodable { let workflow_runs: [GHWorkflowRun] }
+private struct GHWorkflowRun: Decodable, Identifiable {
+    let id: Int
+    let name: String
+    let run_number: Int
+    let status: String
+    let conclusion: String?
+    let html_url: String
+    let event: String
+    let created_at: String
+    let updated_at: String
+}
 
 private enum GHError: LocalizedError {
     case message(String)
@@ -95,6 +107,7 @@ private final class GitHubIntegrationClient: ObservableObject {
     @Published var verificationURL = URL(string: "https://github.com/login/device")
     @Published var repositories: [GHRepository] = []
     @Published var workflows: [GHWorkflow] = []
+    @Published var runs: [GHWorkflowRun] = []
     @Published var status = "اربط حساب GitHub للبدء."
     @Published var isBusy = false
 
@@ -223,6 +236,7 @@ private final class GitHubIntegrationClient: ObservableObject {
         username = ""
         repositories = []
         workflows = []
+        runs = []
         userCode = ""
         status = "تم تسجيل الخروج."
     }
@@ -321,6 +335,15 @@ private final class GitHubIntegrationClient: ObservableObject {
         } catch {
             workflows = []
             status = "تعذر قراءة Workflows: \(error.localizedDescription)"
+        }
+    }
+
+    func loadRuns(for repository: GHRepository) async {
+        do {
+            let response: GHWorkflowRuns = try await api("/repos/\(repository.full_name)/actions/runs?per_page=8")
+            runs = response.workflow_runs
+        } catch {
+            status = "تعذر تحميل سجل GitHub Actions: \(error.localizedDescription)"
         }
     }
 
@@ -463,11 +486,12 @@ struct GitHubIntegrationView: View {
     @State private var activeSheet: ActiveSheet?
     @State private var selectedFileURLs: [URL] = []
     @State private var appFiles: [URL] = []
+    @State private var monitorRefreshToken = 0
     @State private var photoSelections: [PhotosPickerItem] = []
     @State private var cameraImage: UIImage?
     @State private var isDropTargeted = false
     @State private var inputFolder = "uploads/inrpf-input"
-    @State private var conversionMode = "تحويل ملفات PC إلى PS4"
+    @State private var conversionMode = "أوتو"
     @State private var toolkitZip = "tools-source/ZokiiStudio-Toolkit-FIXED.zip"
     @State private var releaseTag = ""
     @State private var vehicleSpawnName = "buccaneer2"
@@ -477,6 +501,41 @@ struct GitHubIntegrationView: View {
     }
     private var selectedWorkflow: GHWorkflow? {
         client.workflows.first { $0.id == selectedWorkflowID }
+    }
+
+    private var resolvedConversionMode: String {
+        guard conversionMode == "أوتو" else { return conversionMode }
+        let extensions = Set(selectedFileURLs.map { $0.pathExtension.lowercased() })
+        if extensions.contains("rpf") { return "تحويل DLC الكمبيوتر إلى DLC السوني" }
+        if extensions.contains("yft") || extensions.contains("ytd") {
+            return "تحويل YFT وYTD وبناء DLC متعدد السيارات للسوني"
+        }
+        if selectedFileURLs.contains(where: isFiveMResourceFolder) {
+            return "تحويل مود FiveM متعدد السيارات إلى DLC للسوني"
+        }
+        if !extensions.isDisjoint(with: ["zip", "rar", "7z"]) {
+            return "تحويل ملفات PC إلى PS4"
+        }
+        return "تحويل الملفات وبناء RPF"
+    }
+
+    private var autoDetectionSummary: String {
+        guard !selectedFileURLs.isEmpty else { return "أضف ملفاتك، وراح يحدد INRPF نوعها تلقائياً." }
+        let names = selectedFileURLs.map { $0.pathExtension.isEmpty ? "مجلد" : $0.pathExtension.uppercased() }
+        return "تم التعرف على: \(Array(Set(names)).sorted().joined(separator: "، ")) — الإجراء: \(resolvedConversionMode)"
+    }
+
+    private func isFiveMResourceFolder(_ url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else { return false }
+        let stream = url.appendingPathComponent("stream", isDirectory: true)
+        let data = url.appendingPathComponent("data", isDirectory: true)
+        var streamIsDirectory: ObjCBool = false
+        var dataIsDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: stream.path, isDirectory: &streamIsDirectory)
+            && streamIsDirectory.boolValue
+            && FileManager.default.fileExists(atPath: data.path, isDirectory: &dataIsDirectory)
+            && dataIsDirectory.boolValue
     }
 
     var body: some View {
@@ -515,8 +574,14 @@ struct GitHubIntegrationView: View {
             .frame(maxWidth: 620)
             .frame(maxWidth: .infinity)
         }
-        .background(Color.black.ignoresSafeArea())
-        .navigationTitle(client.isAuthorized ? "حساب GitHub" : "INRPF")
+        .background {
+            ZStack {
+                LinearGradient(colors: [Color(red: 0.025, green: 0.035, blue: 0.065), Color(red: 0.055, green: 0.035, blue: 0.10), Color.black],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                Circle().fill(Color(red: 0.30, green: 0.22, blue: 0.75).opacity(0.16)).frame(width: 320).blur(radius: 90).offset(x: 170, y: -310)
+            }.ignoresSafeArea()
+        }
+        .navigationTitle(client.isAuthorized ? "INRPF • GitHub" : "INRPF")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
         .onAppear {
@@ -531,6 +596,15 @@ struct GitHubIntegrationView: View {
                 githubAuthenticated = true
             } else if didConfirmGitHubSession {
                 githubAuthenticated = false
+            }
+        }
+        .task(id: "\(selectedRepositoryID ?? 0)-\(monitorRefreshToken)") {
+            guard let repository = selectedRepository else { return }
+            while !Task.isCancelled {
+                await client.loadRuns(for: repository)
+                let isRunning = client.runs.contains { $0.status == "queued" || $0.status == "in_progress" || $0.status == "waiting" }
+                guard isRunning else { break }
+                try? await Task.sleep(for: .seconds(12))
             }
         }
         .onChange(of: photoSelections) { _, items in
@@ -692,7 +766,10 @@ struct GitHubIntegrationView: View {
                     selectedRepositoryID = repository.id
                     selectedWorkflowID = nil
                     client.workflows = []
-                    Task { await client.loadWorkflows(for: repository) }
+                    Task {
+                        await client.loadWorkflows(for: repository)
+                        await client.loadRuns(for: repository)
+                    }
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
@@ -886,7 +963,20 @@ struct GitHubIntegrationView: View {
 
     private var workflowSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("GitHub Actions").font(.headline)
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("GitHub Actions").font(.headline)
+                    Text("متابعة عمليات التحويل وحالتها مباشرة").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    guard let repository = selectedRepository else { return }
+                    Task { await client.loadRuns(for: repository) }
+                } label: {
+                    Image(systemName: "arrow.clockwise").font(.headline).padding(9)
+                        .background(Color.white.opacity(0.08), in: Circle())
+                }.disabled(selectedRepository == nil)
+            }
             if client.workflows.isEmpty {
                 Text("لا توجد Workflows مفعّلة لهذا المستودع.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -908,10 +998,43 @@ struct GitHubIntegrationView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 }.buttonStyle(.plain)
             }
+            if !client.runs.isEmpty {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text("آخر عمليات التشغيل").font(.subheadline.bold())
+                    ForEach(client.runs) { run in
+                        Link(destination: URL(string: run.html_url) ?? URL(string: "https://github.com")!) {
+                            HStack(spacing: 10) {
+                                Image(systemName: run.status == "completed"
+                                      ? (run.conclusion == "success" ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                      : "arrow.triangle.2.circlepath")
+                                    .foregroundStyle(run.status == "completed"
+                                                     ? (run.conclusion == "success" ? .green : .red)
+                                                     : .orange)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("\(run.name) • #\(run.run_number)").font(.caption.bold()).foregroundStyle(.white)
+                                    Text(run.status == "completed" ? "مكتمل: \(run.conclusion ?? "غير محدد")" : "قيد التنفيذ: \(run.status)")
+                                        .font(.caption2).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "arrow.up.right").font(.caption2).foregroundStyle(.secondary)
+                            }
+                            .padding(10)
+                            .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
+                }
+            } else {
+                Text("ما فيه عمليات تشغيل ظاهرة حالياً.").font(.caption).foregroundStyle(.secondary)
+            }
             Picker("نوع التحويل", selection: $conversionMode) {
-                ForEach(["فحص الأدوات", "تحويل ملفات PC إلى PS4", "تحويل سيارة إلى DLC للسوني", "تحويل الملفات وبناء RPF", "تحويل DLC الكمبيوتر إلى DLC السوني", "تحويل مود FiveM متعدد السيارات إلى DLC للسوني", "تحويل YFT وYTD وبناء DLC متعدد السيارات للسوني", "استخراج الصور من YTD", "فك ملفات RPF", "بناء ملف RPF"], id: \.self) { Text($0).tag($0) }
+                ForEach(["أوتو", "فحص الأدوات", "تحويل ملفات PC إلى PS4", "تحويل سيارة إلى DLC للسوني", "تحويل الملفات وبناء RPF", "تحويل DLC الكمبيوتر إلى DLC السوني", "تحويل مود FiveM متعدد السيارات إلى DLC للسوني", "تحويل YFT وYTD وبناء DLC متعدد السيارات للسوني", "استخراج الصور من YTD", "فك ملفات RPF", "بناء ملف RPF"], id: \.self) { Text($0).tag($0) }
             }
             .pickerStyle(.menu)
+            if conversionMode == "أوتو" {
+                Label(autoDetectionSummary, systemImage: "sparkles")
+                    .font(.caption).foregroundStyle(Color(red: 0.65, green: 0.78, blue: 1))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             TextField("اسم الفرع", text: $branchName)
                 .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
             TextField("مسار ZIP الأدوات", text: $toolkitZip)
@@ -938,7 +1061,7 @@ struct GitHubIntegrationView: View {
                         }
                         try await client.uploadItems(urls, to: repository, inputFolder: folder)
                         try await client.dispatch(workflow, repository: repository, ref: branchName, inputs: [
-                            "mode": conversionMode,
+                            "mode": resolvedConversionMode,
                             "toolkit_zip": toolkitZip,
                             "release_tag": releaseTag,
                             "url": "",
@@ -946,6 +1069,7 @@ struct GitHubIntegrationView: View {
                             "vehicle_spawn_name": vehicleSpawnName
                         ])
                         selectedFileURLs = []
+                        monitorRefreshToken += 1
                         client.status = "تم رفع الملفات وتشغيل Workflow. مجلد الإدخال: \(folder)"
                     } catch { client.status = error.localizedDescription }
                 }
