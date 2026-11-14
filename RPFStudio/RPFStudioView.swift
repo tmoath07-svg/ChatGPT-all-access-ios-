@@ -7,7 +7,7 @@ struct RPFStudioView: View {
     @State private var report = "اختر ملف dlc.rpf وسيبدأ Python تلقائياً."
     @State private var busy = false
     @State private var error = false
-    @State private var importing = false
+    @State private var showingDocumentPicker = false
 
     private let purple = Color(red: 0.58, green: 0.31, blue: 0.98)
     private let background = Color(red: 0.035, green: 0.025, blue: 0.065)
@@ -57,26 +57,13 @@ struct RPFStudioView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .fileImporter(
-            isPresented: $importing,
-            allowedContentTypes: [UTType(filenameExtension: "rpf", conformingTo: .data) ?? .data, .data],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else {
-                    report = "لم يرجع تطبيق الملفات أي ملف."
-                    error = true
-                    return
-                }
+        .sheet(isPresented: $showingDocumentPicker) {
+            RPFDocumentPicker(isPresented: $showingDocumentPicker) { url in
                 selectedFile = url
                 selectedFileName = url.lastPathComponent
                 startInspection(for: url)
-            case .failure(let issue):
-                report = "تعذر اختيار الملف: \(issue.localizedDescription)"
-                error = true
-                busy = false
             }
+            .ignoresSafeArea()
         }
         .navigationTitle("RPF Studio")
         .navigationBarTitleDisplayMode(.inline)
@@ -102,9 +89,9 @@ struct RPFStudioView: View {
 
     private var fileCard: some View {
         Button {
-            report = "تم الضغط على اختيار الملف — جارٍ فتح تطبيق «الملفات»..."
+            report = "تم الضغط — جارٍ فتح منتقي ملفات iOS..."
             error = false
-            importing = true
+            showingDocumentPicker = true
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "doc.badge.plus")
@@ -184,6 +171,56 @@ struct RPFStudioView: View {
                     busy = false
                 }
             }
+        }
+    }
+}
+
+
+/// UIKit document picker used instead of SwiftUI fileImporter to avoid picker
+/// selection callbacks getting stuck on affected physical iOS devices.
+private struct RPFDocumentPicker: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    let onPick: (URL) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isPresented: $isPresented, onPick: onPick)
+    }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let rpfType = UTType(filenameExtension: "rpf", conformingTo: .data) ?? .data
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: [rpfType, .data],
+            asCopy: true
+        )
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        private let isPresented: Binding<Bool>
+        private let onPick: (URL) -> Void
+
+        init(isPresented: Binding<Bool>, onPick: @escaping (URL) -> Void) {
+            self.isPresented = isPresented
+            self.onPick = onPick
+        }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else {
+                isPresented.wrappedValue = false
+                return
+            }
+            isPresented.wrappedValue = false
+            DispatchQueue.main.async { [onPick] in
+                onPick(url)
+            }
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            isPresented.wrappedValue = false
         }
     }
 }
