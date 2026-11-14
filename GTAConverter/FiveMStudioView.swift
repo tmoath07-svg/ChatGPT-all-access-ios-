@@ -124,15 +124,16 @@ struct FiveMStudioView: View {
         .navigationTitle("FiveM Studio")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.layoutDirection, .rightToLeft)
-        .sheet(isPresented: $showingFilePicker) {
-            INRPFDocumentPickerPresenter(contentTypes: [.data]) { result in
-                showingFilePicker = false
-                switch result {
-                case .success(let urls): handleFileSelection(.success(urls))
-                case .failure(let error): if !(error is CancellationError) { handleFileSelection(.failure(error)) }
-                }
+        .fileImporter(
+            isPresented: $showingFilePicker,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: false
+        ) { result in
+            showingFilePicker = false
+            switch result {
+            case .success(let urls): handleFileSelection(.success(urls))
+            case .failure(let error): if !(error is CancellationError) { handleFileSelection(.failure(error)) }
             }
-            .ignoresSafeArea()
         }
     }
 
