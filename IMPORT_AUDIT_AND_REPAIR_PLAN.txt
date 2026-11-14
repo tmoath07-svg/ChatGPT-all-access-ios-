@@ -129,7 +129,11 @@ CHANGES RECORDED IN INRPF 5.28 / BUILD 66 CANDIDATE
 - Replaced the main one-item multi-selection importer overload with separate single-URL file and folder importer overloads.
 - Split GitHub upload file selection (multi-select) from folder selection (single-select); each importer has a fixed UTType configuration.
 - Added automated FileImportService tests for byte-for-byte file copying, source preservation, nested folders, empty folders, and symbolic-link exclusion.
-- The prior UIKit picker implementation is historical only; do not reintroduce it without new evidence because the active workflow intentionally enforces SwiftUI fileImporter.
+- The earlier SwiftUI fileImporter implementation was removed from both import surfaces after the user confirmed that tapping a file in Files did not return a selection to INRPF.
+- Replaced it with a shared UIKit UIDocumentPickerViewController wrapper using UIDocumentPickerDelegate.didPickDocumentsAt and documentPickerWasCancelled. The wrapper is used by the main ZIP/RAR/folder import and GitHub file/folder upload selection.
+- GitHub's file and folder pickers now share one sheet state with the camera picker so presentation state is explicitly cleared on selection or cancellation.
+- Main import now starts and stops security-scoped access inside the same background import operation through FileImportService, rather than starting access on the UI task and consuming it in a detached task.
+- CI now checks the native picker wiring and asserts that no SwiftUI .fileImporter modifiers remain. This is a source/build check, not a substitute for a real iPad Files-provider test.
 - Device-level confirmation on iPad is still required; CI cannot prove the system picker responds to taps on iOS 27.
 
 - The ready-mod shortcut now opens the same dedicated archive picker; no stale references to the removed shared importer state remain.
@@ -154,3 +158,10 @@ RELEASE SCOPE — INRPF 5.28 / Build 66
 - This release is limited to repairing file import and the shared file-copy service. No unrelated features are included.
 - Build 519 passed all workflow stages and produced an unsigned 5.27 artifact from the previous version metadata. A dedicated 5.28 / 66 build is required so the release version accurately identifies the file-import repair.
 - Release remains conditional on the new 5.28 / 66 workflow passing and artifact validation.
+
+
+NATIVE DOCUMENT PICKER REPAIR — CANDIDATE
+- Root-cause distinction: the previous automated tests exercised FileImportService copying only. They did not exercise the system document-picker callback, so they could pass while the user's tap/selection symptom remained.
+- Apple documents UIDocumentPickerDelegate.didPickDocumentsAt as the selection callback and documentPickerWasCancelled as the cancellation callback. The returned URLs in open mode are security-scoped and require startAccessingSecurityScopedResource plus coordinated file access.
+- The shared UIKit picker uses the explicit delegate callback for both main import and GitHub uploads. The copy service remains responsible for moving selected content into the app's Documents directory.
+- Do not declare the tap/selection issue fixed until a physical iPad test confirms: ZIP selection, RAR selection, folder selection, multi-file GitHub selection, and GitHub folder selection. Verify both Files > On My iPad and iCloud Drive/provider-backed items where available.
