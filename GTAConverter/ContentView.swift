@@ -4,6 +4,8 @@ import SwiftArchive
 
 struct ContentView: View {
     @State private var showingImporter = false
+    @State private var showingAccount = false
+    @State private var showingGuide = false
     @State private var sourceURL: URL?
     @State private var selectedFileName = "ما تم اختيار ملف"
     @State private var directURL = ""
@@ -55,15 +57,29 @@ struct ContentView: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            .navigationTitle("GTA Converter")
+            .navigationTitle("PS4TOOLS MOBILE")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .fileImporter(isPresented: $showingImporter,
-                          allowedContentTypes: importKind == .folder ? [.folder] : [.item],
-                          allowsMultipleSelection: false,
-                          onCompletion: handleImport)
+            .toolbar {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button { showingAccount = true } label: { Image(systemName: "person.crop.circle") }
+                        .accessibilityLabel("تسجيل الدخول")
+                    Button { showingGuide = true } label: { Image(systemName: "questionmark.circle") }
+                        .accessibilityLabel("شرح التطبيق")
+                }
+            }
+            .sheet(isPresented: $showingImporter) {
+                ModDocumentPicker(
+                    allowedContentTypes: importKind == .folder ? [.folder] : [.zip, .rar, .item],
+                    onPick: { pickedURL in handleImport(.success([pickedURL])) },
+                    onCancel: {}
+                )
+                .ignoresSafeArea()
+            }
+            .sheet(isPresented: $showingAccount) { GitHubAccountView() }
+            .sheet(isPresented: $showingGuide) { ModGuideView() }
             .disabled(isBusy)
             .overlay {
                 if isBusy {
@@ -92,7 +108,7 @@ struct ContentView: View {
                     .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(purple)
                 Spacer()
-                Text("iPHONE EDITION")
+                Text("iOS / iPadOS")
                     .font(.system(size: 10, weight: .black, design: .rounded))
                     .tracking(1.2)
                     .padding(.horizontal, 11)
@@ -100,7 +116,7 @@ struct ContentView: View {
                     .background(purple.opacity(0.22))
                     .clipShape(Capsule())
             }
-            Text("GTA CONVERTER")
+            Text("PS4TOOLS MOBILE")
                 .font(.system(size: 26, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .minimumScaleFactor(0.75)
@@ -378,7 +394,7 @@ struct ContentView: View {
             do {
                 var request = URLRequest(url: url)
                 request.timeoutInterval = 180
-                request.setValue("GTAConverter-iOS", forHTTPHeaderField: "User-Agent")
+                request.setValue("PS4TOOLS-MOBILE-iOS", forHTTPHeaderField: "User-Agent")
                 let (temporary, response) = try await URLSession.shared.download(for: request)
                 if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                     throw ImportError.http(http.statusCode)
