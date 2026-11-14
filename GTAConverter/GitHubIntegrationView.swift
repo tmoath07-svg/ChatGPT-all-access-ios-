@@ -306,7 +306,7 @@ private final class GitHubIntegrationClient: ObservableObject {
             String($0).addingPercentEncoding(withAllowedCharacters: allowed) ?? String($0)
         }.joined(separator: "/")
         let existing: GHContentResult? = try? await api(
-            "/repos/\\(repository.full_name)/contents/\\(encodedPath)?ref=\\(branch)"
+            "/repos/\(repository.full_name)/contents/\(encodedPath)?ref=\(branch)"
         )
         if let current = existing?.content, let sha = current.sha {
             if skipIfExists {
@@ -319,13 +319,13 @@ private final class GitHubIntegrationClient: ObservableObject {
                 return
             }
             let _: GHContentResult = try await api(
-                "/repos/\\(repository.full_name)/contents/\\(encodedPath)",
+                "/repos/\(repository.full_name)/contents/\(encodedPath)",
                 method: "PUT",
                 body: ["message": message, "content": data.base64EncodedString(), "sha": sha, "branch": branch]
             )
         } else {
             let _: GHContentResult = try await api(
-                "/repos/\\(repository.full_name)/contents/\\(encodedPath)",
+                "/repos/\(repository.full_name)/contents/\(encodedPath)",
                 method: "PUT",
                 body: ["message": message, "content": data.base64EncodedString(), "branch": branch]
             )
@@ -903,7 +903,7 @@ struct GitHubIntegrationView: View {
                             await client.loadRuns(for: repository)
                         } catch {
                             client.workflows = []
-                            client.status = "تعذر تجهيز المستودع تلقائياً: \\(error.localizedDescription)"
+                            client.status = "تعذر تجهيز المستودع تلقائياً: \(error.localizedDescription)"
                         }
                     }
                 } label: {
