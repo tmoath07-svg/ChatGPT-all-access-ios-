@@ -252,6 +252,7 @@ struct ContentView: View {
             .init(id: "engine", title: "المحرك المحلي", icon: "cpu.fill"),
             .init(id: "fivem", title: "استوديو FiveM", icon: "car.side.3.fill"),
             .init(id: "ftp", title: "FTP جهاز PS4", icon: "network"),
+            .init(id: "github", title: "ربط GitHub", icon: "chevron.left.forwardslash.chevron.right"),
             .init(id: "orbx", title: "إرسال تلقائي للسوني", icon: "gamecontroller.fill"),
             .init(id: "rpf", title: "محرر RPF", icon: "archivebox.fill"),
             .init(id: "cloud", title: "التحويل السحابي (احتياطي)", icon: "cloud.gear.fill"),
@@ -318,6 +319,7 @@ struct ContentView: View {
         case "engine": LocalEngineView(initialFolder: outputFolder)
         case "fivem": FiveMStudioView()
         case "ftp": FTPBrowserView()
+        case "github": GitHubIntegrationView()
         case "orbx": OrbxPS4TransferView()
         case "rpf": LocalEngineView(initialFolder: outputFolder)
         case "cloud": CloudConversionView()
