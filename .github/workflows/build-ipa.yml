@@ -52,6 +52,8 @@ jobs:
           grep -Fq '.inrpfDocumentPicker(' GTAConverter/ContentView.swift
           grep -Fq '.inrpfDocumentPicker(' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'forOpeningContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'asCopy: true' GTAConverter/INRPFDocumentPicker.swift
+          ! grep -Fq 'asCopy: false' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'didPickDocumentsAt urls: [URL]' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'documentPickerWasCancelled' GTAConverter/INRPFDocumentPicker.swift
 
