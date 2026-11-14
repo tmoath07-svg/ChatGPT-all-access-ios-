@@ -721,13 +721,10 @@ struct ContentView: View {
             guard let pickedURL = urls.first else { return }
             isBusy = true
             progressText = "جاري استيراد الملف إلى التطبيق..."
-            let scopeStarted = pickedURL.startAccessingSecurityScopedResource()
             Task {
-                defer { if scopeStarted { pickedURL.stopAccessingSecurityScopedResource() } }
                 do {
                     let importedURL = try await Task.detached(priority: .userInitiated) {
-                        try FileImportService.importItem(from: pickedURL, category: "Imports",
-                                                          securityScopeAlreadyStarted: scopeStarted)
+                        try FileImportService.importItem(from: pickedURL, category: "Imports")
                     }.value
                     sourceURL = importedURL
                     selectedFileName = pickedURL.lastPathComponent
