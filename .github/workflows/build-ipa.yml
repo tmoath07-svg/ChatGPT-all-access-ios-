@@ -2,7 +2,7 @@ name: Build GTA Converter IPA
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/ps4tools-mobile-app]
   workflow_dispatch:
 
 permissions:
@@ -64,23 +64,23 @@ jobs:
       - name: Package and validate IPA
         run: |
           set -euo pipefail
-          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/GTA Converter.app"
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/PS4TOOLS MOBILE.app"
           test -d "$APP_PATH"
           test -f "$APP_PATH/Info.plist"
 
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          zip -qry GTA-Converter-unsigned.ipa Payload
+          zip -qry PS4TOOLS-MOBILE-unsigned.ipa Payload
 
           unzip -t GTA-Converter-unsigned.ipa
-          INFO="Payload/GTA Converter.app/Info.plist"
+          INFO="Payload/PS4TOOLS MOBILE.app/Info.plist"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")
 
-          test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
+          test "$BUNDLE_ID" = "com.tmoath07.ps4toolsmobile"
           test -n "$VERSION"
-          test -x "Payload/GTA Converter.app/$EXECUTABLE"
+          test -x "Payload/PS4TOOLS MOBILE.app/$EXECUTABLE"
 
           echo "IPA package: valid"
           echo "Bundle ID: $BUNDLE_ID"
@@ -91,7 +91,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: GTA-Converter-IPA-Unsigned
-          path: GTA-Converter-unsigned.ipa
+          name: PS4TOOLS-MOBILE-IPA-Unsigned
+          path: PS4TOOLS-MOBILE-unsigned.ipa
           if-no-files-found: error
           retention-days: 14
