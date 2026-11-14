@@ -303,10 +303,7 @@ private final class GitHubIntegrationClient: ObservableObject {
         }
         guard !files.isEmpty else { throw GHError.message("المجلد المختار لا يحتوي ملفات.") }
         for (index, item) in files.enumerated() {
-            let safePath = item.1.split(separator: "/").map { component in
-                String(component).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? String(component)
-            }.joined(separator: "/")
-            try await uploadFile(item.0, to: repository, repositoryPath: "\(inputFolder)/\(safePath)")
+            try await uploadFile(item.0, to: repository, repositoryPath: "\(inputFolder)/\(item.1)")
             status = "رفع الملفات: \(index + 1) من \(files.count)"
         }
         status = "اكتمل رفع \(files.count) ملفاً إلى \(repository.full_name)/\(inputFolder)."
