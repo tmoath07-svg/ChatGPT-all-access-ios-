@@ -1,7 +1,4 @@
 import Foundation
-import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 
 enum FileImportService {
     enum ImportFailure: LocalizedError {
@@ -102,49 +99,6 @@ enum FileImportService {
                 try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try fm.copyItem(at: item, to: target)
             }
-        }
-    }
-}
-
-
-/// Presents the document picker as the sheet's root controller.
-/// This avoids presenting a second controller from a hidden background host.
-struct INRPFDocumentPickerPresenter: UIViewControllerRepresentable {
-    let contentTypes: [UTType]
-    let onCompletion: (Result<[URL], Error>) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onCompletion: onCompletion)
-    }
-
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(
-            forOpeningContentTypes: contentTypes,
-            asCopy: true
-        )
-        picker.delegate = context.coordinator
-        picker.allowsMultipleSelection = false
-        return picker
-    }
-
-    func updateUIViewController(_ picker: UIDocumentPickerViewController, context: Context) {
-        context.coordinator.onCompletion = onCompletion
-    }
-
-    final class Coordinator: NSObject, UIDocumentPickerDelegate {
-        var onCompletion: (Result<[URL], Error>) -> Void
-
-        init(onCompletion: @escaping (Result<[URL], Error>) -> Void) {
-            self.onCompletion = onCompletion
-        }
-
-        func documentPicker(_ controller: UIDocumentPickerViewController,
-                            didPickDocumentsAt urls: [URL]) {
-            self.onCompletion(.success(urls))
-        }
-
-        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-            onCompletion(.failure(CancellationError()))
         }
     }
 }
