@@ -55,6 +55,19 @@ jobs:
           grep -Fq 'didPickDocumentsAt urls: [URL]' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'documentPickerWasCancelled' GTAConverter/INRPFDocumentPicker.swift
 
+      - name: Test GitHub-first launch and account flow
+        run: |
+          set -euo pipefail
+          grep -Fq 'INRPFRootView()' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'if isGitHubAuthenticated' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'NavigationStack {' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'https://github.com/signup' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'https://github.com/login/device/code' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'GHKeychain.save(token)' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'didConfirmGitHubSession' GTAConverter/GitHubIntegrationView.swift
+          ! grep -Fq 'GTAOnboardingView' GTAConverter/ContentView.swift
+          echo "PASS: GitHub login, account creation link, session validation, and gated workspace are present."
+
       - name: Test shared file import service
         run: |
           set -euo pipefail
