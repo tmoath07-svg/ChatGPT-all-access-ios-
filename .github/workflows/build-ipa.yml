@@ -15,6 +15,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate mobile app integration
+        run: |
+          set -euo pipefail
+          grep -q 'UIDocumentPickerViewController(forOpeningContentTypes: allowedContentTypes, asCopy: true)' GTAConverter/ModDocumentPicker.swift
+          grep -q 'didPickDocumentsAt' GTAConverter/ModDocumentPicker.swift
+          grep -q 'handleImport(.success(\[pickedURL\]))' GTAConverter/ContentView.swift
+          ! grep -q '\.fileImporter(' GTAConverter/ContentView.swift
+          grep -q 'GitHubTokenStore.save' GTAConverter/GitHubAccountView.swift
+          grep -q 'kSecAttrAccessibleWhenUnlockedThisDeviceOnly' GTAConverter/GitHubAccountView.swift
+          grep -q 'struct ModGuideView' GTAConverter/GitHubAccountView.swift
+          grep -q 'com.tmoath07.ps4toolsmobile' project.yml
+          echo 'Importer, GitHub account, Keychain, guide, and app identity checks passed.'
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
