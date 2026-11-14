@@ -103,8 +103,10 @@ private final class GitHubIntegrationClient: ObservableObject {
     private var pollingTask: Task<Void, Never>?
 
     init() {
-        isAuthorized = token != nil
-        if isAuthorized {
+        // Never trust a persisted UI flag as proof of authentication.
+        // Validate the Keychain token against GitHub before opening the workspace.
+        isAuthorized = false
+        if token != nil {
             status = "جارٍ التحقق من جلسة GitHub المحفوظة..."
             Task { await loadAccount() }
         }
