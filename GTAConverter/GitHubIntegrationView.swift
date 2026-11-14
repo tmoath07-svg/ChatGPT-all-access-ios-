@@ -260,23 +260,55 @@ private final class GitHubIntegrationClient: ObservableObject {
         status = "تم إنشاء المستودع \(name)."
     }
 
-    func uploadFile(_ url: URL, to repository: GHRepository) async throws {
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+    func uploadFile(_ url: URL, to repository: GHRepository, repositoryPath: String) async throws {
         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
         guard size > 0 && size <= 90 * 1024 * 1024 else {
-            throw GHError.message("الملف فارغ أو يتجاوز حد الرفع المباشر 90MB.")
+            throw GHError.message("الملف فارغ أو يتجاوز حد الرفع المباشر 90MB: \(url.lastPathComponent)")
         }
         let data = try Data(contentsOf: url)
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._")
-        let fileName = url.lastPathComponent.addingPercentEncoding(withAllowedCharacters: allowed) ?? "mod-upload.bin"
-        let path = "uploads/" + fileName
+        let encodedPath = repositoryPath.split(separator: "/").map {
+            String($0).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? String($0)
+        }.joined(separator: "/")
         let _: GHContentResult = try await api(
-            "/repos/\(repository.full_name)/contents/\(path)",
+            "/repos/\(repository.full_name)/contents/\(encodedPath)",
             method: "PUT",
             body: ["message": "INRPF: upload \(url.lastPathComponent)", "content": data.base64EncodedString()]
         )
-        status = "تم رفع الملف إلى \(repository.full_name)/\(path)."
+        status = "تم رفع \(url.lastPathComponent)."
+    }
+
+    func uploadItems(_ urls: [URL], to repository: GHRepository, inputFolder: String) async throws {
+        guard !urls.isEmpty else { throw GHError.message("اختر ملفات التحويل أولاً.") }
+        var files: [(URL, String)] = []
+        let fm = FileManager.default
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+                throw GHError.message("الملف غير موجود: \(url.lastPathComponent)")
+            }
+            if isDirectory.boolValue {
+                guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey], options: [.skipsHiddenFiles]) else {
+                    throw GHError.message("تعذر قراءة المجلد: \(url.lastPathComponent)")
+                }
+                for case let child as URL in enumerator {
+                    let values = try child.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey])
+                    guard values.isRegularFile == true else { continue }
+                    let relative = String(child.path.dropFirst(url.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                    files.append((child, url.lastPathComponent + "/" + relative))
+                }
+            } else {
+                files.append((url, url.lastPathComponent))
+            }
+        }
+        guard !files.isEmpty else { throw GHError.message("المجلد المختار لا يحتوي ملفات.") }
+        for (index, item) in files.enumerated() {
+            let safePath = item.1.split(separator: "/").map { component in
+                String(component).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? String(component)
+            }.joined(separator: "/")
+            try await uploadFile(item.0, to: repository, repositoryPath: "\(inputFolder)/\(safePath)")
+            status = "رفع الملفات: \(index + 1) من \(files.count)"
+        }
+        status = "اكتمل رفع \(files.count) ملفاً إلى \(repository.full_name)/\(inputFolder)."
     }
 
     func loadWorkflows(for repository: GHRepository) async {
@@ -290,12 +322,12 @@ private final class GitHubIntegrationClient: ObservableObject {
         }
     }
 
-    func dispatch(_ workflow: GHWorkflow, repository: GHRepository, ref: String) async throws {
+    func dispatch(_ workflow: GHWorkflow, repository: GHRepository, ref: String, inputs: [String: String]) async throws {
         let ref = ref.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !ref.isEmpty else { throw GHError.message("اكتب اسم الفرع، مثل main.") }
         try await apiNoContent(
             "/repos/\(repository.full_name)/actions/workflows/\(workflow.id)/dispatches",
-            body: ["ref": ref]
+            body: ["ref": ref, "inputs": inputs]
         )
         status = "تم إرسال طلب تشغيل \(workflow.name) على \(ref)."
     }
@@ -389,7 +421,14 @@ struct GitHubIntegrationView: View {
     @State private var selectedWorkflowID: Int?
     @State private var branchName = "main"
     @State private var showingFileImporter = false
-    @State private var selectedFileURL: URL?
+    @State private var showingFolderImporter = false
+    @State private var selectedFileURLs: [URL] = []
+    @State private var appFiles: [URL] = []
+    @State private var inputFolder = "uploads/inrpf-input"
+    @State private var conversionMode = "تحويل ملفات PC إلى PS4"
+    @State private var toolkitZip = "tools-source/ZokiiStudio-Toolkit-FIXED.zip"
+    @State private var releaseTag = ""
+    @State private var vehicleSpawnName = "buccaneer2"
 
     private var selectedRepository: GHRepository? {
         client.repositories.first { $0.id == selectedRepositoryID }
@@ -436,10 +475,24 @@ struct GitHubIntegrationView: View {
         .navigationTitle("GitHub")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
-        .fileImporter(isPresented: $showingFileImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
+        .fileImporter(isPresented: $showingFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             switch result {
-            case .success(let urls): selectedFileURL = urls.first
-            case .failure(let error): client.status = "تعذر اختيار الملف: \(error.localizedDescription)"
+            case .success(let urls):
+                do {
+                    selectedFileURLs = try urls.map { try FileImportService.importItem(from: $0, category: "GitHubUploads") }
+                    client.status = "تم تجهيز \(selectedFileURLs.count) عنصر للاستيراد."
+                } catch { client.status = "تعذر نسخ الملفات: \(error.localizedDescription)" }
+            case .failure(let error): client.status = "تعذر اختيار الملفات: \(error.localizedDescription)"
+            }
+        }
+        .fileImporter(isPresented: $showingFolderImporter, allowedContentTypes: [.folder], allowsMultipleSelection: true) { result in
+            switch result {
+            case .success(let urls):
+                do {
+                    selectedFileURLs = try urls.map { try FileImportService.importItem(from: $0, category: "GitHubUploads") }
+                    client.status = "تم تجهيز \(selectedFileURLs.count) مجلد."
+                } catch { client.status = "تعذر نسخ المجلدات: \(error.localizedDescription)" }
+            case .failure(let error): client.status = "تعذر اختيار المجلد: \(error.localizedDescription)"
             }
         }
     }
@@ -517,26 +570,55 @@ struct GitHubIntegrationView: View {
             Text("رفع ملف مود إلى المستودع").font(.headline)
             Text(selectedRepository?.full_name ?? "اختر مستودعاً أولاً")
                 .font(.caption).foregroundStyle(.secondary)
-            Button("اختيار ملف من تطبيق الملفات") { showingFileImporter = true }
-                .buttonStyle(.bordered)
-            if let selectedFileURL {
-                Text(selectedFileURL.lastPathComponent).font(.caption).lineLimit(1)
+            HStack {
+                Button("اختيار ملفات") { showingFileImporter = true }.buttonStyle(.bordered)
+                Button("اختيار مجلد") { showingFolderImporter = true }.buttonStyle(.bordered)
             }
-            Button("رفع الملف إلى GitHub") {
-                guard let repository = selectedRepository, let file = selectedFileURL else { return }
+            Text("عدد العناصر المحددة: \(selectedFileURLs.count)").font(.caption).foregroundStyle(.secondary)
+            ForEach(selectedFileURLs, id: \.path) { file in
+                Label(file.lastPathComponent, systemImage: "doc.fill").font(.caption).lineLimit(1)
+            }
+            TextField("مجلد الإدخال في المستودع", text: $inputFolder)
+                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
+            Button("تحديث متصفح ملفات INRPF") { refreshAppFiles() }.buttonStyle(.bordered)
+            ForEach(appFiles.prefix(30), id: \.path) { file in
+                Button {
+                    if !selectedFileURLs.contains(file) { selectedFileURLs.append(file) }
+                } label: {
+                    Label(file.lastPathComponent, systemImage: "folder.badge.plus").font(.caption).lineLimit(1)
+                }.buttonStyle(.plain)
+            }
+            Button("رفع جميع الملفات إلى GitHub") {
+                guard let repository = selectedRepository else { return }
+                let urls = selectedFileURLs
+                let folder = inputFolder.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+                guard !folder.isEmpty else { client.status = "اكتب مجلد الإدخال."; return }
                 Task {
                     do {
-                        try await client.uploadFile(file, to: repository)
-                        selectedFileURL = nil
+                        try await client.uploadItems(urls, to: repository, inputFolder: folder)
                     } catch { client.status = error.localizedDescription }
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(selectedRepository == nil || selectedFileURL == nil)
-            Text("الحد الحالي للرفع المباشر 90MB للملف الواحد.")
+            .disabled(selectedRepository == nil || selectedFileURLs.isEmpty)
+            Text("الحد الحالي 90MB لكل ملف. يتم الاحتفاظ ببنية المجلدات.")
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(16).background(Color.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func refreshAppFiles() {
+        let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("GTA Converter", isDirectory: true)
+        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else {
+            appFiles = []
+            return
+        }
+        appFiles = enumerator.compactMap { item in
+            guard let url = item as? URL,
+                  (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
+            return url
+        }
     }
 
     private var workflowSection: some View {
@@ -563,16 +645,39 @@ struct GitHubIntegrationView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 }.buttonStyle(.plain)
             }
+            Picker("نوع التحويل", selection: $conversionMode) {
+                ForEach(["فحص الأدوات", "تحويل ملفات PC إلى PS4", "تحويل سيارة إلى DLC للسوني", "تحويل الملفات وبناء RPF", "تحويل DLC الكمبيوتر إلى DLC السوني", "تحويل مود FiveM متعدد السيارات إلى DLC للسوني", "تحويل YFT وYTD وبناء DLC متعدد السيارات للسوني", "استخراج الصور من YTD", "فك ملفات RPF", "بناء ملف RPF"], id: \.self) { Text($0).tag($0) }
+            }
+            .pickerStyle(.menu)
             TextField("اسم الفرع", text: $branchName)
                 .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
-            Button("تشغيل Workflow المحدد") {
+            TextField("مسار ZIP الأدوات", text: $toolkitZip)
+                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
+            TextField("Release Tag (اتركه فارغاً عند رفع ملفاتك)", text: $releaseTag)
+                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
+            TextField("اسم Spawn للسيارة", text: $vehicleSpawnName)
+                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
+            Button("رفع الملفات ثم تشغيل Workflow") {
                 guard let repository = selectedRepository, let workflow = selectedWorkflow else { return }
+                let urls = selectedFileURLs
+                let folder = inputFolder.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
                 Task {
-                    do { try await client.dispatch(workflow, repository: repository, ref: branchName) }
-                    catch { client.status = error.localizedDescription }
+                    do {
+                        if !urls.isEmpty {
+                            try await client.uploadItems(urls, to: repository, inputFolder: folder)
+                        }
+                        try await client.dispatch(workflow, repository: repository, ref: branchName, inputs: [
+                            "mode": conversionMode,
+                            "toolkit_zip": toolkitZip,
+                            "release_tag": releaseTag,
+                            "url": "",
+                            "input_folder": folder,
+                            "vehicle_spawn_name": vehicleSpawnName
+                        ])
+                    } catch { client.status = error.localizedDescription }
                 }
             }
-            .buttonStyle(.borderedProminent).disabled(selectedWorkflow == nil)
+            .buttonStyle(.borderedProminent).disabled(selectedWorkflow == nil || selectedRepository == nil)
         }
         .padding(16).background(Color.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
     }
