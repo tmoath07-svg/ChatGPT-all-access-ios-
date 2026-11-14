@@ -18,8 +18,10 @@ DISCOVERED IMPORT ENTRY POINTS
    - Folder selection.
    - Drag-and-drop file/folder providers via NSItemProvider.
    - Direct HTTP/HTTPS download is a separate acquisition path, then feeds the processing pipeline.
-   - Current picker uses INRPFDocumentPickerPresenter from a SwiftUI sheet.
-   - Repair in this commit: explicitly close the SwiftUI importer sheet when the picker callback returns.
+   - Active branch uses SwiftUI fileImporter; a historical UIKit DocumentPickerBridge exists on fix/import-drop-redesign and is not assumed to be a proven fix.
+   - Main import now uses separate single-URL file and folder importer overloads, avoiding the multi-selection overload for its one-item workflow.
+   - GitHub upload now uses separate file (multi-select) and folder (single-select) importer presentations; allowedContentTypes are fixed per presentation rather than switched dynamically.
+   - Picker completion is handled independently for file and folder selections, with cancellation status on GitHub.
    - Verify separately: ZIP, RAR, ordinary file, nested folder, empty folder, iCloud Drive, On My iPad, cancelled selection, repeated selections, large archive, drag/drop file and folder.
    - Risk: picker presentation/dismissal and provider URL lifetime.
 
@@ -101,7 +103,8 @@ I. Verify no original user file is modified or deleted.
 J. Build success is not runtime proof. Device-level testing on iPad is still required.
 
 CHANGES RECORDED IN THIS REVISION
-- Main importer sheet closes on callback.
+- Main importer uses separate single-selection file and folder callbacks.
+- GitHub file and folder importers are separate, with independent completion and cancellation handling.
 - FTP upload picker sheet closes on callback.
 - File Hash passes the actual security-scope acquisition result.
 - Vehicle Model Inspector copies the selected file through the shared importer before analysis.
@@ -120,3 +123,11 @@ CHANGES RECORDED IN 3.80 / BUILD 42
 - RPF tree listing now displays general directories, binary files, and resource files for any RPF archive that the parser can read; vehicle-only metadata inspection remains separately scoped.
 - Diagnostics now includes a local troubleshooting report for storage, source/output paths, saved FTP settings, and common error categories.
 - Device-level iPad testing and actual FTP/PS4 verification remain required; build success is not runtime proof.
+
+
+CHANGES RECORDED IN INRPF 5.28 / BUILD 66 CANDIDATE
+- Replaced the main one-item multi-selection importer overload with separate single-URL file and folder importer overloads.
+- Split GitHub upload file selection (multi-select) from folder selection (single-select); each importer has a fixed UTType configuration.
+- Added automated FileImportService tests for byte-for-byte file copying, source preservation, nested folders, empty folders, and symbolic-link exclusion.
+- The prior UIKit picker implementation is historical only; do not reintroduce it without new evidence because the active workflow intentionally enforces SwiftUI fileImporter.
+- Device-level confirmation on iPad is still required; CI cannot prove the system picker responds to taps on iOS 27.

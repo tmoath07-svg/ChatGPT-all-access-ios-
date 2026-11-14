@@ -6,7 +6,8 @@ import UIKit
 struct ContentView: View {
     let initialSourceURL: URL?
     @State private var didApplyInitialSource = false
-    @State private var showingImporter = false
+    @State private var showingArchiveImporter = false
+    @State private var showingFolderImporter = false
     @State private var readyModMode = false
     @State private var sourceURL: URL?
     @State private var selectedFileName = "ما تم اختيار ملف"
@@ -18,7 +19,6 @@ struct ContentView: View {
     @State private var isError = false
     @State private var isBusy = false
     @State private var progressText = ""
-    @State private var importKind = ImportKind.archive
     @State private var isDropTargeted = false
     @State private var lastErrorDetails = ""
     @State private var modAnalysis: ModAnalysisReport?
@@ -181,12 +181,17 @@ struct ContentView: View {
         case "ready": readyModQuestionCard
         case "conversion": conversionCard
         case "import":
-            importCard.fileImporter(
-                isPresented: $showingImporter,
-                allowedContentTypes: importKind == .folder ? [.folder] : [.item],
-                allowsMultipleSelection: false,
-                onCompletion: handleImport
-            )
+            importCard
+                .fileImporter(
+                    isPresented: $showingArchiveImporter,
+                    allowedContentTypes: [.item],
+                    onCompletion: handleSingleImport
+                )
+                .fileImporter(
+                    isPresented: $showingFolderImporter,
+                    allowedContentTypes: [.folder],
+                    onCompletion: handleSingleImport
+                )
         case "link": directLinkCard
         case "packs": packCard
         case "actions": actionButtons
@@ -454,8 +459,14 @@ struct ContentView: View {
     }
     private func importButton(_ title: String, icon: String, kind: ImportKind) -> some View {
         Button {
-            importKind = kind
-            showingImporter = true
+            switch kind {
+            case .archive:
+                status = "اختر ملف الأرشيف من تطبيق «الملفات»."
+                showingArchiveImporter = true
+            case .folder:
+                status = "اختر المجلد من تطبيق «الملفات»."
+                showingFolderImporter = true
+            }
         } label: {
             VStack(spacing: 8) {
                 Image(systemName: icon).font(.system(size: 22, weight: .semibold))
@@ -693,8 +704,18 @@ struct ContentView: View {
         Label(title, systemImage: icon).font(.headline).foregroundStyle(.white)
     }
 
+    private func handleSingleImport(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            handleImport(.success([url]))
+        case .failure(let error):
+            handleImport(.failure(error))
+        }
+    }
+
     private func handleImport(_ result: Result<[URL], Error>) {
-        showingImporter = false
+        showingArchiveImporter = false
+        showingFolderImporter = false
         switch result {
         case .success(let urls):
             guard let pickedURL = urls.first else { return }
