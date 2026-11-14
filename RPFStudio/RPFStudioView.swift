@@ -135,14 +135,8 @@ struct RPFStudioView: View {
         report = "تم اختيار \(source.lastPathComponent)\nجارٍ فتح صلاحية الملف ونسخه وتشغيل Python..."
 
         Task.detached(priority: .userInitiated) {
-            let hasSecurityScope = source.startAccessingSecurityScopedResource()
-            defer {
-                if hasSecurityScope {
-                    source.stopAccessingSecurityScopedResource()
-                }
-            }
-
             do {
+                // FileImportService owns security-scoped access and coordinated provider reads.
                 let local = try FileImportService.importItem(from: source, category: "RPFStudio")
                 defer { try? FileManager.default.removeItem(at: local.deletingLastPathComponent()) }
 
