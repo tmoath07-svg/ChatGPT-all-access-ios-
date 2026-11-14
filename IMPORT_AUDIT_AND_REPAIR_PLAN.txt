@@ -133,3 +133,11 @@ CHANGES RECORDED IN INRPF 5.28 / BUILD 66 CANDIDATE
 - Device-level confirmation on iPad is still required; CI cannot prove the system picker responds to taps on iOS 27.
 
 - The ready-mod shortcut now opens the same dedicated archive picker; no stale references to the removed shared importer state remain.
+
+
+FAILURE ANALYSIS — WORKFLOW #516
+- CI failed in FileImportServiceTests because the nested vehicle.yft file was absent at the expected destination.
+- The previous fix only corrected the test's expected root; it did not make relative-path derivation robust.
+- Repair: derive relative paths by comparing standardized URL path components rather than slicing the source path string by character count. This avoids URL textual-path differences introduced by coordinated/provider URLs and trailing separators.
+- Test improvement: if the nested file is absent, print the actual copied relative paths to make future failures diagnosable.
+- Do not claim the iOS 27 Files picker tap/return issue is fixed from this macOS CI test; it requires device-level validation.

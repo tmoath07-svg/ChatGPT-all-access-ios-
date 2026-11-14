@@ -40,6 +40,13 @@ struct FileImportServiceTests {
         // FileImportService copies the selected folder's contents directly into its
         // generated destination directory; it does not add the source folder name.
         let copiedNestedFile = importedFolder.appendingPathComponent("vehicles/stream/vehicle.yft")
+        guard fm.fileExists(atPath: copiedNestedFile.path) else {
+            let enumerator = fm.enumerator(at: importedFolder, includingPropertiesForKeys: nil)
+            let actualPaths = (enumerator?.allObjects as? [URL] ?? []).map {
+                String($0.path.dropFirst(importedFolder.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            }.sorted()
+            fatalError("Nested file missing. Expected: vehicles/stream/vehicle.yft. Actual copied paths: \\(actualPaths)")
+        }
         let copiedNestedBytes = try Data(contentsOf: copiedNestedFile)
         precondition(copiedNestedBytes == nestedBytes, "Nested folder content was not copied correctly.")
 

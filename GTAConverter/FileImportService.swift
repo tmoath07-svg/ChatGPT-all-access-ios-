@@ -80,14 +80,22 @@ enum FileImportService {
             guard itemCount <= 100_000 else {
                 throw ImportFailure.copyFailed("المجلد يحتوي عدداً كبيراً جداً من العناصر.")
             }
-            let relative = String(item.path.dropFirst(source.path.count))
-                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            let normalized = relative.replacingOccurrences(of: "\\", with: "/")
-            let parts = normalized.split(separator: "/", omittingEmptySubsequences: true)
-            guard !parts.isEmpty, !parts.contains(".."), !parts.contains("."),
-                  !normalized.hasPrefix("/") else {
+            // Compare standardized path components instead of slicing path strings.
+            // NSFileCoordinator may return a readable URL whose textual path differs
+            // slightly from the selected URL (for example, trailing separators).
+            let sourceComponents = source.standardizedFileURL.pathComponents
+            let itemComponents = item.standardizedFileURL.pathComponents
+            guard itemComponents.count > sourceComponents.count,
+                  Array(itemComponents.prefix(sourceComponents.count)) == sourceComponents else {
                 throw ImportFailure.unsupportedItem
             }
+            let relativeComponents = Array(itemComponents.dropFirst(sourceComponents.count))
+            guard !relativeComponents.isEmpty,
+                  !relativeComponents.contains(".."),
+                  !relativeComponents.contains(".") else {
+                throw ImportFailure.unsupportedItem
+            }
+            let normalized = relativeComponents.joined(separator: "/")
             let target = destination.appendingPathComponent(parts.map(String.init).joined(separator: "/"))
             let values = try item.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
             if values.isSymbolicLink == true {
