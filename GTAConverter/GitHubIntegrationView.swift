@@ -267,8 +267,9 @@ private final class GitHubIntegrationClient: ObservableObject {
             throw GHError.message("الملف فارغ أو يتجاوز حد الرفع المباشر 90MB: \(url.lastPathComponent)")
         }
         let data = try Data(contentsOf: url)
+        let pathCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
         let encodedPath = repositoryPath.split(separator: "/").map {
-            String($0).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? String($0)
+            String($0).addingPercentEncoding(withAllowedCharacters: pathCharacters) ?? String($0)
         }.joined(separator: "/")
         let _: GHContentResult = try await api(
             "/repos/\(repository.full_name)/contents/\(encodedPath)",
