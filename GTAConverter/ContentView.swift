@@ -253,7 +253,7 @@ struct ContentView: View {
             .init(id: "fivem", title: "استوديو FiveM", icon: "car.side.3.fill"),
             .init(id: "ftp", title: "FTP جهاز PS4", icon: "network"),
             .init(id: "orbx", title: "إرسال تلقائي للسوني", icon: "gamecontroller.fill"),
-            .init(id: "rpf", title: "محرر RPF", icon: "archivebox.fill"),
+            .init(id: "rpf", title: "RPF Studio", icon: "archivebox.fill"),
             .init(id: "cloud", title: "التحويل السحابي (احتياطي)", icon: "cloud.gear.fill"),
             .init(id: "browser", title: "متصفح المودات", icon: "globe"),
             .init(id: "library", title: "مكتبة المودات", icon: "square.grid.2x2.fill"),
@@ -319,7 +319,7 @@ struct ContentView: View {
         case "fivem": FiveMStudioView()
         case "ftp": FTPBrowserView()
         case "orbx": OrbxPS4TransferView()
-        case "rpf": LocalEngineView(initialFolder: outputFolder)
+        case "rpf": RPFStudioView()
         case "cloud": CloudConversionView()
         case "browser": GTAModBrowserView()
         case "library": GTAModsLibraryView()

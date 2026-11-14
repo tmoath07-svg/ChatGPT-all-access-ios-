@@ -19,3 +19,5 @@ char *gta_ftp_list(const char *host, uint16_t port, const char *username, const 
 char *gta_ftp_mkdir(const char *host, uint16_t port, const char *username, const char *password, const char *remote_path, const char *folder_name);
 char *gta_ftp_upload(const char *host, uint16_t port, const char *username, const char *password, const char *remote_path, const char *remote_name, const char *local_path);
 char *gta_ftp_download(const char *host, uint16_t port, const char *username, const char *password, const char *remote_path, const char *remote_name, const char *local_path);
+
+#include "RPFPythonBridge.h"
