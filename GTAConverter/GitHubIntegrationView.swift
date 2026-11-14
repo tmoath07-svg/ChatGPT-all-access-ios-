@@ -662,7 +662,7 @@ struct GitHubIntegrationView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(selectedRepository == nil || selectedFileURLs.isEmpty)
-            Text("الحد الحالي 90MB لكل ملف. يتم الاحتفاظ ببنية المجلدات.")
+            Text("يدعم اختيار الملفات والمجلدات من «الملفات»، والسحب والإفلات، والصور والكاميرا. تظهر المجلدات الداخلية ضمن المتصفح.")
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(16)
@@ -713,14 +713,25 @@ struct GitHubIntegrationView: View {
     private func refreshAppFiles() {
         let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("GTA Converter", isDirectory: true)
-        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else {
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        ) else {
             appFiles = []
             return
         }
         appFiles = enumerator.compactMap { item in
             guard let url = item as? URL,
-                  (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey]),
+                  values.isSymbolicLink != true,
+                  values.isRegularFile == true || values.isDirectory == true else { return nil }
             return url
+        }.sorted { lhs, rhs in
+            let leftDirectory = (try? lhs.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            let rightDirectory = (try? rhs.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            if leftDirectory != rightDirectory { return leftDirectory }
+            return lhs.lastPathComponent.localizedCaseInsensitiveCompare(rhs.lastPathComponent) == .orderedAscending
         }
     }
 

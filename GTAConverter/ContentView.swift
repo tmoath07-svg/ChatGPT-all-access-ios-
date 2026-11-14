@@ -122,7 +122,7 @@ struct ContentView: View {
             }
             .fileImporter(
                 isPresented: $showingImporter,
-                allowedContentTypes: importKind == .folder ? [.folder] : [.data],
+                allowedContentTypes: importKind == .folder ? [.folder] : [.item],
                 allowsMultipleSelection: false,
                 onCompletion: handleImport
             )
