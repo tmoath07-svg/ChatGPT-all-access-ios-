@@ -63,8 +63,8 @@ jobs:
           set -euo pipefail
           swiftc GTAConverter/ModAnalyzer.swift Tests/fivem_mod_analyzer_tests.swift -o /tmp/fivem-mod-analyzer-tests
           /tmp/fivem-mod-analyzer-tests
-          grep -q 'MARKETING_VERSION: "5.34"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "69"' project.yml
+          grep -q 'MARKETING_VERSION: "5.35"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "70"' project.yml
           grep -Fq 'RPFStudioView()' GTAConverter/ContentView.swift
           grep -Fq '#include "RPFPythonBridge.h"' GTAConverter/GTAConverter-Bridging-Header.h
           grep -Fq 'RPFRunPythonScript' RPFStudio/RPFPythonBridge.h
@@ -74,6 +74,11 @@ jobs:
           grep -Fq 'startAccessingSecurityScopedResource' GTAConverter/FileImportService.swift
           grep -Fq 'NSFileCoordinator' GTAConverter/FileImportService.swift
           grep -Fq 'FileImportService.importItem(from: source, category: "RPFStudio")' RPFStudio/RPFStudioView.swift
+          grep -Fq 'scopeStarted = source.startAccessingSecurityScopedResource()' RPFStudio/RPFStudioView.swift
+          grep -Fq 'securityScopeAlreadyStarted: scopeStarted' RPFStudio/RPFStudioView.swift
+          grep -Fq 'allowedContentTypes: [UTType(filenameExtension: "rpf", conformingTo: .data) ?? .data, .data]' RPFStudio/RPFStudioView.swift
+          grep -Fq 'if section == "menu"' GTAConverter/ContentView.swift
+          grep -Fq 'if id == "rpf"' GTAConverter/ContentView.swift
           if grep -q 'UIDocumentPickerViewController' GTAConverter/ContentView.swift GTAConverter/FileImportService.swift; then
             echo "Legacy UIKit document picker reference remains."
             exit 1
@@ -214,22 +219,22 @@ jobs:
           print("Registered Files/Open In document types.")
           PY
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 5.34' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 5.34' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 69' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 69' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 5.35' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 5.35' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 70' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 70' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
           BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")
 
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
-          test "$VERSION" = "5.34"
-          test "$BUILD" = "69"
+          test "$VERSION" = "5.35"
+          test "$BUILD" = "70"
           /usr/libexec/PlistBuddy -c 'Print :UTExportedTypeDeclarations:0:UTTypeTagSpecification:public.filename-extension:0' "$INFO" | grep -q 'rpf'
           /usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes' "$INFO" | grep -q 'com.tmoath07.rpf-archive'
-          grep -q 'MARKETING_VERSION: "5.34"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "69"' project.yml
-          zip -qry INRPF-5.34-unsigned.ipa Payload
-          unzip -t INRPF-5.34-unsigned.ipa
+          grep -q 'MARKETING_VERSION: "5.35"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "70"' project.yml
+          zip -qry INRPF-5.35-unsigned.ipa Payload
+          unzip -t INRPF-5.35-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"
           nm -g "Payload/INRPF.app/$EXECUTABLE" > build/exported-symbols.txt
           grep -q "_gta_engine_build_rpf7" build/exported-symbols.txt
@@ -242,12 +247,12 @@ jobs:
           grep -Fq 'RPFRunPythonScript(' RPFStudio/RPFPythonBridge.m
 
           mkdir -p release-package
-          cp INRPF-5.34-unsigned.ipa release-package/INRPF-5.34-unsigned.ipa
+          cp INRPF-5.35-unsigned.ipa release-package/INRPF-5.35-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
-          INRPF 5.34 - IPA غير موقّع
+          INRPF 5.35 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
-          2) استخرج ملف INRPF-5.34-unsigned.ipa.
+          2) استخرج ملف INRPF-5.35-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
           يتضمن هذا الإصدار INRPF مع RPF Studio المدمج وPython 3.14، مع تسجيل امتداد .rpf لنظام الملفات. فاحص RPF الحالي يعرض معلومات الملف والترويسة والبصمة SHA256 فقط؛ لا يتضمن بعد استخراجاً عاماً أو إعادة بناء لأرشيف RPF.
@@ -263,7 +268,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: INRPF-5.34-Install-Package
+          name: INRPF-5.35-Install-Package
           path: release-package/
           if-no-files-found: error
           retention-days: 14
