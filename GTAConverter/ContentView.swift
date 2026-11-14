@@ -167,6 +167,7 @@ struct ContentView: View {
                 allowsMultipleSelection: false,
                 onCompletion: handleImport,
                 onCancellation: {
+                    activeImportPicker = nil
                     status = "تم إلغاء اختيار الملف."
                     isError = false
                 }

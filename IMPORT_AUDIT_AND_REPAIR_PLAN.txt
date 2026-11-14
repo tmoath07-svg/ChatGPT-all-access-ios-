@@ -165,3 +165,14 @@ NATIVE DOCUMENT PICKER REPAIR — CANDIDATE
 - Apple documents UIDocumentPickerDelegate.didPickDocumentsAt as the selection callback and documentPickerWasCancelled as the cancellation callback. The returned URLs in open mode are security-scoped and require startAccessingSecurityScopedResource plus coordinated file access.
 - The shared UIKit picker uses the explicit delegate callback for both main import and GitHub uploads. The copy service remains responsible for moving selected content into the app's Documents directory.
 - Do not declare the tap/selection issue fixed until a physical iPad test confirms: ZIP selection, RAR selection, folder selection, multi-file GitHub selection, and GitHub folder selection. Verify both Files > On My iPad and iCloud Drive/provider-backed items where available.
+
+
+INRPF 5.29 / BUILD 67 — FINAL FILE IMPORT HARDENING
+- Supersedes the 5.28 / Build 66 candidate after the user confirmed the picker selection issue persisted.
+- Both the main import screen and GitHub file/folder upload use the shared UIKit UIDocumentPickerViewController bridge with explicit UIDocumentPickerDelegate selection and cancellation callbacks.
+- Main import clears the sheet state on cancellation and completion.
+- GitHub import clears the picker sheet on selection/cancellation and copies provider-backed URLs through FileImportService in a detached user-initiated task, keeping iCloud/File Provider coordination off the UI thread.
+- The shared service retains security-scoped access and NSFileCoordinator reads before copying into app Documents.
+- CI checks native picker wiring and runs shared file-copy tests. These checks do not simulate an iPadOS Files UI tap.
+- Version 5.29 / Build 67 is restricted to picker callback reliability and import-copy responsiveness; no unrelated features are included.
+- Do not claim the runtime issue is definitively resolved until the installed IPA is tested on a physical iPad with local files, iCloud/provider files, folder selection, and GitHub multi-file/folder selection.

@@ -717,20 +717,28 @@ struct GitHubIntegrationView: View {
 
 
     private func importGitHubItems(_ result: Result<[URL], Error>, itemDescription: String) {
+        activeSheet = nil
         switch result {
         case .success(let urls):
             guard !urls.isEmpty else {
                 client.status = "لم يتم اختيار أي عنصر."
                 return
             }
-            do {
-                let imported = try urls.map {
-                    try FileImportService.importItem(from: $0, category: "GitHubUploads")
+            client.status = "تم اختيار العناصر. جاري نسخها بأمان إلى مساحة INRPF..."
+            // Coordinated reads from iCloud and third-party providers may block;
+            // perform copying away from the UI thread.
+            Task {
+                do {
+                    let imported = try await Task.detached(priority: .userInitiated) {
+                        try urls.map {
+                            try FileImportService.importItem(from: $0, category: "GitHubUploads")
+                        }
+                    }.value
+                    selectedFileURLs.append(contentsOf: imported)
+                    client.status = "تم نسخ \(imported.count) \(itemDescription) إلى قائمة الرفع."
+                } catch {
+                    client.status = "تعذر نسخ العناصر: \(error.localizedDescription)"
                 }
-                selectedFileURLs.append(contentsOf: imported)
-                client.status = "تم نسخ \(imported.count) \(itemDescription) إلى قائمة الرفع."
-            } catch {
-                client.status = "تعذر نسخ العناصر: \(error.localizedDescription)"
             }
         case .failure(let error):
             client.status = "تعذر استيراد العناصر: \(error.localizedDescription)"
