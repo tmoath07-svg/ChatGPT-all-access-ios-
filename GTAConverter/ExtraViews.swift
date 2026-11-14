@@ -257,7 +257,7 @@ struct FeatureHubView: View {
 
     @ViewBuilder private func destination(for item: FeatureCatalogItem) -> some View {
         switch item.route {
-        case "ytd": YTDTextureLabView()
+        case "ytd": FeatureInfoView(item: item)
         case "cloud": CloudConversionView()
         case "chiaki": ChiakiRemotePlayView()
         case "hash": FileHashInspectorView()
