@@ -20,9 +20,12 @@ enum FileImportService {
     static func importItem(from source: URL, category: String = "Imports",
                            securityScopeAlreadyStarted: Bool = false) throws -> URL {
         let fm = FileManager.default
-        let access = securityScopeAlreadyStarted ? false : source.startAccessingSecurityScopedResource()
+        let startedHere = securityScopeAlreadyStarted ? false : source.startAccessingSecurityScopedResource()
+        guard securityScopeAlreadyStarted || startedHere else {
+            throw ImportFailure.accessDenied
+        }
         defer {
-            if access { source.stopAccessingSecurityScopedResource() }
+            if startedHere { source.stopAccessingSecurityScopedResource() }
         }
         // Use coordinated reads for provider-backed URLs; the picker is opened in place
         // so folder providers do not need to stage a second temporary copy first.
