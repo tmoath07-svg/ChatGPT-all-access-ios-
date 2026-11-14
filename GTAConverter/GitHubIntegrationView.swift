@@ -454,6 +454,7 @@ struct GitHubIntegrationView: View {
 
     @StateObject private var client = GitHubIntegrationClient()
     @AppStorage("gta_github_authenticated") private var githubAuthenticated = false
+    @State private var didConfirmGitHubSession = false
     @State private var repositoryName = ""
     @State private var isPrivate = true
     @State private var selectedRepositoryID: Int?
@@ -518,9 +519,19 @@ struct GitHubIntegrationView: View {
         .navigationTitle(client.isAuthorized ? "حساب GitHub" : "INRPF")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
-        .onAppear { githubAuthenticated = client.isAuthorized }
+        .onAppear {
+            if client.isAuthorized {
+                didConfirmGitHubSession = true
+                githubAuthenticated = true
+            }
+        }
         .onChange(of: client.isAuthorized) { _, authorized in
-            githubAuthenticated = authorized
+            if authorized {
+                didConfirmGitHubSession = true
+                githubAuthenticated = true
+            } else if didConfirmGitHubSession {
+                githubAuthenticated = false
+            }
         }
         .onChange(of: photoSelections) { _, items in
             Task { await importPhotos(items) }
