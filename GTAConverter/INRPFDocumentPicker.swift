@@ -124,7 +124,9 @@ struct INRPFDocumentPicker: UIViewControllerRepresentable {
 
             let documentPicker = UIDocumentPickerViewController(
                 forOpeningContentTypes: contentTypes,
-                asCopy: false
+                // Import a provider-managed copy into the app instead of keeping
+                // a live external document reference after the picker closes.
+                asCopy: true
             )
             documentPicker.delegate = self
             documentPicker.allowsMultipleSelection = allowsMultipleSelection
