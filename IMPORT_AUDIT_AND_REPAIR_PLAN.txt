@@ -148,3 +148,9 @@ FAILURE ANALYSIS — WORKFLOW #517
 - Corrected the destination path to use the already validated `normalized` relative path.
 - Earlier stages passed: Rust local engine tests (26/26), FiveM analyzer tests, and importer structure checks.
 - Re-run the full workflow before considering a version/build increment or producing an IPA.
+
+
+RELEASE SCOPE — INRPF 5.28 / Build 66
+- This release is limited to repairing file import and the shared file-copy service. No unrelated features are included.
+- Build 519 passed all workflow stages and produced an unsigned 5.27 artifact from the previous version metadata. A dedicated 5.28 / 66 build is required so the release version accurately identifies the file-import repair.
+- Release remains conditional on the new 5.28 / 66 workflow passing and artifact validation.
