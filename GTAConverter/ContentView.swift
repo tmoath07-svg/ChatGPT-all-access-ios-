@@ -34,7 +34,6 @@ struct ContentView: View {
     @AppStorage("inrpf_home_menu_style") private var homeMenuStyle = "pill"
     @AppStorage("inrpf_home_menu_position") private var homeMenuPosition = "top"
     @AppStorage("gta_onboarding_complete") private var onboardingComplete = false
-    @State private var showOnboarding = false
 
     init(initialSourceURL: URL? = nil) {
         self.initialSourceURL = initialSourceURL
@@ -140,7 +139,6 @@ struct ContentView: View {
         .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
         .environment(\.locale, Locale(identifier: appLanguage))
         .onAppear {
-            showOnboarding = !onboardingComplete
             if let initialSourceURL, !didApplyInitialSource {
                 didApplyInitialSource = true
                 sourceURL = initialSourceURL
@@ -157,9 +155,6 @@ struct ContentView: View {
                 return
             }
             handleImport(.success([url]))
-        }
-        .fullScreenCover(isPresented: $showOnboarding) {
-            GTAOnboardingView { onboardingComplete = true; showOnboarding = false }
         }
         .inrpfDocumentPicker(
             isPresented: Binding(
