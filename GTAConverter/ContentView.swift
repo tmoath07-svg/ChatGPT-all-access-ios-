@@ -88,9 +88,15 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: homeDensity == "compact" ? 8 : 13) {
                         ForEach(themeLayoutOrder, id: \.self) { section in
-                            homeSection(section)
-                                .gtaScrollGlassMotion(motionEnabled)
-                                .modifier(INRPFThemeSurface(themeIndex: activeThemeIndex, tint: purple))
+                            if section == "menu" {
+                                // Keep the navigation menu free of scroll-transition hit-test effects.
+                                homeSection(section)
+                                    .modifier(INRPFThemeSurface(themeIndex: activeThemeIndex, tint: purple))
+                            } else {
+                                homeSection(section)
+                                    .gtaScrollGlassMotion(motionEnabled)
+                                    .modifier(INRPFThemeSurface(themeIndex: activeThemeIndex, tint: purple))
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -294,7 +300,7 @@ struct ContentView: View {
     }
 
     private func homeMenuButton(_ entry: HomeMenuEntry) -> some View {
-        NavigationLink(destination: homeMenuDestination(entry.id).gtaMotionEntrance()) {
+        NavigationLink(destination: menuDestination(entry.id)) {
             Label(entry.title, systemImage: entry.icon)
                 .font(.caption.weight(.bold)).foregroundStyle(.white)
                 .frame(maxWidth: homeMenuStyle == "list" ? .infinity : nil,
@@ -310,6 +316,16 @@ struct ContentView: View {
                     }
                 }
         }.buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func menuDestination(_ id: String) -> some View {
+        if id == "rpf" {
+            // Present RPF Studio directly; avoid the custom transition wrapper on this route.
+            RPFStudioView()
+        } else {
+            homeMenuDestination(id).gtaMotionEntrance()
+        }
     }
 
     @ViewBuilder
