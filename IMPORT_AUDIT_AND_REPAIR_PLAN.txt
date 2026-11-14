@@ -185,3 +185,9 @@ CHANGES RECORDED IN INRPF 5.30 / BUILD 68 — UNIFIED PICKER REPAIR
 - CI rejects any remaining SwiftUI .fileImporter modifier anywhere under GTAConverter and checks that all known import surfaces use the shared presenter.
 - File-copy service tests remain separate from picker UI tests. A successful build/source check does not prove real Files-provider taps on iOS 27.
 - Required device verification: tap-select files from On My iPhone/iPad and iCloud Drive, folder selection, multi-select in GitHub/File Hash, cancellation, repeated selection, and app background/foreground.
+
+
+CI FOLLOW-UP — INRPF 5.31 / BUILD 69
+- Corrected the build workflow's source assertions to match the shared picker modifier and the multiline UIKit delegate declaration.
+- This is a build-pipeline assertion correction only; the unified picker implementation remains unchanged.
+- Build 69 must pass the complete workflow and produce a validated IPA before being treated as the candidate release.

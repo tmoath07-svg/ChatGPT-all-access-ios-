@@ -44,15 +44,15 @@ jobs:
           set -euo pipefail
           swiftc GTAConverter/ModAnalyzer.swift Tests/fivem_mod_analyzer_tests.swift -o /tmp/fivem-mod-analyzer-tests
           /tmp/fivem-mod-analyzer-tests
-          grep -q 'MARKETING_VERSION: "5.30"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "68"' project.yml
+          grep -q 'MARKETING_VERSION: "5.31"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "69"' project.yml
           ! grep -Fq '.fileImporter(' GTAConverter/ContentView.swift GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'activeImportPicker = .archive' GTAConverter/ContentView.swift
           grep -Fq 'activeImportPicker = .folder' GTAConverter/ContentView.swift
-          grep -Fq 'INRPFDocumentPicker(' GTAConverter/ContentView.swift
-          grep -Fq 'INRPFDocumentPicker(' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq '.inrpfDocumentPicker(' GTAConverter/ContentView.swift
+          grep -Fq '.inrpfDocumentPicker(' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'forOpeningContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL])' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'didPickDocumentsAt urls: [URL]' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'documentPickerWasCancelled' GTAConverter/INRPFDocumentPicker.swift
 
       - name: Test shared file import service
@@ -201,21 +201,21 @@ jobs:
           print("Registered Files/Open In document types.")
           PY
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 5.30' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 5.30' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 68' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 68' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 5.31' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 5.31' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 69' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 69' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
           BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")
 
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
-          test "$VERSION" = "5.30"
-          test "$BUILD" = "68"
+          test "$VERSION" = "5.31"
+          test "$BUILD" = "69"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes' "$INFO" | grep -q 'public.archive'
-          grep -q 'MARKETING_VERSION: "5.30"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "68"' project.yml
-          zip -qry INRPF-5.30-unsigned.ipa Payload
-          unzip -t INRPF-5.30-unsigned.ipa
+          grep -q 'MARKETING_VERSION: "5.31"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "69"' project.yml
+          zip -qry INRPF-5.31-unsigned.ipa Payload
+          unzip -t INRPF-5.31-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"
           nm -g "Payload/INRPF.app/$EXECUTABLE" > build/exported-symbols.txt
           grep -q "_gta_engine_build_rpf7" build/exported-symbols.txt
@@ -226,12 +226,12 @@ jobs:
           grep -q "_gta_engine_convert_fivem_resource" build/exported-symbols.txt
 
           mkdir -p release-package
-          cp INRPF-5.30-unsigned.ipa release-package/INRPF-5.30-unsigned.ipa
+          cp INRPF-5.31-unsigned.ipa release-package/INRPF-5.31-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
-          INRPF 5.30 - IPA غير موقّع
+          INRPF 5.31 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
-          2) استخرج ملف INRPF-5.30-unsigned.ipa.
+          2) استخرج ملف INRPF-5.31-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
           يتضمن هذا الإصدار محركاً محلياً لموارد المركبات، وفاحص RPF يعرض بيانات META الخاصة بالمركبات فقط، وتحليلاً وتحويلاً بنيوياً للموارد المدعومة، واستخراج وبناء قواميس YTD بصيغتها المدعومة. لا يتضمن استخراجاً عاماً لأرشيف RPF.
@@ -247,7 +247,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: INRPF-5.30-Install-Package
+          name: INRPF-5.31-Install-Package
           path: release-package/
           if-no-files-found: error
           retention-days: 14
