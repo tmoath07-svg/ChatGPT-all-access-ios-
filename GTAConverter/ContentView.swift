@@ -120,12 +120,6 @@ struct ContentView: View {
                     }
                 }
             }
-            .fileImporter(
-                isPresented: $showingImporter,
-                allowedContentTypes: importKind == .folder ? [.folder] : [.item],
-                allowsMultipleSelection: false,
-                onCompletion: handleImport
-            )
             .disabled(isBusy)
             .overlay {
                 if isBusy {
@@ -186,7 +180,13 @@ struct ContentView: View {
         case "header": header
         case "ready": readyModQuestionCard
         case "conversion": conversionCard
-        case "import": importCard
+        case "import":
+            importCard.fileImporter(
+                isPresented: $showingImporter,
+                allowedContentTypes: importKind == .folder ? [.folder] : [.item],
+                allowsMultipleSelection: false,
+                onCompletion: handleImport
+            )
         case "link": directLinkCard
         case "packs": packCard
         case "actions": actionButtons

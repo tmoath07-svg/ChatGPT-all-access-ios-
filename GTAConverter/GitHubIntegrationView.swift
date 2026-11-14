@@ -452,7 +452,7 @@ struct GitHubIntegrationView: View {
     @State private var selectedWorkflowID: Int?
     @State private var branchName = "main"
     @State private var showingFileImporter = false
-    @State private var showingFolderImporter = false
+    @State private var isFolderImport = false
     @State private var selectedFileURLs: [URL] = []
     @State private var appFiles: [URL] = []
     @State private var photoSelections: [PhotosPickerItem] = []
@@ -510,16 +510,6 @@ struct GitHubIntegrationView: View {
         .navigationTitle("GitHub")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
-        .fileImporter(isPresented: $showingFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
-            switch result {
-            case .success(let urls):
-                do {
-                    selectedFileURLs = try urls.map { try FileImportService.importItem(from: $0, category: "GitHubUploads") }
-                    client.status = "تم تجهيز \(selectedFileURLs.count) عنصر للاستيراد."
-                } catch { client.status = "تعذر نسخ الملفات: \(error.localizedDescription)" }
-            case .failure(let error): client.status = "تعذر اختيار الملفات: \(error.localizedDescription)"
-            }
-        }
         .onChange(of: photoSelections) { _, items in
             Task { await importPhotos(items) }
         }
@@ -535,16 +525,6 @@ struct GitHubIntegrationView: View {
         .sheet(isPresented: $showingCamera) {
             CameraCapturePicker(image: $cameraImage)
                 .ignoresSafeArea()
-        }
-        .fileImporter(isPresented: $showingFolderImporter, allowedContentTypes: [.folder], allowsMultipleSelection: true) { result in
-            switch result {
-            case .success(let urls):
-                do {
-                    selectedFileURLs = try urls.map { try FileImportService.importItem(from: $0, category: "GitHubUploads") }
-                    client.status = "تم تجهيز \(selectedFileURLs.count) مجلد."
-                } catch { client.status = "تعذر نسخ المجلدات: \(error.localizedDescription)" }
-            case .failure(let error): client.status = "تعذر اختيار المجلد: \(error.localizedDescription)"
-            }
         }
     }
 
@@ -622,8 +602,8 @@ struct GitHubIntegrationView: View {
             Text(selectedRepository?.full_name ?? "اختر مستودعاً أولاً")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
-                Button("اختيار ملفات") { showingFileImporter = true }.buttonStyle(.bordered)
-                Button("اختيار مجلد") { showingFolderImporter = true }.buttonStyle(.bordered)
+                Button("اختيار ملفات") { isFolderImport = false; showingFileImporter = true }.buttonStyle(.bordered)
+                Button("اختيار مجلد") { isFolderImport = true; showingFileImporter = true }.buttonStyle(.bordered)
             }
             HStack {
                 PhotosPicker(selection: $photoSelections, maxSelectionCount: 20, matching: .images) {
@@ -685,6 +665,27 @@ struct GitHubIntegrationView: View {
                 }
             }
             return !providers.isEmpty
+        }
+        .fileImporter(
+            isPresented: $showingFileImporter,
+            allowedContentTypes: isFolderImport ? [.folder] : [.item],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                do {
+                    let imported = try urls.map { try FileImportService.importItem(from: $0, category: "GitHubUploads") }
+                    selectedFileURLs.append(contentsOf: imported)
+                    client.status = isFolderImport
+                        ? "تم تجهيز \(imported.count) مجلد."
+                        : "تم تجهيز \(imported.count) ملف للاستيراد."
+                } catch {
+                    client.status = "تعذر نسخ العناصر: \(error.localizedDescription)"
+                }
+            case .failure(let error):
+                client.status = "تعذر فتح مستعرض الملفات: \(error.localizedDescription)"
+            }
+            isFolderImport = false
         }
     }
 
