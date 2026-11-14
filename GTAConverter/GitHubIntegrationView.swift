@@ -557,7 +557,8 @@ struct GitHubIntegrationView: View {
                         }
                         Button("إلغاء تسجيل الدخول", role: .cancel) { client.cancelLogin() }
                     }
-                    .padding(16).background(Color.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
+                    .padding(16).background(Color(red: 0.075, green: 0.085, blue: 0.13).opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.075), lineWidth: 1))
                 }
                 if client.isAuthorized {
                     repositorySection
@@ -766,6 +767,7 @@ struct GitHubIntegrationView: View {
                     selectedRepositoryID = repository.id
                     selectedWorkflowID = nil
                     client.workflows = []
+                    client.runs = []
                     Task {
                         await client.loadWorkflows(for: repository)
                         await client.loadRuns(for: repository)
@@ -802,7 +804,8 @@ struct GitHubIntegrationView: View {
             .buttonStyle(.borderedProminent)
             .disabled(repositoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .padding(16).background(Color.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
+        .padding(16).background(Color(red: 0.075, green: 0.085, blue: 0.13).opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.075), lineWidth: 1))
     }
 
     private var uploadSection: some View {
@@ -1076,6 +1079,7 @@ struct GitHubIntegrationView: View {
             }
             .buttonStyle(.borderedProminent).disabled(selectedWorkflow == nil || selectedRepository == nil || selectedFileURLs.isEmpty)
         }
-        .padding(16).background(Color.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
+        .padding(16).background(Color(red: 0.075, green: 0.085, blue: 0.13).opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.075), lineWidth: 1))
     }
 }
