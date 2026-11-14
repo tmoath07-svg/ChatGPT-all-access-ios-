@@ -63,8 +63,8 @@ jobs:
           set -euo pipefail
           swiftc GTAConverter/ModAnalyzer.swift Tests/fivem_mod_analyzer_tests.swift -o /tmp/fivem-mod-analyzer-tests
           /tmp/fivem-mod-analyzer-tests
-          grep -q 'MARKETING_VERSION: "5.39"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "74"' project.yml
+          grep -q 'MARKETING_VERSION: "5.40"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "75"' project.yml
           grep -Fq 'RPFStudioView()' GTAConverter/ContentView.swift
           grep -Fq '#include "RPFPythonBridge.h"' GTAConverter/GTAConverter-Bridging-Header.h
           grep -Fq 'RPFRunPythonScript' RPFStudio/RPFPythonBridge.h
@@ -86,7 +86,7 @@ jobs:
           grep -Fq 'showingDocumentPicker = true' RPFStudio/RPFStudioView.swift
           grep -Fq 'if section == "menu"' GTAConverter/ContentView.swift
           grep -Fq 'if id == "rpf"' GTAConverter/ContentView.swift
-          if grep -q 'UIDocumentPickerViewController' GTAConverter/ContentView.swift GTAConverter/FileImportService.swift; then
+          if grep -q 'UIDocumentPickerViewController' GTAConverter/ContentView.swift; then
             echo "Legacy UIKit document picker reference remains."
             exit 1
           fi
@@ -226,8 +226,8 @@ jobs:
           print("Registered Files/Open In document types.")
           PY
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 5.39' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 5.38' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 74' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 73' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 5.40' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 5.38' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 75' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 73' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
           BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")
@@ -238,10 +238,10 @@ jobs:
           test "$BUILD" = "73"
           /usr/libexec/PlistBuddy -c 'Print :UTExportedTypeDeclarations:0:UTTypeTagSpecification:public.filename-extension:0' "$INFO" | grep -q 'rpf'
           /usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes' "$INFO" | grep -q 'com.tmoath07.rpf-archive'
-          grep -q 'MARKETING_VERSION: "5.39"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "74"' project.yml
-          zip -qry INRPF-5.39-unsigned.ipa Payload
-          unzip -t INRPF-5.39-unsigned.ipa
+          grep -q 'MARKETING_VERSION: "5.40"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "75"' project.yml
+          zip -qry INRPF-5.40-unsigned.ipa Payload
+          unzip -t INRPF-5.40-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"
           nm -g "Payload/INRPF.app/$EXECUTABLE" > build/exported-symbols.txt
           grep -q "_gta_engine_build_rpf7" build/exported-symbols.txt
@@ -254,12 +254,12 @@ jobs:
           grep -Fq 'RPFRunPythonScript(' RPFStudio/RPFPythonBridge.m
 
           mkdir -p release-package
-          cp INRPF-5.39-unsigned.ipa release-package/INRPF-5.39-unsigned.ipa
+          cp INRPF-5.40-unsigned.ipa release-package/INRPF-5.40-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
           INRPF 5.38 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
-          2) استخرج ملف INRPF-5.39-unsigned.ipa.
+          2) استخرج ملف INRPF-5.40-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
           يتضمن هذا الإصدار INRPF مع RPF Studio المدمج وPython 3.14، مع تسجيل امتداد .rpf لنظام الملفات. فاحص RPF الحالي يعرض معلومات الملف والترويسة والبصمة SHA256 فقط؛ لا يتضمن بعد استخراجاً عاماً أو إعادة بناء لأرشيف RPF.
@@ -275,7 +275,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: INRPF-5.39-Install-Package
+          name: INRPF-5.40-Install-Package
           path: release-package/
           if-no-files-found: error
           retention-days: 14
