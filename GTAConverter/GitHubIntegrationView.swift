@@ -524,6 +524,7 @@ struct GitHubIntegrationView: View {
                 client.status = "تمت إضافة صورة الكاميرا إلى قائمة الرفع."
             } catch { client.status = error.localizedDescription }
             cameraImage = nil
+            activeSheet = nil
         }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
@@ -534,16 +535,28 @@ struct GitHubIntegrationView: View {
                 INRPFDocumentPicker(
                     contentTypes: [.item],
                     allowsMultipleSelection: true,
-                    onCompletion: { importGitHubItems($0, itemDescription: "ملف") },
-                    onCancellation: { client.status = "تم إلغاء اختيار الملفات." }
+                    onCompletion: {
+                        activeSheet = nil
+                        importGitHubItems($0, itemDescription: "ملف")
+                    },
+                    onCancellation: {
+                        activeSheet = nil
+                        client.status = "تم إلغاء اختيار الملفات."
+                    }
                 )
                 .ignoresSafeArea()
             case .folder:
                 INRPFDocumentPicker(
                     contentTypes: [.folder],
                     allowsMultipleSelection: false,
-                    onCompletion: { importGitHubItems($0, itemDescription: "مجلد") },
-                    onCancellation: { client.status = "تم إلغاء اختيار المجلد." }
+                    onCompletion: {
+                        activeSheet = nil
+                        importGitHubItems($0, itemDescription: "مجلد")
+                    },
+                    onCancellation: {
+                        activeSheet = nil
+                        client.status = "تم إلغاء اختيار المجلد."
+                    }
                 )
                 .ignoresSafeArea()
             }
