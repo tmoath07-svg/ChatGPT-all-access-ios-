@@ -2,7 +2,7 @@ name: Build INRPF IPA
 
 on:
   push:
-    branches: [main, fix/import-drop-redesign, feature/local-engine-ios, feature/import-ftp-folder-fix, feature/inrpf-github-device-flow]
+    branches: [main, fix/import-drop-redesign, feature/local-engine-ios, feature/import-ftp-folder-fix, feature/inrpf-github-device-flow, feature/autonomous-ai-agent]
   workflow_dispatch:
 
 permissions:
@@ -39,6 +39,18 @@ jobs:
 
       - name: Test local engine on build host
         run: cargo test --manifest-path LocalEngine/Cargo.toml --release
+
+      - name: Test autonomous agent path and permission policies
+        run: |
+          set -euo pipefail
+          swiftc Tests/agent_task_policy_tests.swift -o /tmp/agent-task-policy-tests
+          /tmp/agent-task-policy-tests
+          grep -Fq 'AutonomousAgentView()' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'AIProviderAPI.fetchModels' GTAConverter/AutonomousAgentView.swift
+          grep -Fq 'AISecretStore.save' GTAConverter/AIProviderCore.swift
+          grep -Fq 'ps4_search_files' GTAConverter/AutonomousAgentCore.swift
+          ! grep -R -i -E 'BeamNG|BeamNG.drive' GTAConverter/AIProviderCore.swift GTAConverter/AutonomousAgentCore.swift GTAConverter/AutonomousAgentView.swift
+          echo "PASS: autonomous agent foundation and BeamNG exclusion checks."
 
       - name: Test FiveM resource analyzer
         run: |
