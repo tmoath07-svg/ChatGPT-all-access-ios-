@@ -110,8 +110,10 @@ jobs:
           grep -Fq '"/repos/tmoath07-svg/ChatGPT-all-access-ios-/contents/' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'for sourceRef in ["feature/inrpf-github-device-flow", "main"]' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'source.encoding == "base64"' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'actual == data' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'GitHub لم يؤكد وجود الملف بالمحتوى الصحيح بعد الرفع' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'Contents API omits the Base64 body for files larger than 1 MB.' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'verification.resolvedSHA == expectedSHA' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'verification.content?.encoding == "base64"' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'actual != data' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'لم يتم العثور على Workflow في فرعي feature/inrpf-github-device-flow أو main' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'فشل رفع Workflow إلى' GTAConverter/GitHubIntegrationView.swift
           ! grep -Fq 'GTAOnboardingView' GTAConverter/ContentView.swift
