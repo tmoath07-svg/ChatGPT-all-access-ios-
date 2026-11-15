@@ -111,7 +111,9 @@ enum INRPFOrbxAutoInstallPlanner {
         }
 
         guard !entryFiles.isEmpty else { return nil }
-        guard archives.count == 1 else { throw PlanError.ambiguousDlcRPF(archives.count) }
+        // Ambiguous prepared imports are ignored for Orbx normalization.
+        // Keep the extracted staging files untouched; the selected source archive is never modified.
+        guard archives.count == 1 else { return nil }
 
         let regex = try NSRegularExpression(pattern: #"(?i)dlc_addon/([A-Za-z0-9_-]{1,64})/"#)
         var names = Set<String>()
