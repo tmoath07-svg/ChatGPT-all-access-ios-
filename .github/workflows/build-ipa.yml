@@ -47,14 +47,13 @@ jobs:
           /tmp/fivem-mod-analyzer-tests
           python3 - <<'PY'
           from pathlib import Path
-          import py_compile
           import textwrap
           workflow = Path(".github/workflows/convert-pc-to-ps4.yml").read_text()
           lines = workflow.splitlines()
           start = next(i for i, line in enumerate(lines) if line.strip() == "cat > toolkit/fivem_multi_vehicle_dlc.py <<'PY'")
           end = next(i for i in range(start + 1, len(lines)) if lines[i].strip() == "PY")
           source = textwrap.dedent("\n".join(lines[start + 1:end]) + "\n")
-          py_compile.compile(source=source, cfile="/tmp/inrpf-fivem-dlc.pyc", doraise=True)
+          compile(source, ".github/workflows/convert-pc-to-ps4.yml::fivem_multi_vehicle_dlc.py", "exec")
           assert "viable_candidates" in source or "viable" in source
           assert "[FiveM] SKIP" in source or "[FiveM] SKIPPED" in source
           print("FiveM multi-candidate workflow script: syntax OK")
