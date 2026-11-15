@@ -73,8 +73,8 @@ struct OrbxAutoInstallTests {
 
         let names = try INRPFOrbxAutoInstallPlanner.discoverPackageNames(in: addon)
         precondition(names == ["alpha_pack", "car_2026", "optima", "Rbtitt"].sorted(), "DLC folder discovery did not return expected names")
-        precondition(INRPFOrbxAutoInstallPlanner.remoteAddon == "/Data/orbx/gta/rpf/dlc_addon", "Incorrect PS4 addon path")
-        precondition(INRPFOrbxAutoInstallPlanner.remoteDLClistDirectory == "/Data/orbx/gta", "Incorrect PS4 dlclist path")
+        precondition(INRPFOrbxAutoInstallPlanner.remoteAddon == "/data/orbx/gta/rpf/dlc_addon", "Incorrect PS4 addon path")
+        precondition(INRPFOrbxAutoInstallPlanner.remoteDLClistDirectory == "/data/orbx/gta", "Incorrect PS4 dlclist path")
 
         let legacyRoot = root.appendingPathComponent("PS4-Orbx-Legacy", isDirectory: true)
         let legacyData = legacyRoot
@@ -96,7 +96,7 @@ struct OrbxAutoInstallTests {
         <?xml version="1.0" encoding="UTF-8"?>
         <SMandatoryPacksData>
           <Paths>
-            <Item>/Data/orbx/gta/rpf/dlc_addon/old_pack/</Item>
+            <Item>/data/orbx/gta/rpf/dlc_addon/old_pack/</Item>
           </Paths>
         </SMandatoryPacksData>
         """
@@ -132,6 +132,33 @@ struct OrbxAutoInstallTests {
         } catch is INRPFOrbxAutoInstallPlanner.PlanError {
             // Expected: unsafe path components are rejected.
         }
+
+        // Prepared-import regression: the folder name must come from dlclist-entry,
+        // and only the single dlc.rpf may be published into the Orbx package.
+        let prepared = root.appendingPathComponent("GTA-Prepared-EOCD646F", isDirectory: true)
+        let sourceRPF = prepared.appendingPathComponent("rpf/dlc.rpf")
+        try FileManager.default.createDirectory(at: sourceRPF.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("only-rpf".utf8).write(to: sourceRPF)
+        try Data("metadata".utf8).write(to: prepared.appendingPathComponent("directory"))
+        try Data("metadata".utf8).write(to: prepared.appendingPathComponent("dic"))
+        try Data("<Item>/data/orbx/gta/rpf/dlc_addon/moath/</Item>".utf8)
+            .write(to: prepared.appendingPathComponent("dlclist-entry.txt"))
+        try Data("metadata".utf8).write(to: prepared.appendingPathComponent("mod-info.txt"))
+        try Data("metadata".utf8).write(to: prepared.appendingPathComponent("run-info.txt"))
+        try Data("metadata".utf8).write(to: prepared.appendingPathComponent("spawn-names.txt"))
+
+        let preparedName = try INRPFOrbxAutoInstallPlanner.normalizePreparedDLC(at: prepared)
+        precondition(preparedName == "moath", "Package name was not taken from dlclist-entry")
+        let preparedPackage = prepared.appendingPathComponent("data/orbx/gta/rpf/dlc_addon/moath", isDirectory: true)
+        precondition(FileManager.default.fileExists(atPath: preparedPackage.appendingPathComponent("dlc.rpf").path),
+                     "Normalized Orbx package is missing dlc.rpf")
+        let preparedXML = try String(contentsOf: prepared.appendingPathComponent("data/orbx/gta/dlclist.xml"), encoding: .utf8)
+        precondition(preparedXML.contains("<Item>/data/orbx/gta/rpf/dlc_addon/moath/</Item>"),
+                     "Normalized dlclist.xml does not use the exact lowercase Orbx path")
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: prepared.path)
+        precondition(remaining == ["data"], "Metadata or source staging files leaked into the normalized output")
+        let installedFiles = try FileManager.default.subpathsOfDirectory(atPath: preparedPackage.path)
+        precondition(installedFiles == ["dlc.rpf"], "Files other than dlc.rpf were copied into the package")
 
         print("ORBX AUTO INSTALL TESTS: PASS")
         print("Fixture folder: Data/orbx/gta/rpf/dlc_addon/")
