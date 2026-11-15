@@ -299,7 +299,8 @@ private final class GitHubIntegrationClient: ObservableObject {
     func ensureConversionAssets(for repository: GHRepository, branch: String, toolkitPath: String) async throws {
         let branchName = branch.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !branchName.isEmpty else { throw GHError.message("تعذر تحديد الفرع الافتراضي للمستودع.") }
-        let branchEncoded = branchName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? branchName
+        let branchPathCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
+        let branchEncoded = branchName.addingPercentEncoding(withAllowedCharacters: branchPathCharacters) ?? branchName
         status = "المرحلة 1/4: التحقق من فرع المستودع..."
         do {
             let _: GHBranchCheck = try await api("/repos/\(repository.full_name)/branches/\(branchEncoded)")
