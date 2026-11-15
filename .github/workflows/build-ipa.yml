@@ -110,7 +110,7 @@ jobs:
           grep -Fq 'gtaFolder.appendingPathComponent("dlclist.xml")' GTAConverter/DLCPS4PreparationView.swift
           grep -Fq 'copyItem(at: sourceFile, to: destination.appendingPathComponent("dlc.rpf"))' GTAConverter/DLCPS4PreparationView.swift
           grep -Fq '<Item>/data/orbx/gta/rpf/dlc_addon/' GTAConverter/DLCPS4PreparationView.swift
-          grep -Fq 'dlc_addon/\\(name)/' GTAConverter/OrbxAutoInstallPlanner.swift
+          grep -Fq 'dlc_addon/\(name)/' GTAConverter/OrbxAutoInstallPlanner.swift
           grep -Fq '<Item>/data/orbx/gta/rpf/dlc_addon/' GTAConverter/OrbxAutoInstallPlanner.swift
           grep -Fq 'private let remoteRoot = "/data/orbx/gta/rpf"' GTAConverter/OrbxPS4TransferView.swift
           grep -Fq 'private let remoteDLClistDirectory = "/data/orbx/gta"' GTAConverter/OrbxPS4TransferView.swift
