@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 import UIKit
 
 /// Presents the system document picker from a real UIKit presenter.
+/// Uses asCopy so the selected provider document is handed to the app as a local import.
 /// The coordinator is refreshed on every SwiftUI update so callbacks never go stale.
 struct INRPFDocumentPicker: UIViewControllerRepresentable {
     @Binding var isPresented: Bool
