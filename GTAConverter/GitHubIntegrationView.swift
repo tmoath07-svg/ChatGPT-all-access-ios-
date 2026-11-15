@@ -154,6 +154,16 @@ private final class GitHubIntegrationClient: ObservableObject {
     private var token = GHKeychain.load()
     private var pollingTask: Task<Void, Never>?
 
+    // Device authorization can take several minutes while the user switches to Safari.
+    // Keep requests tolerant of brief Wi-Fi/cellular handoffs instead of ending login.
+    private let githubSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.waitsForConnectivity = true
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 180
+        return URLSession(configuration: configuration)
+    }()
+
     init() {
         // Never trust a persisted UI flag as proof of authentication.
         // Validate the Keychain token against GitHub before opening the workspace.
@@ -188,7 +198,7 @@ private final class GitHubIntegrationClient: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = formBody(["client_id": clientID, "scope": "repo workflow offline_access"])
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await githubSession.data(for: request)
         try check(response, data)
         return try JSONDecoder().decode(GHDeviceCode.self, from: data)
     }
@@ -249,8 +259,24 @@ private final class GitHubIntegrationClient: ObservableObject {
                 }
             } catch is CancellationError {
                 return
+            } catch let error as URLError where [
+                .timedOut, .networkConnectionLost, .notConnectedToInternet,
+                .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed,
+                .dataNotAllowed, .internationalRoamingOff
+            ].contains(error.code) {
+                // A temporary disconnect must not destroy a valid device code.
+                // Retry with a bounded delay until GitHub's device code expires.
+                status = "انقطع الاتصال مؤقتاً؛ رمز التحقق محفوظ، جارٍ إعادة المحاولة..."
+                do {
+                    try await Task.sleep(nanoseconds: 5_000_000_000)
+                    if Task.isCancelled { return }
+                    interval = min(interval + 2, 30)
+                    continue
+                } catch {
+                    return
+                }
             } catch {
-                status = "مشكلة اتصال: \(error.localizedDescription)"
+                status = "تعذر إكمال التحقق من GitHub: \(error.localizedDescription)"
                 return
             }
         }
@@ -398,7 +424,7 @@ private final class GitHubIntegrationClient: ObservableObject {
         let toolkitURL = URL(string: "https://raw.githubusercontent.com/tmoath07-svg/Ps4tools/main/ZokiiStudio-Toolkit-FIXED.zip")!
         let toolkitData: Data
         do {
-            let (data, response) = try await URLSession.shared.data(from: toolkitURL)
+            let (data, response) = try await githubSession.data(from: toolkitURL)
             try check(response, data)
             guard !data.isEmpty, data.count <= 25 * 1024 * 1024 else {
                 throw GHError.message("حزمة أدوات التحويل فارغة أو تجاوزت 25MB.")
