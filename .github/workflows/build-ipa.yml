@@ -105,6 +105,11 @@ jobs:
           grep -Fq 'loadReleaseAssets' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'downloadReleaseAsset' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'Publish converted files to the input Release' .github/workflows/convert-pc-to-ps4.yml
+          grep -Fq 'normalizePreparedDLC(at: root)' GTAConverter/ContentView.swift
+          grep -Fq 'dlc_addon/\\(name)/' GTAConverter/OrbxAutoInstallPlanner.swift
+          grep -Fq '<Item>/data/orbx/gta/rpf/dlc_addon/' GTAConverter/OrbxAutoInstallPlanner.swift
+          grep -Fq 'private let remoteRoot = "/data/orbx/gta/rpf"' GTAConverter/OrbxPS4TransferView.swift
+          grep -Fq 'private let remoteDLClistDirectory = "/data/orbx/gta"' GTAConverter/OrbxPS4TransferView.swift
           grep -Fq 'appendingPathComponent("DLCLIST", isDirectory: true)' GTAConverter/ContentView.swift
           ! grep -Fq 'GTA-Prepared-' GTAConverter/ContentView.swift
           grep -Fq 'result/DLCLIST' .github/workflows/convert-pc-to-ps4.yml
