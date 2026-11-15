@@ -105,6 +105,10 @@ jobs:
           grep -Fq 'loadReleaseAssets' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'downloadReleaseAsset' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'Publish converted files to the input Release' .github/workflows/convert-pc-to-ps4.yml
+          grep -Fq 'appendingPathComponent("DLCLIST", isDirectory: true)' GTAConverter/ContentView.swift
+          ! grep -Fq 'GTA-Prepared-' GTAConverter/ContentView.swift
+          grep -Fq 'result/DLCLIST' .github/workflows/convert-pc-to-ps4.yml
+          ! grep -Fq 'result/FiveM-PS4-DLC' .github/workflows/convert-pc-to-ps4.yml
           grep -Fq 'gh release download' .github/workflows/convert-pc-to-ps4.yml
           grep -Fq 'gh release upload' .github/workflows/convert-pc-to-ps4.yml
           grep -Fq 'contents: write' .github/workflows/convert-pc-to-ps4.yml
