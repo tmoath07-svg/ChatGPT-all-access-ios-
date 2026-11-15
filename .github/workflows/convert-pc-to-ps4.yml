@@ -598,6 +598,8 @@ jobs:
                   print(f'[FiveM DLC ERROR] {type(exc).__name__}: {exc}', file=sys.stderr)
                   raise SystemExit(1)
           PY
+          python -m py_compile toolkit/fivem_multi_vehicle_dlc.py
+          echo "[FiveM] Python syntax validation passed."
           xvfb-run -a python toolkit/fivem_multi_vehicle_dlc.py "$INPUT_FOLDER"
           test -s "toolkit/FiveM Multi Vehicle to DLC/Finish/dlc.rpf"
 
