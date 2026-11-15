@@ -943,7 +943,7 @@ struct ContentView: View {
                 } else if analysis.isFiveMVehicleResource {
                     status = "تم التعرف على مورد سيارة FiveM. ملفات YFT: \(analysis.yftFiles.count)، ملفات YTD: \(analysis.ytdFiles.count)، ملفات META: \(analysis.vehicleMetaFiles.count). تم الفحص فقط؛ تحويل PS4 يحتاج بناء DLC."
                 } else {
-                    status = preparedPackName.map { "تم تجهيز حزمة Orbx باسم ($0). " } ?? ""
+                    status = preparedPackName.map { name in "تم تجهيز حزمة Orbx باسم (\(name)). " } ?? ""
                     status += "اكتمل فك الملفات. المسار المختار: \(resolvedMode(for: analysis)). تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf. هذا تجهيز وفحص، وليس تحويل PC إلى PS4 تلقائياً."
                 }
                 isError = false
