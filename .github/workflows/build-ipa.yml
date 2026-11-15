@@ -89,6 +89,7 @@ jobs:
           grep -Fq 'NavigationLink(destination: INRPFDeviceTestLabView())' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'NavigationLink(destination: AppFilesView())' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'NavigationLink(destination: AppSettingsView())' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'NavigationLink(destination: OrbxPS4TransferView())' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'NavigationLink(destination: AppDiagnosticsView(sourceURL: nil' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'Button("رفع ملفات تشغيل المستودع")' GTAConverter/GitHubIntegrationView.swift
           ! grep -Fq 'Button("رفع جميع الملفات إلى Release")' GTAConverter/GitHubIntegrationView.swift
