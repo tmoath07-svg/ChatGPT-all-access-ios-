@@ -61,6 +61,21 @@ private struct GHWorkflow: Decodable, Identifiable {
     let state: String
 }
 private struct GHWorkflowRuns: Decodable { let workflow_runs: [GHWorkflowRun] }
+private struct GHWorkflowJobs: Decodable { let jobs: [GHWorkflowJob] }
+private struct GHWorkflowJob: Decodable, Identifiable {
+    let id: Int
+    let name: String
+    let status: String
+    let conclusion: String?
+    let steps: [GHWorkflowStep]?
+}
+private struct GHWorkflowStep: Decodable, Identifiable {
+    let name: String
+    let status: String
+    let conclusion: String?
+    let number: Int
+    var id: Int { number }
+}
 private struct GHWorkflowRun: Decodable, Identifiable {
     let id: Int
     let name: String
@@ -129,6 +144,8 @@ private final class GitHubIntegrationClient: ObservableObject {
     @Published var repositories: [GHRepository] = []
     @Published var workflows: [GHWorkflow] = []
     @Published var runs: [GHWorkflowRun] = []
+    @Published var workflowSteps: [GHWorkflowStep] = []
+    @Published var workflowStepsRunID: Int?
     @Published var releaseAssets: [GHReleaseAsset] = []
     @Published var status = "اربط حساب GitHub للبدء."
     @Published var isBusy = false
@@ -569,8 +586,7 @@ private final class GitHubIntegrationClient: ObservableObject {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        let (responseData, response) = try await URLSession.shared.upload(for: request, fromFile: fileURL)
-        try check(response, responseData)
+        _ = try await INRPFBackgroundTransferManager.shared.upload(request, from: fileURL, name: name)
     }
 
     func loadReleaseAssets(for repository: GHRepository, tag: String) async {
@@ -592,18 +608,14 @@ private final class GitHubIntegrationClient: ObservableObject {
         var request = URLRequest(url: URL(string: endpoint)!)
         request.setValue("Bearer \(access)", forHTTPHeaderField: "Authorization")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
-        let (temporaryURL, response) = try await URLSession.shared.download(for: request)
-        try check(response, Data())
         let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("GTA Converter/INRPF Results", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let safeName = asset.name.replacingOccurrences(of: "/", with: "_")
         let destination = root.appendingPathComponent(safeName)
-        if FileManager.default.fileExists(atPath: destination.path) {
-            try FileManager.default.removeItem(at: destination)
-        }
-        try FileManager.default.moveItem(at: temporaryURL, to: destination)
-        return destination
+        return try await INRPFBackgroundTransferManager.shared.download(
+            request, to: destination, name: asset.name
+        )
     }
 
     func loadWorkflows(for repository: GHRepository) async {
@@ -627,6 +639,20 @@ private final class GitHubIntegrationClient: ObservableObject {
             runs = response.workflow_runs
         } catch {
             status = "تعذر تحميل سجل GitHub Actions: \(error.localizedDescription)"
+        }
+    }
+
+    func loadWorkflowSteps(for repository: GHRepository, runID: Int) async {
+        do {
+            let response: GHWorkflowJobs = try await api(
+                "/repos/\(repository.full_name)/actions/runs/\(runID)/jobs?per_page=100"
+            )
+            workflowSteps = response.jobs
+                .flatMap { $0.steps ?? [] }
+                .sorted { $0.number < $1.number }
+            workflowStepsRunID = runID
+        } catch {
+            status = "تعذر تحميل خطوات التحويل: \(error.localizedDescription)"
         }
     }
 
@@ -819,6 +845,7 @@ struct GitHubIntegrationView: View {
     }
 
     @StateObject private var client = GitHubIntegrationClient()
+    @ObservedObject private var backgroundTransfers = INRPFBackgroundTransferManager.shared
     @AppStorage("gta_github_authenticated") private var githubAuthenticated = false
     @State private var didConfirmGitHubSession = false
     @State private var repositoryName = ""
@@ -1030,6 +1057,7 @@ struct GitHubIntegrationView: View {
                       let startedAt = workflowDispatchStartedAt,
                       let createdAt = ISO8601DateFormatter().date(from: latest.created_at),
                       createdAt >= startedAt.addingTimeInterval(-60) else { continue }
+                await client.loadWorkflowSteps(for: repository, runID: latest.id)
                 if latest.status == "completed" {
                     if latest.conclusion == "success" {
                         if let tag = activeReleaseTag {
@@ -1493,6 +1521,128 @@ struct GitHubIntegrationView: View {
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.075), lineWidth: 1))
     }
 
+    private var transferProgressSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("نقل الملفات في الخلفية").font(.subheadline.bold())
+            ForEach(backgroundTransfers.transfers) { transfer in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Image(systemName: transfer.direction == "رفع" ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
+                            .foregroundStyle(transfer.state == "اكتمل" ? .green : .cyan)
+                        Text(transfer.name).font(.caption.bold()).lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text(transfer.state).font(.caption2).foregroundStyle(.secondary)
+                    }
+                    ProgressView(value: transfer.fractionCompleted)
+                        .tint(transfer.state == "اكتمل" ? .green : .cyan)
+                    HStack {
+                        Text(ByteCountFormatter.string(fromByteCount: transfer.completedBytes, countStyle: .file))
+                        Spacer()
+                        Text(transfer.totalBytes > 0
+                             ? ByteCountFormatter.string(fromByteCount: transfer.totalBytes, countStyle: .file)
+                             : "الحجم الكلي غير معروف")
+                    }
+                    .font(.caption2).foregroundStyle(.secondary)
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+        .padding(12)
+        .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var workflowStepsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("مراحل التحويل").font(.subheadline.bold())
+                Spacer()
+                Text("\(client.workflowSteps.filter { $0.status == "completed" }.count) / \(client.workflowSteps.count)")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            ForEach(client.workflowSteps) { step in
+                HStack(alignment: .top, spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(workflowStepColor(step).opacity(0.18))
+                            .frame(width: 28, height: 28)
+                        if step.status == "completed" && step.conclusion == "success" {
+                            Image(systemName: "checkmark").font(.caption.bold()).foregroundStyle(.green)
+                        } else if step.status == "completed" && step.conclusion == "failure" {
+                            Image(systemName: "xmark").font(.caption.bold()).foregroundStyle(.red)
+                        } else {
+                            Text(String(step.number)).font(.caption2.bold()).foregroundStyle(workflowStepColor(step))
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(arabicWorkflowStep(step.name))
+                            .font(.caption.bold())
+                            .foregroundStyle(step.status == "in_progress" ? .white : .primary)
+                        Text(workflowStepStatus(step))
+                            .font(.caption2)
+                            .foregroundStyle(workflowStepColor(step))
+                    }
+                    Spacer()
+                    if step.status == "in_progress" {
+                        ProgressView().controlSize(.small).tint(.cyan)
+                    }
+                }
+                .padding(.vertical, 3)
+            }
+        }
+        .padding(12)
+        .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func workflowStepColor(_ step: GHWorkflowStep) -> Color {
+        if step.status == "in_progress" { return .cyan }
+        if step.status == "completed" && step.conclusion == "success" { return .green }
+        if step.status == "completed" && step.conclusion == "failure" { return .red }
+        if step.status == "completed" && step.conclusion == "skipped" { return .gray }
+        return .secondary
+    }
+
+    private func workflowStepStatus(_ step: GHWorkflowStep) -> String {
+        if step.status == "in_progress" { return "جارية الآن" }
+        if step.status == "completed" {
+            switch step.conclusion ?? "" {
+            case "success": return "اكتملت"
+            case "failure": return "فشلت"
+            case "skipped": return "تم تخطيها"
+            case "cancelled": return "أُلغيت"
+            default: return "انتهت"
+            }
+        }
+        return "بانتظار التنفيذ"
+    }
+
+    private func arabicWorkflowStep(_ name: String) -> String {
+        switch name {
+        case "Set up job": return "تجهيز بيئة التشغيل"
+        case "Checkout GTA Converter repository": return "تحميل ملفات المستودع"
+        case "Download and restore INRPF Release input": return "تنزيل ملفات الإدخال من Release"
+        case "Set up Python": return "تجهيز Python"
+        case "Extract tools ZIP": return "فك حزمة أدوات التحويل"
+        case "Install Python dependencies": return "تثبيت المكتبات المطلوبة"
+        case "Install archive and Windows runtime": return "تجهيز أدوات الأرشفة وبيئة التشغيل"
+        case "Prepare mod input": return "تجهيز ملفات المود وفك الأرشيفات"
+        case "Audit Python tools": return "فحص أدوات التحويل"
+        case "Build FiveM multi-vehicle DLC for PS4": return "بناء DLC متعدد السيارات (FiveM)"
+        case "Build one vehicle as a PS4 DLC": return "بناء DLC لسيارة واحدة"
+        case "Convert complete PC DLC RPF to PS4 DLC RPF": return "تحويل أرشيف DLC من PC إلى PS4"
+        case "Convert PC resources to PS4 resources": return "تحويل موارد PC إلى موارد PS4"
+        case "Extract YTD textures": return "استخراج خامات YTD"
+        case "Extract RPF archives": return "فك أرشيفات RPF"
+        case "Build RPF archive": return "بناء أرشيف RPF"
+        case "Collect results": return "تجميع ملفات الناتج والتقارير"
+        case "Publish converted files to the input Release": return "رفع الملفات الناتجة إلى Release"
+        case "Post Set up Python": return "إنهاء تجهيز Python"
+        case "Post Checkout GTA Converter repository": return "إنهاء الوصول للمستودع"
+        case "Complete job": return "إكمال مهمة التحويل"
+        default: return name
+        }
+    }
+
     private var workflowSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -1508,6 +1658,12 @@ struct GitHubIntegrationView: View {
                     Image(systemName: "arrow.clockwise").font(.headline).padding(9)
                         .background(Color.white.opacity(0.08), in: Circle())
                 }.disabled(selectedRepository == nil)
+            }
+            if !backgroundTransfers.transfers.isEmpty {
+                transferProgressSection
+            }
+            if !client.workflowSteps.isEmpty {
+                workflowStepsSection
             }
             if client.workflows.isEmpty {
                 Text("لا توجد Workflows مفعّلة لهذا المستودع.")
