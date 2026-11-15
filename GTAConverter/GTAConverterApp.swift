@@ -18,6 +18,17 @@ final class INRPFAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
     ) {
         completionHandler([.banner, .sound, .badge])
     }
+
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        INRPFBackgroundTransferManager.shared.handleEvents(
+            identifier: identifier,
+            completionHandler: completionHandler
+        )
+    }
 }
 
 @main
