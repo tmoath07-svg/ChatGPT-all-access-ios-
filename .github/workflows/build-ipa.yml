@@ -52,11 +52,11 @@ jobs:
           grep -Fq 'activeImportPicker = .folder' GTAConverter/ContentView.swift
           grep -Fq '.inrpfDocumentPicker(' GTAConverter/ContentView.swift
           grep -Fq '.inrpfDocumentPicker(' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'forOpeningContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'asCopy: true' GTAConverter/INRPFDocumentPicker.swift
-          ! grep -Fq 'asCopy: false' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'didPickDocumentsAt urls: [URL]' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'documentPickerWasCancelled' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'fileImporter(' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'allowedContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'allowsMultipleSelection: allowsMultipleSelection' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'onCompletion(.success(urls))' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'onCancellation()' GTAConverter/INRPFDocumentPicker.swift
 
       - name: Test GitHub start tab and preserved legacy workspace
         run: |
