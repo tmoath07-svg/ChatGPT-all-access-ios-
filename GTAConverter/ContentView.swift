@@ -832,8 +832,10 @@ struct ContentView: View {
             var currentArchivePath = "لم يبدأ استخراج أي عنصر"
             var incompleteRoot: URL?
             do {
-                let root = try Self.appManagedFolder("Ready")
-                    .appendingPathComponent("GTA-Prepared-\(UUID().uuidString)", isDirectory: true)
+                let readyFolder = try Self.appManagedFolder("Ready")
+                let root = readyFolder.appendingPathComponent(
+                    ".DLCLIST-staging-\(UUID().uuidString)", isDirectory: true)
+                let finalRoot = readyFolder.appendingPathComponent("DLCLIST", isDirectory: true)
                 try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
                 incompleteRoot = root
 
@@ -910,7 +912,24 @@ struct ContentView: View {
                     throw NSError(domain: "INRPF.ReadyMod", code: 1,
                         userInfo: [NSLocalizedDescriptionKey: "الملف المحدد ليس مود DLC جاهزاً: لم يتم العثور على dlc.rpf. اختر حزمة PS4 محوّلة مسبقاً بصيغة ZIP أو RAR."])
                 }
-                outputFolder = root
+                // Publish every completed import under one stable Files name.
+                // Keep the previous DLCLIST intact until the new extraction has passed analysis.
+                let backupRoot = readyFolder.appendingPathComponent(
+                    ".DLCLIST-backup-\(UUID().uuidString)", isDirectory: true)
+                let hadPrevious = FileManager.default.fileExists(atPath: finalRoot.path)
+                if hadPrevious {
+                    try FileManager.default.moveItem(at: finalRoot, to: backupRoot)
+                }
+                do {
+                    try FileManager.default.moveItem(at: root, to: finalRoot)
+                } catch {
+                    if hadPrevious {
+                        try? FileManager.default.moveItem(at: backupRoot, to: finalRoot)
+                    }
+                    throw error
+                }
+                if hadPrevious { try? FileManager.default.removeItem(at: backupRoot) }
+                outputFolder = finalRoot
                 incompleteRoot = nil
                 modAnalysis = analysis
                 if !analysis.packNames.isEmpty {
