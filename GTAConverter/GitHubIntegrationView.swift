@@ -440,36 +440,55 @@ private final class GitHubIntegrationClient: ObservableObject {
         }
         let gitHeader = Data("blob \(data.count)\0".utf8)
         let expectedSHA = Insecure.SHA1.hash(data: gitHeader + data).map { String(format: "%02x", $0) }.joined()
+        var writeResult: GHContentResult?
         if let sha = existing?.resolvedSHA {
             if sha == expectedSHA {
                 status = skipIfExists ? "حزمة التحويل مطابقة وموجودة مسبقاً." : "ملف Workflow مطابق وموجود مسبقاً."
             } else {
-                let _: GHContentResult = try await api(
+                writeResult = try await api(
                     "/repos/\(repository.full_name)/contents/\(encodedPath)",
                     method: "PUT",
                     body: ["message": message, "content": data.base64EncodedString(), "sha": sha, "branch": branch]
                 )
             }
         } else {
-            // GitHub's Contents API creates missing parent directories for this path.
-            let _: GHContentResult = try await api(
+            writeResult = try await api(
                 "/repos/\(repository.full_name)/contents/\(encodedPath)",
                 method: "PUT",
                 body: ["message": message, "content": data.base64EncodedString(), "branch": branch]
             )
         }
-        // Contents API omits the Base64 body for files larger than 1 MB.
-        // Verify the Git blob SHA instead; it is calculated from the exact bytes
-        // and therefore works for both small text files and multi-megabyte ZIPs.
-        let verification: GHContentResult = try await api(
-            "/repos/\(repository.full_name)/contents/\(encodedPath)?ref=\(branch)"
-        )
-        guard verification.resolvedSHA == expectedSHA else {
-            throw GHError.message("GitHub أعاد SHA مختلفاً بعد الرفع: \(repository.full_name)/\(path) — الفرع: \(branch)")
+
+        // Trust the SHA returned by the successful write, then allow the Contents
+        // read endpoint time to become consistent before declaring a mismatch.
+        if let returnedSHA = writeResult?.resolvedSHA, returnedSHA != expectedSHA {
+            throw GHError.message("استجابة GitHub لعملية الكتابة أعادت SHA غير مطابق للملف المحلي: \(path)")
         }
-        // When GitHub includes the body (small files), also compare the bytes.
-        if let encoded = verification.content?.content,
-           verification.content?.encoding == "base64",
+
+        var verification: GHContentResult?
+        var lastReadError: Error?
+        for attempt in 0..<5 {
+            do {
+                let current: GHContentResult = try await api(
+                    "/repos/\(repository.full_name)/contents/\(encodedPath)?ref=\(branch)"
+                )
+                if current.resolvedSHA == expectedSHA {
+                    verification = current
+                    break
+                }
+                if attempt < 4 { try await Task.sleep(nanoseconds: 700_000_000) }
+            } catch {
+                lastReadError = error
+                if attempt < 4 { try await Task.sleep(nanoseconds: 700_000_000) }
+            }
+        }
+        guard let verified = verification else {
+            let actual = writeResult?.resolvedSHA ?? "غير متاح"
+            let detail = lastReadError.map { " — تعذر إعادة القراءة: \($0.localizedDescription)" } ?? ""
+            throw GHError.message("لم يتأكد GitHub من محتوى الملف بعد 5 محاولات: \(repository.full_name)/\(path) — المتوقع: \(expectedSHA)، SHA استجابة الرفع: \(actual)\(detail)")
+        }
+        if let encoded = verified.content?.content,
+           verified.content?.encoding == "base64",
            let actual = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
            actual != data {
             throw GHError.message("محتوى الملف بعد الرفع لا يطابق الملف الأصلي: \(repository.full_name)/\(path)")
@@ -637,6 +656,12 @@ private final class GitHubIntegrationClient: ObservableObject {
         do {
             let response: GHWorkflowRuns = try await api("/repos/\(repository.full_name)/actions/runs?per_page=8")
             runs = response.workflow_runs
+            if let latest = runs.first {
+                await loadWorkflowSteps(for: repository, runID: latest.id)
+            } else {
+                workflowSteps = []
+                workflowStepsRunID = nil
+            }
         } catch {
             status = "تعذر تحميل سجل GitHub Actions: \(error.localizedDescription)"
         }
