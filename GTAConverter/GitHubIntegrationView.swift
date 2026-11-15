@@ -835,7 +835,8 @@ struct GitHubIntegrationView: View {
             }
         }
         .task(id: "\(selectedRepositoryID ?? 0)-\(monitorRefreshToken)") {
-            guard let repository = selectedRepository else { return }
+            guard let repository = selectedRepository,
+                  workflowDispatchStartedAt != nil else { return }
             for _ in 0..<180 {
                 guard !Task.isCancelled else { return }
                 try? await Task.sleep(for: .seconds(8))
