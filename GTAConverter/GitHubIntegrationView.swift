@@ -333,8 +333,8 @@ private final class GitHubIntegrationClient: ObservableObject {
         }
         let gitHeader = Data("blob \(data.count)\0".utf8)
         let expectedSHA = Insecure.SHA1.hash(data: gitHeader + data).map { String(format: "%02x", $0) }.joined()
-        if let current = existing?.content, let sha = current.sha {
-            if current.sha == expectedSHA {
+        if let sha = existing?.resolvedSHA {
+            if sha == expectedSHA {
                 status = skipIfExists ? "حزمة التحويل مطابقة وموجودة مسبقاً." : "ملف Workflow مطابق وموجود مسبقاً."
                 return
             }
@@ -592,6 +592,17 @@ private final class GitHubIntegrationClient: ObservableObject {
 
 private struct GHContentResult: Decodable {
     let content: GHContent?
+    let sha: String?
+
+    var resolvedSHA: String? { content?.sha ?? sha }
+
+    private enum CodingKeys: String, CodingKey { case content, sha }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        sha = try? values.decode(String.self, forKey: .sha)
+        content = try? values.decode(GHContent.self, forKey: .content)
+    }
 }
 private struct GHContent: Decodable {
     let name: String?
