@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 import Security
 import UIKit
 import PhotosUI
+import UserNotifications
 
 private struct GHDeviceCode: Decodable {
     let device_code: String
@@ -782,6 +783,30 @@ private struct CameraCapturePicker: UIViewControllerRepresentable {
     }
 }
 
+
+@MainActor
+private enum INRPFCompletionNotification {
+    static func requestPermission() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .notDetermined else { return }
+        _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+    }
+
+    static func send(title: String, body: String, identifier: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "inrpf-conversion-\(identifier)",
+            content: content,
+            trigger: nil
+        )
+        try? await UNUserNotificationCenter.current().add(request)
+    }
+}
+
 struct GitHubIntegrationView: View {
     private enum ActiveSheet: String, Identifiable, Equatable {
         case camera, files, folder
@@ -1006,8 +1031,18 @@ struct GitHubIntegrationView: View {
                             await client.loadReleaseAssets(for: repository, tag: tag)
                         }
                         client.status = "انتهى التحويل بنجاح. رابط الناتج ظاهر في قسم ملفات الناتج."
+                        await INRPFCompletionNotification.send(
+                            title: "اكتمل تحويل INRPF بنجاح",
+                            body: "ملفات الناتج جاهزة داخل Release في قسم ملفات الناتج.",
+                            identifier: "\(latest.id)-success"
+                        )
                     } else {
                         client.status = "انتهى تشغيل GitHub Actions بنتيجة: \(latest.conclusion ?? "غير معروفة"). افتح سجل التشغيل لمعرفة الخطوة التي فشلت."
+                        await INRPFCompletionNotification.send(
+                            title: "تعذر إكمال تحويل INRPF",
+                            body: "انتهى تشغيل GitHub Actions بفشل. افتح سجل التشغيل لمعرفة السبب.",
+                            identifier: "\(latest.id)-failure"
+                        )
                     }
                     break
                 }
@@ -1545,6 +1580,7 @@ struct GitHubIntegrationView: View {
                 }
                 let folder = "\(baseFolder)/inrpf-\(UUID().uuidString.lowercased())"
                 Task {
+                    await INRPFCompletionNotification.requestPermission()
                     client.isBusy = true
                     defer { client.isBusy = false }
                     do {
