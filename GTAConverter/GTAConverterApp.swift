@@ -52,9 +52,16 @@ struct GTAConverterApp: App {
                         Label("الأدوات", systemImage: "square.grid.2x2.fill")
                     }
                     .tag(1)
+
+                NavigationStack {
+                    AutonomousAgentView()
+                }
+                .tabItem {
+                    Label("AI Agent", systemImage: "brain.head.profile")
+                }
+                .tag(2)
             }
             .preferredColorScheme(.dark)
-            // Route Files > Open In > INRPF into the legacy importer tab.
             .onOpenURL { _ in
                 selectedTab = 1
             }
