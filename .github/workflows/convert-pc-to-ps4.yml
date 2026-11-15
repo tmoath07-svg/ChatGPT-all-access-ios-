@@ -301,33 +301,100 @@ jobs:
               if not input_root.exists():
                   raise RuntimeError(f'Input path does not exist: {input_root}')
           
-              resource_roots = []
+              # Discover every stream candidate, then try each one. A mismatch in
+              # one resource must not prevent trying another valid candidate.
+              stream_candidates = []
               for stream in input_root.rglob('stream'):
-                  if stream.is_dir() and (stream.parent / 'data').is_dir():
-                      resource_roots.append(stream.parent)
-              if input_root.is_dir() and (input_root / 'stream').is_dir() and (input_root / 'data').is_dir():
-                  resource_roots.append(input_root)
-              # Keep only outermost resource roots to avoid selecting nested duplicates.
-              unique = []
-              for candidate in sorted(set(resource_roots), key=lambda p: (len(p.parts), str(p).lower())):
-                  if not any(parent == candidate or parent in candidate.parents for parent in unique):
-                      unique.append(candidate)
-              if len(unique) != 1:
-                  raise RuntimeError(
-                      f'Expected exactly one FiveM resource containing sibling stream/ and data/ folders; found {len(unique)}.'
+                  if not stream.is_dir():
+                      continue
+                  vehicle_folders = [
+                      d for d in stream.iterdir()
+                      if d.is_dir() and any(p.is_file() and p.suffix.lower() == '.yft' for p in d.rglob('*'))
+                  ]
+                  direct_yft = any(p.is_file() and p.suffix.lower() == '.yft' for p in stream.iterdir())
+                  if vehicle_folders or direct_yft:
+                      stream_candidates.append((stream, vehicle_folders, direct_yft))
+              if (input_root / 'stream').is_dir() and not any(x[0] == input_root / 'stream' for x in stream_candidates):
+                  stream = input_root / 'stream'
+                  vehicle_folders = [
+                      d for d in stream.iterdir()
+                      if d.is_dir() and any(p.is_file() and p.suffix.lower() == '.yft' for p in d.rglob('*'))
+                  ]
+                  direct_yft = any(p.is_file() and p.suffix.lower() == '.yft' for p in stream.iterdir())
+                  if vehicle_folders or direct_yft:
+                      stream_candidates.append((stream, vehicle_folders, direct_yft))
+
+              # Remove nested duplicate stream roots but retain independent alternatives.
+              unique_candidates = []
+              for item in sorted(stream_candidates, key=lambda x: (len(x[0].parts), str(x[0]).lower())):
+                  if not any(parent == item[0] or parent in item[0].parents for parent, _, _ in unique_candidates):
+                      unique_candidates.append(item)
+
+              viable = []
+              rejected = []
+              for stream_root, candidate_dirs, direct_yft in unique_candidates:
+                  resource_candidate = stream_root.parent
+                  if direct_yft:
+                      rejected.append((stream_root, 'YFT files directly in stream/; expected per-vehicle folders'))
+                      continue
+                  if not candidate_dirs:
+                      rejected.append((stream_root, 'no vehicle folders with YFT files'))
+                      continue
+                  if len(candidate_dirs) > 12:
+                      rejected.append((stream_root, f'{len(candidate_dirs)} vehicle folders exceeds the 12-vehicle limit'))
+                      continue
+
+                  roots = []
+                  for candidate in (resource_candidate / 'data', resource_candidate, resource_candidate.parent, input_root):
+                      if candidate.is_dir() and candidate not in roots:
+                          roots.append(candidate)
+                  candidate_data = next(
+                      (candidate for candidate in roots
+                       if any(p.is_file() and p.name.lower() in {
+                           'vehicles.meta', 'handling.meta', 'carvariations.meta',
+                           'carcols.meta', 'vehiclelayouts.meta'
+                       } for p in candidate.rglob('*'))),
+                      resource_candidate / 'data'
                   )
-              resource = unique[0]
-              stream_root = resource / 'stream'
-              data_root = resource / 'data'
-          
-              vehicle_dirs = []
-              for d in sorted((p for p in stream_root.iterdir() if p.is_dir()), key=lambda p: p.name.lower()):
-                  if any(p.is_file() and p.suffix.lower() == '.yft' for p in d.rglob('*')):
-                      vehicle_dirs.append(d)
-              if not vehicle_dirs:
-                  raise RuntimeError('No vehicle subfolders with .yft files were found inside stream/.')
-              if len(vehicle_dirs) > 12:
-                  raise RuntimeError(f'Found {len(vehicle_dirs)} vehicle folders. Safety limit for one pack is 12.')
+
+                  compatible = []
+                  for vehicle_dir in candidate_dirs:
+                      try:
+                          _model, model_files, _mods, _other = z._discover_replacement_vehicle(vehicle_dir)
+                          if not model_files:
+                              raise RuntimeError('no supported YFT/YTD model files')
+                          specific_roots = [
+                              candidate_data / vehicle_dir.name,
+                              resource_candidate / 'data' / vehicle_dir.name,
+                              resource_candidate / vehicle_dir.name
+                          ]
+                          specific_meta = next((p for p in specific_roots if p.is_dir()), None)
+                          meta_root = specific_meta if specific_meta is not None else candidate_data
+                          found = {p.name.lower() for p in meta_root.rglob('*') if p.is_file()}
+                          missing = {'vehicles.meta', 'handling.meta', 'carvariations.meta'} - found
+                          if missing:
+                              raise RuntimeError('missing META: ' + ', '.join(sorted(missing)))
+                          compatible.append(vehicle_dir)
+                      except Exception as exc:
+                          rejected.append((vehicle_dir, str(exc)))
+                          print(f'[FiveM] SKIP {vehicle_dir.name}: {exc}')
+
+                  if compatible:
+                      viable.append((len(compatible), stream_root, compatible, resource_candidate, candidate_data))
+                  else:
+                      rejected.append((stream_root, 'no compatible vehicle folders'))
+
+              if not viable:
+                  detail = '; '.join(f'{path}: {reason}' for path, reason in rejected[:12])
+                  raise RuntimeError('No compatible FiveM resource candidate after checking all options. ' + (detail or 'No stream candidates found.'))
+
+              viable.sort(key=lambda x: (-x[0], len(x[1].parts), str(x[1]).lower()))
+              _score, stream_root, vehicle_dirs, resource, data_root = viable[0]
+              print(f'[FiveM] SELECTED {stream_root}: {len(vehicle_dirs)} compatible vehicles')
+              for option in viable[1:]:
+                  print(f'[FiveM] ALTERNATIVE {option[1]}: {option[0]} compatible vehicles')
+              for rejected_path, reason in rejected:
+                  print(f'[FiveM] SKIPPED {rejected_path}: {reason}')
 
               # Always initialize the DLC label after resource discovery.
               # The previous indentation placed this assignment inside the
