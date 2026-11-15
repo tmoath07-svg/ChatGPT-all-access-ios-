@@ -160,6 +160,24 @@ struct OrbxAutoInstallTests {
         let installedFiles = try FileManager.default.subpathsOfDirectory(atPath: preparedPackage.path)
         precondition(installedFiles == ["dlc.rpf"], "Files other than dlc.rpf were copied into the package")
 
+        // Multiple dlc.rpf files: skip Orbx normalization without deleting source files.
+        let ambiguous = root.appendingPathComponent("FiveM-PS4-DLC", isDirectory: true)
+        let ambiguousA = ambiguous.appendingPathComponent("first/dlc.rpf")
+        let ambiguousB = ambiguous.appendingPathComponent("second/dlc.rpf")
+        try FileManager.default.createDirectory(at: ambiguousA.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: ambiguousB.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("first".utf8).write(to: ambiguousA)
+        try Data("second".utf8).write(to: ambiguousB)
+        try Data("<Item>/data/orbx/gta/rpf/dlc_addon/moath/</Item>".utf8)
+            .write(to: ambiguous.appendingPathComponent("dlclist-entry.txt"))
+        let ignoredName = try INRPFOrbxAutoInstallPlanner.normalizePreparedDLC(at: ambiguous)
+        precondition(ignoredName == nil, "Ambiguous multi-RPF import should be skipped, not normalized")
+        precondition(FileManager.default.fileExists(atPath: ambiguousA.path)
+                     && FileManager.default.fileExists(atPath: ambiguousB.path),
+                     "Ambiguous source staging files were unexpectedly deleted")
+        precondition(!FileManager.default.fileExists(atPath: ambiguous.appendingPathComponent("data").path),
+                     "Ambiguous package was incorrectly added to Orbx output")
+
         print("ORBX AUTO INSTALL TESTS: PASS")
         print("Fixture folder: data/orbx/gta/rpf/dlc_addon/")
         print("Fixture file: data/orbx/gta/dlclist.xml")
