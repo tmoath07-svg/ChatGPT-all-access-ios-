@@ -188,7 +188,7 @@ struct DLCPS4PreparationView: View {
                 }
 
                 let entries = safeNames.sorted().map {
-                    "        <Item>/Data/orbx/gta/rpf/dlc_addon/\($0)/</Item>"
+                    "        <Item>/data/orbx/gta/rpf/dlc_addon/\($0)/</Item>"
                 }.joined(separator: "\n")
                 let xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
