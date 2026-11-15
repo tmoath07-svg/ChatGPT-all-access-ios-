@@ -837,8 +837,7 @@ struct GitHubIntegrationView: View {
         .task(id: "\(selectedRepositoryID ?? 0)-\(monitorRefreshToken)") {
             guard let repository = selectedRepository,
                   workflowDispatchStartedAt != nil else { return }
-            for _ in 0..<180 {
-                guard !Task.isCancelled else { return }
+            while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(8))
                 await client.loadRuns(for: repository)
                 guard let latest = client.runs.first,
