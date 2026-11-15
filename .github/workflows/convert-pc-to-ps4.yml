@@ -330,15 +330,59 @@ jobs:
                   if not any(parent == item[0] or parent in item[0].parents for parent, _, _ in unique_candidates):
                       unique_candidates.append(item)
 
+              required_meta = {'vehicles.meta', 'handling.meta', 'carvariations.meta'}
+
+              def vehicle_label(vehicle_dir: Path, stream_root: Path, resource_candidate: Path) -> str:
+                  # A resource with model files directly in stream/ represents one vehicle.
+                  return resource_candidate.name if vehicle_dir == stream_root else vehicle_dir.name
+
+              def resolve_meta_dir(vehicle_dir: Path, stream_root: Path, resource_candidate: Path,
+                                   candidate_data: Path):
+                  label = vehicle_label(vehicle_dir, stream_root, resource_candidate)
+                  explicit = [
+                      candidate_data / label,
+                      resource_candidate / 'data' / label,
+                      resource_candidate / label,
+                  ]
+                  for path in explicit:
+                      if path.is_dir():
+                          found = {p.name.lower() for p in path.rglob('*') if p.is_file()}
+                          if required_meta <= found:
+                              return path
+
+                  # Some single-vehicle FiveM resources put the META files directly
+                  # in data/, rather than data/<vehicle-name>/. Accept that layout,
+                  # but do not accidentally combine several vehicles' META folders.
+                  for base in (candidate_data, resource_candidate / 'data', resource_candidate):
+                      if not base.is_dir():
+                          continue
+                      direct = {p.name.lower() for p in base.iterdir() if p.is_file()}
+                      if required_meta <= direct:
+                          return base
+                      matching_children = []
+                      for child in base.iterdir():
+                          if not child.is_dir():
+                              continue
+                          found = {p.name.lower() for p in child.rglob('*') if p.is_file()}
+                          if required_meta <= found:
+                              matching_children.append(child)
+                      if len(matching_children) == 1:
+                          return matching_children[0]
+                  return None
+
               viable = []
               rejected = []
               for stream_root, candidate_dirs, direct_yft in unique_candidates:
                   resource_candidate = stream_root.parent
-                  if direct_yft:
-                      rejected.append((stream_root, 'YFT files directly in stream/; expected per-vehicle folders'))
-                      continue
+                  # Support both common FiveM layouts:
+                  #   stream/<vehicle-name>/*.yft
+                  #   stream/*.yft (single-vehicle resource)
+                  if not candidate_dirs and direct_yft:
+                      candidate_dirs = [stream_root]
+                  elif direct_yft and candidate_dirs:
+                      print(f'[FiveM] NOTE: {stream_root} has root-level YFT files; using its named vehicle folders.')
                   if not candidate_dirs:
-                      rejected.append((stream_root, 'no vehicle folders with YFT files'))
+                      rejected.append((stream_root, 'no vehicle folders or root-level YFT files'))
                       continue
                   if len(candidate_dirs) > 12:
                       rejected.append((stream_root, f'{len(candidate_dirs)} vehicle folders exceeds the 12-vehicle limit'))
@@ -359,25 +403,21 @@ jobs:
 
                   compatible = []
                   for vehicle_dir in candidate_dirs:
+                      label = vehicle_label(vehicle_dir, stream_root, resource_candidate)
                       try:
                           _model, model_files, _mods, _other = z._discover_replacement_vehicle(vehicle_dir)
                           if not model_files:
                               raise RuntimeError('no supported YFT/YTD model files')
-                          specific_roots = [
-                              candidate_data / vehicle_dir.name,
-                              resource_candidate / 'data' / vehicle_dir.name,
-                              resource_candidate / vehicle_dir.name
-                          ]
-                          specific_meta = next((p for p in specific_roots if p.is_dir()), None)
-                          meta_root = specific_meta if specific_meta is not None else candidate_data
-                          found = {p.name.lower() for p in meta_root.rglob('*') if p.is_file()}
-                          missing = {'vehicles.meta', 'handling.meta', 'carvariations.meta'} - found
-                          if missing:
-                              raise RuntimeError('missing META: ' + ', '.join(sorted(missing)))
+                          meta_root = resolve_meta_dir(vehicle_dir, stream_root, resource_candidate, candidate_data)
+                          if meta_root is None:
+                              raise RuntimeError(
+                                  'missing required META files (vehicles.meta, handling.meta, carvariations.meta) '
+                                  'in the matching data folder or directly in data/'
+                              )
                           compatible.append(vehicle_dir)
                       except Exception as exc:
                           rejected.append((vehicle_dir, str(exc)))
-                          print(f'[FiveM] SKIP {vehicle_dir.name}: {exc}')
+                          print(f'[FiveM] SKIP {label}: {exc}')
 
                   if compatible:
                       viable.append((len(compatible), stream_root, compatible, resource_candidate, candidate_data))
@@ -421,8 +461,9 @@ jobs:
               used_names = set()
           
               for vehicle_dir in vehicle_dirs:
+                  vehicle_name = vehicle_label(vehicle_dir, stream_root, resource)
                   old_model, model_files, _mods_rpfs, _other_rpfs = z._discover_replacement_vehicle(vehicle_dir)
-                  spawn = z._sanitize_vehicle_name(vehicle_dir.name)
+                  spawn = z._sanitize_vehicle_name(vehicle_name)
                   if spawn in used_names:
                       raise RuntimeError(f'Duplicate spawn name after normalization: {spawn}')
                   used_names.add(spawn)
@@ -441,9 +482,12 @@ jobs:
                           raise RuntimeError(f'Output resource collision: {out_name}')
                       shutil.copy2(p, target)
           
-                  meta_dir = data_root / vehicle_dir.name
-                  if not meta_dir.is_dir():
-                      raise RuntimeError(f'Missing matching metadata folder: data/{vehicle_dir.name}/')
+                  meta_dir = resolve_meta_dir(vehicle_dir, stream_root, resource, data_root)
+                  if meta_dir is None:
+                      raise RuntimeError(
+                          f'{vehicle_name}: missing required META files in its matching data folder '
+                          'or directly in data/'
+                      )
                   found_for_vehicle = set()
                   for meta_file in meta_dir.rglob('*'):
                       if not meta_file.is_file() or meta_file.name.lower() not in metadata_inputs:
@@ -454,8 +498,8 @@ jobs:
                   missing = {'vehicles.meta', 'handling.meta', 'carvariations.meta'} - found_for_vehicle
                   if missing:
                       raise RuntimeError(f'{vehicle_dir.name}: missing required META files: {", ".join(sorted(missing))}')
-                  vehicle_entries.append((old_model, spawn, vehicle_dir.name))
-                  print(f'[FiveM] {vehicle_dir.name}: model={old_model}, spawn={spawn}, model_files={len(model_files)}')
+                  vehicle_entries.append((old_model, spawn, vehicle_name))
+                  print(f'[FiveM] {vehicle_name}: model={old_model}, spawn={spawn}, model_files={len(model_files)}')
           
               # Merge metadata from each vehicle into the corresponding DLC metadata file.
               destinations = {
