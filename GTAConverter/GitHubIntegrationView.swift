@@ -1,4 +1,5 @@
 import SwiftUI
+import CryptoKit
 import SwiftArchive
 import UniformTypeIdentifiers
 import Security
@@ -31,10 +32,25 @@ private struct GHRepository: Decodable, Identifiable {
     let name: String
     let full_name: String
     let isPrivate: Bool
+    let defaultBranch: String?
     enum CodingKeys: String, CodingKey {
         case id, name, full_name
         case isPrivate = "private"
+        case defaultBranch = "default_branch"
     }
+}
+private struct GHRelease: Decodable {
+    let id: Int
+    let tag_name: String
+    let upload_url: String
+    let html_url: String
+    let assets: [GHReleaseAsset]?
+}
+private struct GHReleaseAsset: Decodable, Identifiable {
+    let id: Int
+    let name: String
+    let size: Int
+    let browser_download_url: String
 }
 private struct GHWorkflowList: Decodable { let workflows: [GHWorkflow] }
 private struct GHWorkflow: Decodable, Identifiable {
@@ -58,9 +74,12 @@ private struct GHWorkflowRun: Decodable, Identifiable {
 
 private enum GHError: LocalizedError {
     case message(String)
+    case httpStatus(Int, String)
     var errorDescription: String? {
-        if case .message(let value) = self { return value }
-        return "حدث خطأ غير معروف."
+        switch self {
+        case .message(let value): return value
+        case .httpStatus(let code, let message): return "GitHub HTTP \(code): \(message)"
+        }
     }
 }
 
@@ -109,6 +128,7 @@ private final class GitHubIntegrationClient: ObservableObject {
     @Published var repositories: [GHRepository] = []
     @Published var workflows: [GHWorkflow] = []
     @Published var runs: [GHWorkflowRun] = []
+    @Published var releaseAssets: [GHReleaseAsset] = []
     @Published var status = "اربط حساب GitHub للبدء."
     @Published var isBusy = false
 
@@ -264,15 +284,16 @@ private final class GitHubIntegrationClient: ObservableObject {
         }
     }
 
-    func createRepository(name: String, isPrivate: Bool) async throws {
+    func createRepository(name: String, isPrivate: Bool) async throws -> GHRepository {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { throw GHError.message("اكتب اسم المستودع.") }
-        let _: GHRepository = try await api("/user/repos", method: "POST", body: [
+        let repository: GHRepository = try await api("/user/repos", method: "POST", body: [
             "name": name, "private": isPrivate, "auto_init": true,
             "description": "Mod workspace managed by INRPF"
         ])
         await loadRepositories()
-        status = "تم إنشاء المستودع \(name)."
+        status = "تم إنشاء المستودع \(repository.full_name)."
+        return repository
     }
 
     func ensureConversionAssets(for repository: GHRepository, branch: String, toolkitPath: String) async throws {
@@ -281,13 +302,12 @@ private final class GitHubIntegrationClient: ObservableObject {
         let workflowURL = URL(string: "https://raw.githubusercontent.com/tmoath07-svg/ChatGPT-all-access-ios-/feature/inrpf-github-device-flow/.github/workflows/convert-pc-to-ps4.yml")!
         let toolkitURL = URL(string: "https://raw.githubusercontent.com/tmoath07-svg/Ps4tools/main/ZokiiStudio-Toolkit-FIXED.zip")!
         let (workflowData, workflowResponse) = try await URLSession.shared.data(from: workflowURL)
-        guard (workflowResponse as? HTTPURLResponse)?.statusCode == 200, !workflowData.isEmpty else {
-            throw GHError.message("تعذر تنزيل ملف Workflow الأساسي.")
-        }
+        try check(workflowResponse, workflowData)
+        guard !workflowData.isEmpty else { throw GHError.message("ملف Workflow الذي تم تنزيله فارغ.") }
         let (toolkitData, toolkitResponse) = try await URLSession.shared.data(from: toolkitURL)
-        guard (toolkitResponse as? HTTPURLResponse)?.statusCode == 200,
-              !toolkitData.isEmpty, toolkitData.count <= 25 * 1024 * 1024 else {
-            throw GHError.message("تعذر تنزيل حزمة أدوات التحويل أو تجاوزت الحجم المسموح.")
+        try check(toolkitResponse, toolkitData)
+        guard !toolkitData.isEmpty, toolkitData.count <= 25 * 1024 * 1024 else {
+            throw GHError.message("حزمة أدوات التحويل فارغة أو تجاوزت 25MB.")
         }
         try await uploadRepositoryAsset(workflowData, to: repository,
             path: ".github/workflows/convert-pc-to-ps4.yml", branch: branchEncoded,
@@ -305,17 +325,17 @@ private final class GitHubIntegrationClient: ObservableObject {
         let encodedPath = path.split(separator: "/").map {
             String($0).addingPercentEncoding(withAllowedCharacters: allowed) ?? String($0)
         }.joined(separator: "/")
-        let existing: GHContentResult? = try? await api(
-            "/repos/\(repository.full_name)/contents/\(encodedPath)?ref=\(branch)"
-        )
+        let existing: GHContentResult?
+        do {
+            existing = try await api("/repos/\(repository.full_name)/contents/\(encodedPath)?ref=\(branch)")
+        } catch GHError.httpStatus(404, _) {
+            existing = nil
+        }
+        let gitHeader = Data("blob \(data.count)\0".utf8)
+        let expectedSHA = Insecure.SHA1.hash(data: gitHeader + data).map { String(format: "%02x", $0) }.joined()
         if let current = existing?.content, let sha = current.sha {
-            if skipIfExists {
-                status = "حزمة التحويل موجودة مسبقاً؛ تم تجاوز إعادة رفعها."
-                return
-            }
-            if let encoded = current.content?.components(separatedBy: .whitespacesAndNewlines).joined(),
-               let currentData = Data(base64Encoded: encoded), currentData == data {
-                status = "ملف Workflow مطابق وموجود مسبقاً."
+            if current.sha == expectedSHA {
+                status = skipIfExists ? "حزمة التحويل مطابقة وموجودة مسبقاً." : "ملف Workflow مطابق وموجود مسبقاً."
                 return
             }
             let _: GHContentResult = try await api(
@@ -350,7 +370,8 @@ private final class GitHubIntegrationClient: ObservableObject {
         status = "تم رفع \(url.lastPathComponent)."
     }
 
-    func uploadItems(_ urls: [URL], to repository: GHRepository, inputFolder: String) async throws {
+    func uploadItems(_ urls: [URL], to repository: GHRepository, inputFolder: String,
+                     branch: String) async throws -> String {
         guard !urls.isEmpty else { throw GHError.message("اختر ملفات التحويل أولاً.") }
         var files: [(URL, String)] = []
         let fm = FileManager.default
@@ -374,11 +395,89 @@ private final class GitHubIntegrationClient: ObservableObject {
             }
         }
         guard !files.isEmpty else { throw GHError.message("المجلد المختار لا يحتوي ملفات.") }
+        let tag = "inrpf-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8).lowercased())"
+        let release = try await createInputRelease(tag: tag, repository: repository, branch: branch)
+        var manifest: [[String: String]] = []
         for (index, item) in files.enumerated() {
-            try await uploadFile(item.0, to: repository, repositoryPath: "\(inputFolder)/\(item.1)")
-            status = "رفع الملفات: \(index + 1) من \(files.count)"
+            let attributes = try fm.attributesOfItem(atPath: item.0.path)
+            let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
+            guard size > 0 && size <= 2_000_000_000 else {
+                throw GHError.message("حجم الملف غير مدعوم في Release: \(item.1)")
+            }
+            let assetName = String(format: "inrpf-input-%05d.bin", index + 1)
+            try await uploadReleaseAsset(item.0, name: assetName, release: release)
+            manifest.append(["asset": assetName, "path": item.1])
+            status = "رفع ملفات Release: \(index + 1) من \(files.count)"
         }
-        status = "اكتمل رفع \(files.count) ملفاً إلى \(repository.full_name)/\(inputFolder)."
+        let manifestData = try JSONSerialization.data(withJSONObject: ["files": manifest], options: [.prettyPrinted, .sortedKeys])
+        let manifestURL = fm.temporaryDirectory.appendingPathComponent("inrpf-input-manifest-\(UUID().uuidString).json")
+        try manifestData.write(to: manifestURL, options: .atomic)
+        defer { try? fm.removeItem(at: manifestURL) }
+        try await uploadReleaseAsset(manifestURL, name: "inrpf-input-manifest.json", release: release)
+        status = "اكتمل رفع \(files.count) ملفاً إلى Release \(tag)."
+        return tag
+    }
+
+    private func createInputRelease(tag: String, repository: GHRepository, branch: String) async throws -> GHRelease {
+        let release: GHRelease = try await api("/repos/\(repository.full_name)/releases", method: "POST", body: [
+            "tag_name": tag,
+            "target_commitish": branch,
+            "name": "INRPF Input • \(tag)",
+            "body": "Input files uploaded by INRPF. The conversion workflow will publish its results to this release.",
+            "draft": false,
+            "prerelease": false
+        ])
+        return release
+    }
+
+    private func uploadReleaseAsset(_ fileURL: URL, name: String, release: GHRelease) async throws {
+        guard let token = token?.accessToken else { throw GHError.message("سجّل الدخول أولاً.") }
+        let base = release.upload_url.components(separatedBy: "{").first ?? release.upload_url
+        guard var components = URLComponents(string: base) else {
+            throw GHError.message("رابط رفع Release غير صالح.")
+        }
+        components.queryItems = [URLQueryItem(name: "name", value: name)]
+        guard let url = components.url else { throw GHError.message("تعذر تكوين رابط رفع Release.") }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        let (responseData, response) = try await URLSession.shared.upload(for: request, fromFile: fileURL)
+        try check(response, responseData)
+    }
+
+    func loadReleaseAssets(for repository: GHRepository, tag: String) async {
+        do {
+            let encoded = tag.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? tag
+            let release: GHRelease = try await api("/repos/\(repository.full_name)/releases/tags/\(encoded)")
+            releaseAssets = release.assets ?? []
+            status = "تم تحديث ملفات Release \(tag)."
+        } catch {
+            releaseAssets = []
+            status = "تعذر قراءة Release \(tag): \(error.localizedDescription)"
+        }
+    }
+
+    func downloadReleaseAsset(_ asset: GHReleaseAsset, from repository: GHRepository) async throws -> URL {
+        try await refreshIfNeeded()
+        guard let access = token?.accessToken else { throw GHError.message("سجّل الدخول أولاً.") }
+        let endpoint = "https://api.github.com/repos/\(repository.full_name)/releases/assets/\(asset.id)"
+        var request = URLRequest(url: URL(string: endpoint)!)
+        request.setValue("Bearer \(access)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
+        let (temporaryURL, response) = try await URLSession.shared.download(for: request)
+        try check(response, Data())
+        let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("GTA Converter/INRPF Results", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let safeName = asset.name.replacingOccurrences(of: "/", with: "_")
+        let destination = root.appendingPathComponent(safeName)
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.moveItem(at: temporaryURL, to: destination)
+        return destination
     }
 
     func loadWorkflows(for repository: GHRepository) async {
@@ -486,7 +585,7 @@ private final class GitHubIntegrationClient: ObservableObject {
         guard let http = response as? HTTPURLResponse else { throw GHError.message("استجابة شبكة غير معروفة.") }
         guard (200...299).contains(http.statusCode) else {
             let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["message"] as? String
-            throw GHError.message(message ?? "GitHub API HTTP \(http.statusCode)")
+            throw GHError.httpStatus(http.statusCode, message ?? "بدون تفاصيل من الخادم")
         }
     }
 }
@@ -545,6 +644,10 @@ struct GitHubIntegrationView: View {
     @State private var selectedRepositoryID: Int?
     @State private var selectedWorkflowID: Int?
     @State private var branchName = "main"
+    @State private var activeReleaseTag: String?
+    @State private var workflowDispatchStartedAt: Date?
+    @State private var downloadedResultURLs: [URL] = []
+    @State private var showingLegacyTools = false
     @State private var activeSheet: ActiveSheet?
     @State private var selectedFileURLs: [URL] = []
     @State private var appFiles: [URL] = []
@@ -680,6 +783,7 @@ struct GitHubIntegrationView: View {
                     repositorySection
                     uploadSection
                     workflowSection
+                    releaseResultsSection
                 }
                 Text(client.status)
                     .font(.footnote).foregroundStyle(.secondary)
@@ -701,6 +805,10 @@ struct GitHubIntegrationView: View {
         .navigationTitle(client.isAuthorized ? "INRPF • GitHub" : "INRPF")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showingLegacyTools) {
+            NavigationStack { ContentView() }
+                .preferredColorScheme(.dark)
+        }
         .onAppear {
             if client.isAuthorized {
                 didConfirmGitHubSession = true
@@ -717,11 +825,20 @@ struct GitHubIntegrationView: View {
         }
         .task(id: "\(selectedRepositoryID ?? 0)-\(monitorRefreshToken)") {
             guard let repository = selectedRepository else { return }
-            while !Task.isCancelled {
+            for _ in 0..<180 {
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(for: .seconds(8))
                 await client.loadRuns(for: repository)
-                let isRunning = client.runs.contains { $0.status == "queued" || $0.status == "in_progress" || $0.status == "waiting" }
-                guard isRunning else { break }
-                try? await Task.sleep(for: .seconds(12))
+                guard let latest = client.runs.first,
+                      let startedAt = workflowDispatchStartedAt,
+                      let createdAt = ISO8601DateFormatter().date(from: latest.created_at),
+                      createdAt >= startedAt.addingTimeInterval(-60) else { continue }
+                if latest.status == "completed" {
+                    if let tag = activeReleaseTag {
+                        await client.loadReleaseAssets(for: repository, tag: tag)
+                    }
+                    break
+                }
             }
         }
         .onChange(of: selectedFileURLs) { _, urls in
@@ -807,6 +924,16 @@ struct GitHubIntegrationView: View {
                 }
                 Spacer(minLength: 0)
             }
+            Button {
+                showingLegacyTools = true
+            } label: {
+                Label("أدوات INRPF القديمة", systemImage: "square.grid.2x2")
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
 
             if client.isAuthorized {
                 VStack(alignment: .leading, spacing: 8) {
@@ -890,13 +1017,17 @@ struct GitHubIntegrationView: View {
                 Button {
                     selectedRepositoryID = repository.id
                     selectedWorkflowID = nil
+                    activeReleaseTag = nil
+                    workflowDispatchStartedAt = nil
+                    client.releaseAssets = []
+                    branchName = repository.defaultBranch ?? "main"
                     client.workflows = []
                     client.runs = []
                     Task {
                         do {
                             try await client.ensureConversionAssets(
                                 for: repository,
-                                branch: branchName,
+                                branch: repository.defaultBranch ?? "main",
                                 toolkitPath: toolkitZip
                             )
                             await client.loadWorkflows(for: repository)
@@ -930,8 +1061,23 @@ struct GitHubIntegrationView: View {
             Button("إنشاء المستودع") {
                 Task {
                     do {
-                        try await client.createRepository(name: repositoryName, isPrivate: isPrivate)
+                        let repository = try await client.createRepository(name: repositoryName, isPrivate: isPrivate)
                         repositoryName = ""
+                        selectedRepositoryID = repository.id
+                        selectedWorkflowID = nil
+                        activeReleaseTag = nil
+                        workflowDispatchStartedAt = nil
+                        client.releaseAssets = []
+                        branchName = repository.defaultBranch ?? "main"
+                        client.workflows = []
+                        client.runs = []
+                        try await client.ensureConversionAssets(
+                            for: repository,
+                            branch: branchName,
+                            toolkitPath: toolkitZip
+                        )
+                        await client.loadWorkflows(for: repository)
+                        await client.loadRuns(for: repository)
                     } catch { client.status = error.localizedDescription }
                 }
             }
@@ -944,7 +1090,7 @@ struct GitHubIntegrationView: View {
 
     private var uploadSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("رفع ملف مود إلى المستودع").font(.headline)
+            Text("رفع ملفات إلى GitHub Release").font(.headline)
             Text(selectedRepository?.full_name ?? "اختر مستودعاً أولاً")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
@@ -983,14 +1129,16 @@ struct GitHubIntegrationView: View {
                     Label(file.lastPathComponent, systemImage: "folder.badge.plus").font(.caption).lineLimit(1)
                 }.buttonStyle(.plain)
             }
-            Button("رفع جميع الملفات إلى GitHub") {
+            Button("رفع جميع الملفات إلى Release") {
                 guard let repository = selectedRepository else { return }
                 let urls = selectedFileURLs
                 let folder = inputFolder.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
                 guard !folder.isEmpty else { client.status = "اكتب مجلد الإدخال."; return }
                 Task {
                     do {
-                        try await client.uploadItems(urls, to: repository, inputFolder: folder)
+                        let tag = try await client.uploadItems(urls, to: repository, inputFolder: folder, branch: branchName)
+                        activeReleaseTag = tag
+                        client.status = "تم رفع الملفات إلى Release وإنشاء Tag: \(tag)"
                     } catch { client.status = error.localizedDescription }
                 }
             }
@@ -1098,6 +1246,65 @@ struct GitHubIntegrationView: View {
         }
     }
 
+    private var releaseResultsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ملفات الناتج في Release").font(.headline)
+                    Text(activeReleaseTag ?? "تظهر هنا ملفات التحويل بعد انتهاء GitHub Actions.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    guard let repository = selectedRepository, let tag = activeReleaseTag else { return }
+                    Task { await client.loadReleaseAssets(for: repository, tag: tag) }
+                } label: {
+                    Image(systemName: "arrow.clockwise").padding(9)
+                        .background(Color.white.opacity(0.08), in: Circle())
+                }.disabled(selectedRepository == nil || activeReleaseTag == nil)
+            }
+            let outputs = client.releaseAssets.filter { !$0.name.hasPrefix("inrpf-input-") }
+            if outputs.isEmpty {
+                Text("ما فيه نواتج منشورة لهذا الـ Release حتى الآن.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(outputs) { asset in
+                HStack(spacing: 10) {
+                    Image(systemName: "doc.zipper").foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(asset.name).font(.caption.bold())
+                        Text(ByteCountFormatter.string(fromByteCount: Int64(asset.size), countStyle: .file))
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("تنزيل") {
+                        guard let repository = selectedRepository else { return }
+                        Task {
+                            do {
+                                let url = try await client.downloadReleaseAsset(asset, from: repository)
+                                downloadedResultURLs.removeAll { $0.lastPathComponent == url.lastPathComponent }
+                                downloadedResultURLs.append(url)
+                                client.status = "تم تنزيل \(asset.name) إلى ملفات INRPF."
+                                refreshAppFiles()
+                            } catch {
+                                client.status = "تعذر تنزيل \(asset.name): \(error.localizedDescription)"
+                            }
+                        }
+                    }.buttonStyle(.borderedProminent)
+                }
+                if let localURL = downloadedResultURLs.first(where: { $0.lastPathComponent == asset.name }) {
+                    ShareLink(item: localURL) {
+                        Label("حفظ في تطبيق الملفات", systemImage: "square.and.arrow.up")
+                            .font(.caption)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(red: 0.075, green: 0.085, blue: 0.13).opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.075), lineWidth: 1))
+    }
+
     private var workflowSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -1194,17 +1401,20 @@ struct GitHubIntegrationView: View {
                         guard !urls.isEmpty else {
                             throw GHError.message("اختر ملفات التحويل قبل تشغيل Workflow.")
                         }
-                        try await client.uploadItems(urls, to: repository, inputFolder: folder)
+                        let tag = try await client.uploadItems(urls, to: repository, inputFolder: folder, branch: branchName)
+                        activeReleaseTag = tag
+                        workflowDispatchStartedAt = Date()
                         try await client.dispatch(workflow, repository: repository, ref: branchName, inputs: [
                             "mode": resolvedConversionMode,
                             "toolkit_zip": toolkitZip,
                             "url": "",
                             "input_folder": folder,
+                            "release_tag": tag,
                             "vehicle_spawn_name": vehicleSpawnName
                         ])
                         selectedFileURLs = []
                         monitorRefreshToken += 1
-                        client.status = "تم رفع الملفات وتشغيل Workflow. مجلد الإدخال: \(folder)"
+                        client.status = "تم إنشاء Release وTag \(tag)، ورفع المدخلات وتشغيل Workflow."
                     } catch { client.status = error.localizedDescription }
                 }
             }

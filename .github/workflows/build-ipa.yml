@@ -63,12 +63,24 @@ jobs:
           set -euo pipefail
           grep -Fq 'GitHubIntegrationView()' GTAConverter/GTAConverterApp.swift
           grep -Fq 'NavigationStack {' GTAConverter/GTAConverterApp.swift
-          ! grep -Fq 'ContentView()' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'ContentView()' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'showingLegacyTools = true' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'GitHubIntegrationView()' GTAConverter/GTAConverterApp.swift
           grep -Fq 'https://github.com/signup' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'https://github.com/login/device/code' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'GHKeychain.save(token)' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'didConfirmGitHubSession' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'resolvedConversionMode' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'defaultBranch = "default_branch"' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'createInputRelease' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'uploadReleaseAsset' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq '"release_tag": tag' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'loadReleaseAssets' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'downloadReleaseAsset' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'Publish converted files to the input Release' .github/workflows/convert-pc-to-ps4.yml
+          grep -Fq 'gh release download' .github/workflows/convert-pc-to-ps4.yml
+          grep -Fq 'gh release upload' .github/workflows/convert-pc-to-ps4.yml
+          grep -Fq 'contents: write' .github/workflows/convert-pc-to-ps4.yml
           grep -Fq 'conversionMode == "أوتو"' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'GHWorkflowRun' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'loadRuns(for repository: GHRepository)' GTAConverter/GitHubIntegrationView.swift

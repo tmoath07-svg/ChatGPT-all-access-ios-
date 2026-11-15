@@ -30,10 +30,15 @@ on:
         type: string
         default: ""
       input_folder:
-        description: "مجلد المود داخل المستودع"
+        description: "مجلد المود داخل مساحة التحويل"
         required: true
         type: string
         default: "input"
+      release_tag:
+        description: "Tag الخاص بملفات الإدخال المنشورة في GitHub Release"
+        required: true
+        type: string
+        default: "inrpf-input"
       vehicle_spawn_name:
         description: "اسم سباون السيارة داخل GTA"
         required: true
@@ -41,7 +46,7 @@ on:
         default: "buccaneer2"
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -59,6 +64,46 @@ jobs:
     steps:
       - name: Checkout GTA Converter repository
         uses: actions/checkout@v4
+
+      - name: Download and restore INRPF Release input
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          INPUT_FOLDER: ${{ inputs.input_folder }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_TAG"
+          mkdir -p input-assets "$INPUT_FOLDER"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir input-assets
+          test -s input-assets/inrpf-input-manifest.json || {
+            echo "ERROR: Release manifest not found for tag $RELEASE_TAG."
+            exit 1
+          }
+          python - "$INPUT_FOLDER" <<'PY'
+          import json, shutil, sys
+          from pathlib import Path
+          root = Path("input-assets")
+          target = Path(sys.argv[1]).resolve()
+          manifest = json.loads((root / "inrpf-input-manifest.json").read_text())
+          files = manifest.get("files", [])
+          if not files:
+              raise SystemExit("ERROR: Release manifest contains no input files.")
+          for item in files:
+              asset = root / item["asset"]
+              relative = Path(item["path"])
+              if relative.is_absolute() or ".." in relative.parts:
+                  raise SystemExit(f"Unsafe input path: {relative}")
+              destination = (target / relative).resolve()
+              if target not in destination.parents and destination != target:
+                  raise SystemExit(f"Input path escaped target: {relative}")
+              if not asset.is_file() or asset.stat().st_size == 0:
+                  raise SystemExit(f"Missing or empty Release asset: {asset.name}")
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(asset, destination)
+              print(f"Restored {relative} ({asset.stat().st_size} bytes)")
+          PY
+          find "$INPUT_FOLDER" -type f -print
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -674,12 +719,27 @@ jobs:
           printf 'mode=%s\n' "$MODE" > result/run-info.txt
           find result -type f -printf '%p (%s bytes)\n' | head -500 > result/file-list.txt
 
-      - name: Upload results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zokii-studio-${{ inputs.mode }}
-          path: result/
-          if-no-files-found: warn
-          compression-level: 1
-          retention-days: 7
+      - name: Publish converted files to the input Release
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_TAG"
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          root = Path("result")
+          archive = root / "INRPF-results.zip"
+          files = [p for p in root.rglob("*") if p.is_file() and p != archive and p.name != "file-list.txt"]
+          if not files:
+              raise SystemExit("ERROR: Conversion completed without output files; nothing will be published.")
+          with ZipFile(archive, "w", ZIP_DEFLATED) as z:
+              for path in files:
+                  z.write(path, path.relative_to(root))
+          print(f"Packaged {len(files)} result files into {archive}")
+          PY
+          gh release upload "$RELEASE_TAG" result/INRPF-results.zip --repo "$GITHUB_REPOSITORY" --clobber
+          echo "Published result archive to Release $RELEASE_TAG."
