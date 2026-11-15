@@ -896,6 +896,26 @@ struct GitHubIntegrationView: View {
         }
         .navigationTitle(client.isAuthorized ? "INRPF • GitHub" : "INRPF")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                NavigationLink(destination: INRPFDeviceTestLabView()) {
+                    Image(systemName: "ipad.and.iphone").foregroundStyle(.purple)
+                }
+                .accessibilityLabel("مختبر الجهاز")
+                NavigationLink(destination: AppFilesView()) {
+                    Image(systemName: "folder.fill").foregroundStyle(.purple)
+                }
+                .accessibilityLabel("الملفات")
+                NavigationLink(destination: AppSettingsView()) {
+                    Image(systemName: "gearshape.fill").foregroundStyle(.purple)
+                }
+                .accessibilityLabel("الإعدادات")
+                NavigationLink(destination: AppDiagnosticsView(sourceURL: nil, outputFolder: nil, latestError: "")) {
+                    Image(systemName: "waveform.path.ecg").foregroundStyle(.purple)
+                }
+                .accessibilityLabel("التشخيصات")
+            }
+        }
         .preferredColorScheme(.dark)
         .onAppear {
             if client.isAuthorized {
