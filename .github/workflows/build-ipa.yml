@@ -65,10 +65,10 @@ jobs:
           grep -Fq 'activeImportPicker = .folder' GTAConverter/ContentView.swift
           grep -Fq '.inrpfDocumentPicker(' GTAConverter/ContentView.swift
           grep -Fq '.inrpfDocumentPicker(' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'fileImporter(' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'allowedContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'UIDocumentPickerViewController' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'forOpeningContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'allowsMultipleSelection: allowsMultipleSelection' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'onCompletion(.success(urls))' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'asCopy: true' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'onCancellation()' GTAConverter/INRPFDocumentPicker.swift
 
       - name: Test GitHub start tab and preserved legacy workspace
@@ -140,23 +140,21 @@ jobs:
           swiftc GTAConverter/FileImportService.swift Tests/file_import_service_tests.swift -o /tmp/file-import-service-tests
           /tmp/file-import-service-tests
 
-      - name: Test unified native document picker coverage
+      - name: Test restored UIKit document picker coverage
         run: |
           set -euo pipefail
           test -s GTAConverter/INRPFDocumentPicker.swift
-          if grep -R -n --include='*.swift' -F 'UIDocumentPickerDelegate' GTAConverter; then
-            echo "FAIL: obsolete custom UIKit picker remains."
-            exit 1
-          fi
-          grep -Fq 'fileImporter(' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'allowedContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'allowsMultipleSelection: allowsMultipleSelection' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'UIDocumentPickerDelegate' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'UIDocumentPickerViewController' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'forOpeningContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'asCopy: true' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'documentPicker(_ controller: UIDocumentPickerViewController' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'onCompletion(.success(urls))' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'onCancellation()' GTAConverter/INRPFDocumentPicker.swift
           for file in ContentView.swift GitHubIntegrationView.swift DLClistEditorView.swift FeatureAnalysisViews.swift FiveMStudioView.swift LocalUtilityFeatureView.swift YTDTextureLabView.swift VehicleModelInspectorView.swift ExtraViews.swift FTPBrowserView.swift; do
             grep -Fq '.inrpfDocumentPicker(' "GTAConverter/$file"
           done
-          echo "PASS: every file-import surface uses the shared native SwiftUI document importer."
+          echo "PASS: every file-import surface uses the restored UIKit document picker with provider copy."
 
       - name: Test feature analysis core
         run: |
