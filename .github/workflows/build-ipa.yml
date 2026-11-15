@@ -45,6 +45,20 @@ jobs:
           set -euo pipefail
           swiftc GTAConverter/ModAnalyzer.swift Tests/fivem_mod_analyzer_tests.swift -o /tmp/fivem-mod-analyzer-tests
           /tmp/fivem-mod-analyzer-tests
+          python3 - <<'PY'
+          from pathlib import Path
+          import py_compile
+          import textwrap
+          workflow = Path(".github/workflows/convert-pc-to-ps4.yml").read_text()
+          start_marker = "          cat > toolkit/fivem_multi_vehicle_dlc.py <<'PY'\\n"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index("\\n          PY\\n", start)
+          source = textwrap.dedent(workflow[start:end])
+          py_compile.compile(source=source, cfile="/tmp/inrpf-fivem-dlc.pyc", doraise=True)
+          assert "viable_candidates" in source or "viable" in source
+          assert "[FiveM] SKIP" in source or "[FiveM] SKIPPED" in source
+          print("FiveM multi-candidate workflow script: syntax OK")
+          PY
           grep -q 'MARKETING_VERSION: "6.06"' project.yml
           grep -q 'CURRENT_PROJECT_VERSION: "77"' project.yml
           ! grep -Fq '.fileImporter(' GTAConverter/ContentView.swift GTAConverter/GitHubIntegrationView.swift
