@@ -316,7 +316,7 @@ private final class GitHubIntegrationClient: ObservableObject {
         }.joined(separator: "/")
         let workflowData: Data
         do {
-            let source: GHContentResult = try await api(
+            let source: GHRepositoryFile = try await api(
                 "/repos/tmoath07-svg/ChatGPT-all-access-ios-/contents/\(encodedWorkflowPath)?ref=feature/inrpf-github-device-flow"
             )
             guard let encoded = source.content?.content,
@@ -677,6 +677,13 @@ private struct GHContentResult: Decodable {
 private struct GHContent: Decodable {
     let name: String?
     let sha: String?
+    let content: String?
+    let encoding: String?
+}
+
+// GET /contents/{path} returns Base64 text at the top-level "content" key,
+// unlike PUT responses where "content" is a nested object.
+private struct GHRepositoryFile: Decodable {
     let content: String?
     let encoding: String?
 }
