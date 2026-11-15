@@ -868,8 +868,13 @@ struct GitHubIntegrationView: View {
                       let createdAt = ISO8601DateFormatter().date(from: latest.created_at),
                       createdAt >= startedAt.addingTimeInterval(-60) else { continue }
                 if latest.status == "completed" {
-                    if let tag = activeReleaseTag {
-                        await client.loadReleaseAssets(for: repository, tag: tag)
+                    if latest.conclusion == "success" {
+                        if let tag = activeReleaseTag {
+                            await client.loadReleaseAssets(for: repository, tag: tag)
+                        }
+                        client.status = "انتهى التحويل بنجاح. رابط الناتج ظاهر في قسم ملفات الناتج."
+                    } else {
+                        client.status = "انتهى تشغيل GitHub Actions بنتيجة: \(latest.conclusion ?? "غير معروفة"). افتح سجل التشغيل لمعرفة الخطوة التي فشلت."
                     }
                     break
                 }
@@ -1407,6 +1412,8 @@ struct GitHubIntegrationView: View {
                 }
                 let folder = "\(baseFolder)/inrpf-\(UUID().uuidString.lowercased())"
                 Task {
+                    client.isBusy = true
+                    defer { client.isBusy = false }
                     do {
                         guard !urls.isEmpty else {
                             throw GHError.message("اختر ملفات التحويل قبل تشغيل المستودع.")
