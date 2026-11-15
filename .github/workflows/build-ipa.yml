@@ -148,7 +148,7 @@ jobs:
           grep -Fq 'UIDocumentPickerViewController' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'forOpeningContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'asCopy: true' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'documentPicker(_ controller: UIDocumentPickerViewController' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'didPickDocumentsAt urls:' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'onCompletion(.success(urls))' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'onCancellation()' GTAConverter/INRPFDocumentPicker.swift
           for file in ContentView.swift GitHubIntegrationView.swift DLClistEditorView.swift FeatureAnalysisViews.swift FiveMStudioView.swift LocalUtilityFeatureView.swift YTDTextureLabView.swift VehicleModelInspectorView.swift ExtraViews.swift FTPBrowserView.swift; do
