@@ -138,7 +138,7 @@ struct DLCPS4PreparationView: View {
                     .appendingPathComponent("GTA Converter/Ready", isDirectory: true)
                 try fm.createDirectory(at: ready, withIntermediateDirectories: true)
                 let output = ready.appendingPathComponent("PS4-Orbx-\(UUID().uuidString)", isDirectory: true)
-                let addonRoot = output.appendingPathComponent("Data/orbx/gta/rpf/dlc_addon", isDirectory: true)
+                let addonRoot = output.appendingPathComponent("data/orbx/gta/rpf/dlc_addon", isDirectory: true)
                 try fm.createDirectory(at: addonRoot, withIntermediateDirectories: true)
 
                 // Re-scan the extracted directory at packaging time rather than trusting
@@ -177,7 +177,8 @@ struct DLCPS4PreparationView: View {
                                       userInfo: [NSLocalizedDescriptionKey: "مجلد الحزمة غير موجود: \\(name)"])
                     }
                     let destination = addonRoot.appendingPathComponent(name, isDirectory: true)
-                    try fm.copyItem(at: sourceFolder, to: destination)
+                    try fm.createDirectory(at: destination, withIntermediateDirectories: true)
+                    try fm.copyItem(at: sourceFile, to: destination.appendingPathComponent("dlc.rpf"))
                     copied.insert(name)
                 }
 
@@ -197,15 +198,17 @@ struct DLCPS4PreparationView: View {
                   </Paths>
                 </SMandatoryPacksData>
                 """
-                try xml.write(to: output.appendingPathComponent("dlclist.xml"),
+                let gtaFolder = output.appendingPathComponent("data/orbx/gta", isDirectory: true)
+                try fm.createDirectory(at: gtaFolder, withIntermediateDirectories: true)
+                try xml.write(to: gtaFolder.appendingPathComponent("dlclist.xml"),
                               atomically: true, encoding: .utf8)
 
                 let note = """
                 GTA Converter - PS4 Orbx Package
                 Creator: Moa_sa7
 
-                Copy the Data/orbx/gta/rpf/dlc_addon folders into the matching Orbx path on PS4.
-                Merge the entries from dlclist.xml into the PS4 dlclist.xml.
+                Copy the data/orbx/gta/rpf/dlc_addon folders into the matching Orbx path on PS4.
+                Merge the entries from data/orbx/gta/dlclist.xml into the PS4 dlclist.xml.
 
                 IMPORTANT:
                 This package step only arranges files and creates Orbx paths.
