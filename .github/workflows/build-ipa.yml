@@ -145,21 +145,19 @@ jobs:
         run: |
           set -euo pipefail
           test -s GTAConverter/INRPFDocumentPicker.swift
-          if grep -R -n --include='*.swift' -F '.fileImporter(' GTAConverter; then
-            echo "FAIL: legacy SwiftUI fileImporter remains in the app."
+          if grep -R -n --include='*.swift' -F 'UIDocumentPickerDelegate' GTAConverter; then
+            echo "FAIL: obsolete custom UIKit picker remains."
             exit 1
           fi
-          grep -Fq 'UIDocumentPickerDelegate' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'didPickDocumentsAt urls: [URL]' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'documentPickerWasCancelled' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'presenter.present(documentPicker, animated: true)' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'func update(' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'self.onCompletion = onCompletion' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'func inrpfDocumentPicker(' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'fileImporter(' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'allowedContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'allowsMultipleSelection: allowsMultipleSelection' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'onCompletion(.success(urls))' GTAConverter/INRPFDocumentPicker.swift
+          grep -Fq 'onCancellation()' GTAConverter/INRPFDocumentPicker.swift
           for file in ContentView.swift GitHubIntegrationView.swift DLClistEditorView.swift FeatureAnalysisViews.swift FiveMStudioView.swift LocalUtilityFeatureView.swift YTDTextureLabView.swift VehicleModelInspectorView.swift ExtraViews.swift FTPBrowserView.swift; do
             grep -Fq '.inrpfDocumentPicker(' "GTAConverter/$file"
           done
-          echo "PASS: every Swift file-import surface uses the shared UIKit presenter and refreshed callbacks."
+          echo "PASS: every file-import surface uses the shared native SwiftUI document importer."
 
       - name: Test feature analysis core
         run: |
