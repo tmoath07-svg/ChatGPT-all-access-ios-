@@ -441,16 +441,21 @@ private final class GitHubIntegrationClient: ObservableObject {
                 body: ["message": message, "content": data.base64EncodedString(), "branch": branch]
             )
         }
-        // A successful PUT alone is not enough: read the exact target path back
-        // from the user's selected branch and compare bytes before Actions lookup.
-        let verification: GHRepositoryFile = try await api(
+        // Contents API omits the Base64 body for files larger than 1 MB.
+        // Verify the Git blob SHA instead; it is calculated from the exact bytes
+        // and therefore works for both small text files and multi-megabyte ZIPs.
+        let verification: GHContentResult = try await api(
             "/repos/\(repository.full_name)/contents/\(encodedPath)?ref=\(branch)"
         )
-        guard verification.encoding == "base64",
-              let encoded = verification.content,
-              let actual = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
-              actual == data else {
-            throw GHError.message("GitHub لم يؤكد وجود الملف بالمحتوى الصحيح بعد الرفع: \(repository.full_name)/\(path) — الفرع: \(branch)")
+        guard verification.resolvedSHA == expectedSHA else {
+            throw GHError.message("GitHub أعاد SHA مختلفاً بعد الرفع: \(repository.full_name)/\(path) — الفرع: \(branch)")
+        }
+        // When GitHub includes the body (small files), also compare the bytes.
+        if let encoded = verification.content?.content,
+           verification.content?.encoding == "base64",
+           let actual = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
+           actual != data {
+            throw GHError.message("محتوى الملف بعد الرفع لا يطابق الملف الأصلي: \(repository.full_name)/\(path)")
         }
     }
 
