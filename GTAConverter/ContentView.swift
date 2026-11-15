@@ -1094,7 +1094,7 @@ private extension UTType {
 }
 
 
-private struct AppFilesView: View {
+struct AppFilesView: View {
     var directory: URL? = nil
     @AppStorage("gta_show_hidden_files") private var showHiddenFiles = false
     @State private var items: [URL] = []
@@ -1443,7 +1443,7 @@ private struct INRPFThemeSurface: ViewModifier {
     }
 }
 
-private struct AppSettingsView: View {
+struct AppSettingsView: View {
     @AppStorage("gta_show_hidden_files") private var showHiddenFiles = false
     @AppStorage("gta_language") private var language = "ar"
     @AppStorage("gta_accent_color") private var accent = "purple"
