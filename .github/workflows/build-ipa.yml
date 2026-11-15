@@ -58,8 +58,8 @@ jobs:
           assert "[FiveM] SKIP" in source or "[FiveM] SKIPPED" in source
           print("FiveM multi-candidate workflow script: syntax OK")
           PY
-          grep -q 'MARKETING_VERSION: "6.06"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "77"' project.yml
+          grep -q 'MARKETING_VERSION: "6.07"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "78"' project.yml
           ! grep -Fq '.fileImporter(' GTAConverter/ContentView.swift GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'activeImportPicker = .archive' GTAConverter/ContentView.swift
           grep -Fq 'activeImportPicker = .folder' GTAConverter/ContentView.swift
@@ -290,7 +290,7 @@ jobs:
           print("Registered Files/Open In document types.")
           PY
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 6.06' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 6.06' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 6.07' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 6.07' "$INFO"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 77' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 77' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
@@ -298,13 +298,13 @@ jobs:
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")
 
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
-          test "$VERSION" = "6.06"
-          test "$BUILD" = "77"
+          test "$VERSION" = "6.07"
+          test "$BUILD" = "78"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes' "$INFO" | grep -q 'public.archive'
-          grep -q 'MARKETING_VERSION: "6.06"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "77"' project.yml
-          zip -qry INRPF-6.06-unsigned.ipa Payload
-          unzip -t INRPF-6.06-unsigned.ipa
+          grep -q 'MARKETING_VERSION: "6.07"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "78"' project.yml
+          zip -qry INRPF-6.07-unsigned.ipa Payload
+          unzip -t INRPF-6.07-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"
           # Validate exported C ABI symbols in the Rust static library itself.
           # The final Mach-O may dead-strip unreferenced public entry points.
@@ -321,12 +321,12 @@ jobs:
           done
 
           mkdir -p release-package
-          cp INRPF-6.06-unsigned.ipa release-package/INRPF-6.06-unsigned.ipa
+          cp INRPF-6.07-unsigned.ipa release-package/INRPF-6.07-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
-          INRPF 6.06 - IPA غير موقّع
+          INRPF 6.07 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
-          2) استخرج ملف INRPF-6.06-unsigned.ipa.
+          2) استخرج ملف INRPF-6.07-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
           يتضمن هذا الإصدار محركاً محلياً لموارد المركبات، وفاحص RPF يعرض بيانات META الخاصة بالمركبات فقط، وتحليلاً وتحويلاً بنيوياً للموارد المدعومة، واستخراج وبناء قواميس YTD بصيغتها المدعومة. لا يتضمن استخراجاً عاماً لأرشيف RPF.
@@ -342,7 +342,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: INRPF-6.06-Install-Package
+          name: INRPF-6.07-Install-Package
           path: release-package/
           if-no-files-found: error
           retention-days: 14
