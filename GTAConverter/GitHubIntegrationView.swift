@@ -309,7 +309,7 @@ private final class GitHubIntegrationClient: ObservableObject {
             // Omitting "branch" is intentional: the requested ref does not exist yet.
             status = "المرحلة 1/4: إنشاء أول commit لتهيئة الفرع الافتراضي..."
             do {
-                let bootstrapText = "# INRPF workspace\\n\\nThis repository is managed by INRPF.\\n"
+                let bootstrapText = "# INRPF workspace\n\nThis repository is managed by INRPF.\n"
                 let _: GHContentResult = try await api(
                     "/repos/\(repository.full_name)/contents/README.md",
                     method: "PUT",
@@ -333,10 +333,10 @@ private final class GitHubIntegrationClient: ObservableObject {
                     throw GHError.message("تم إنشاء ملف التهيئة لكن GitHub لم يُظهر الفرع بعد.")
                 }
             } catch {
-                throw GHError.message("المستودع \(repository.full_name) لا يحتوي فرعاً بعد، وفشلت تهيئته تلقائياً: \\(error.localizedDescription)")
+                throw GHError.message("المستودع \(repository.full_name) لا يحتوي فرعاً بعد، وفشلت تهيئته تلقائياً: \(error.localizedDescription)")
             }
         } catch {
-            throw GHError.message("فشل التحقق من الفرع «\\(branchName)» في \\(repository.full_name): \\(error.localizedDescription)")
+            throw GHError.message("فشل التحقق من الفرع «\(branchName)» في \(repository.full_name): \(error.localizedDescription)")
         }
 
         // Fetch the canonical workflow from the app repository, never from the
