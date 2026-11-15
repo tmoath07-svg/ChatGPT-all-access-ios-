@@ -58,18 +58,23 @@ jobs:
           grep -Fq 'didPickDocumentsAt urls: [URL]' GTAConverter/INRPFDocumentPicker.swift
           grep -Fq 'documentPickerWasCancelled' GTAConverter/INRPFDocumentPicker.swift
 
-      - name: Test GitHub-first workspace, auto detection and Actions monitor
+      - name: Test GitHub start tab and preserved legacy workspace
         run: |
           set -euo pipefail
+          grep -Fq 'TabView(selection: $selectedTab)' GTAConverter/GTAConverterApp.swift
           grep -Fq 'GitHubIntegrationView()' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'NavigationStack {' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'ContentView()' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'Label("GitHub"' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'Label("الأدوات"' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'selectedTab = 1' GTAConverter/GTAConverterApp.swift
           grep -Fq 'struct ContentView' GTAConverter/ContentView.swift
           test -s GTAConverter/ContentView.swift
-          ! grep -Fq 'showingLegacyTools' GTAConverter/GitHubIntegrationView.swift
-          ! grep -Fq 'أدوات INRPF القديمة' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'NavigationLink(destination: AppFilesView())' GTAConverter/ContentView.swift
+          grep -Fq 'NavigationLink(destination: AppSettingsView())' GTAConverter/ContentView.swift
+          grep -Fq 'NavigationLink(destination: AppDiagnosticsView' GTAConverter/ContentView.swift
+          grep -Fq 'NavigationLink(destination: INRPFDeviceTestLabView())' GTAConverter/ContentView.swift
           grep -Fq 'Button("رفع ملفات تشغيل المستودع")' GTAConverter/GitHubIntegrationView.swift
           ! grep -Fq 'Button("رفع جميع الملفات إلى Release")' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'GitHubIntegrationView()' GTAConverter/GTAConverterApp.swift
           grep -Fq 'https://github.com/signup' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'https://github.com/login/device/code' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'GHKeychain.save(token)' GTAConverter/GitHubIntegrationView.swift
@@ -93,9 +98,11 @@ jobs:
           grep -Fq 'activeSheet == .files' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'activeSheet == .folder' GTAConverter/GitHubIntegrationView.swift
           grep -Fq '.inrpfDocumentPicker(' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'api("/repos/tmoath07-svg/ChatGPT-all-access-ios-/contents/' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'فشل تنزيل Workflow من مستودع INRPF' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'فشل رفع Workflow إلى' GTAConverter/GitHubIntegrationView.swift
           ! grep -Fq 'GTAOnboardingView' GTAConverter/ContentView.swift
-          echo "PASS: GitHub is the primary workspace; auto-detection, Actions monitoring and native importers are present."
-
+          echo "PASS: GitHub is the start tab; all legacy toolbar destinations and native importers remain available."
       - name: Test shared file import service
         run: |
           set -euo pipefail
