@@ -115,7 +115,7 @@ jobs:
           grep -Fq 'for attempt in 0..<5' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'await loadWorkflowSteps(for: repository, runID: latest.id)' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'مراحل التحويل' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'verification.content?.encoding == "base64"' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'verified.content?.encoding == "base64"' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'actual != data' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'لم يتم العثور على Workflow في فرعي feature/inrpf-github-device-flow أو main' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'فشل رفع Workflow إلى' GTAConverter/GitHubIntegrationView.swift
