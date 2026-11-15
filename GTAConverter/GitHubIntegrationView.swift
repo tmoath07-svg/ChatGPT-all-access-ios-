@@ -319,7 +319,7 @@ private final class GitHubIntegrationClient: ObservableObject {
             let source: GHRepositoryFile = try await api(
                 "/repos/tmoath07-svg/ChatGPT-all-access-ios-/contents/\(encodedWorkflowPath)?ref=feature/inrpf-github-device-flow"
             )
-            guard let encoded = source.content?.content,
+            guard let encoded = source.content,
                   let decoded = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
                   !decoded.isEmpty else {
                 throw GHError.message("استجابة GitHub لا تحتوي ملف Workflow صالحاً بترميز Base64.")
@@ -989,9 +989,9 @@ struct GitHubIntegrationView: View {
             ),
             contentTypes: [.item],
             allowsMultipleSelection: true,
-            onCompletion: {
+            onCompletion: { result in
                 activeSheet = nil
-                importGitHubItems($0, itemDescription: "ملف")
+                importGitHubItems(result, itemDescription: "ملف")
             },
             onCancellation: {
                 activeSheet = nil
@@ -1005,9 +1005,9 @@ struct GitHubIntegrationView: View {
             ),
             contentTypes: [.folder],
             allowsMultipleSelection: false,
-            onCompletion: {
+            onCompletion: { result in
                 activeSheet = nil
-                importGitHubItems($0, itemDescription: "مجلد")
+                importGitHubItems(result, itemDescription: "مجلد")
             },
             onCancellation: {
                 activeSheet = nil
