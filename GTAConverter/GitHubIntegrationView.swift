@@ -396,7 +396,13 @@ private final class GitHubIntegrationClient: ObservableObject {
         }
         guard !files.isEmpty else { throw GHError.message("المجلد المختار لا يحتوي ملفات.") }
         let tag = "inrpf-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8).lowercased())"
-        let release = try await createInputRelease(tag: tag, repository: repository, branch: branch)
+        status = "جاري إنشاء Release: \(tag)"
+        let release: GHRelease
+        do {
+            release = try await createInputRelease(tag: tag, repository: repository, branch: branch)
+        } catch {
+            throw GHError.message("فشل إنشاء Release قبل رفع الملفات: \(error.localizedDescription)")
+        }
         var manifest: [[String: String]] = []
         for (index, item) in files.enumerated() {
             let attributes = try fm.attributesOfItem(atPath: item.0.path)
@@ -405,7 +411,11 @@ private final class GitHubIntegrationClient: ObservableObject {
                 throw GHError.message("حجم الملف غير مدعوم في Release: \(item.1)")
             }
             let assetName = String(format: "inrpf-input-%05d.bin", index + 1)
-            try await uploadReleaseAsset(item.0, name: assetName, release: release)
+            do {
+                try await uploadReleaseAsset(item.0, name: assetName, release: release)
+            } catch {
+                throw GHError.message("فشل رفع الملف \(item.1) باسم \(assetName): \(error.localizedDescription)")
+            }
             manifest.append(["asset": assetName, "path": item.1])
             status = "رفع ملفات Release: \(index + 1) من \(files.count)"
         }
@@ -413,7 +423,11 @@ private final class GitHubIntegrationClient: ObservableObject {
         let manifestURL = fm.temporaryDirectory.appendingPathComponent("inrpf-input-manifest-\(UUID().uuidString).json")
         try manifestData.write(to: manifestURL, options: .atomic)
         defer { try? fm.removeItem(at: manifestURL) }
-        try await uploadReleaseAsset(manifestURL, name: "inrpf-input-manifest.json", release: release)
+        do {
+            try await uploadReleaseAsset(manifestURL, name: "inrpf-input-manifest.json", release: release)
+        } catch {
+            throw GHError.message("تم رفع ملفات الإدخال، لكن فشل رفع manifest: \(error.localizedDescription)")
+        }
         status = "اكتمل رفع \(files.count) ملفاً إلى Release \(tag)."
         return tag
     }
@@ -584,8 +598,17 @@ private final class GitHubIntegrationClient: ObservableObject {
     private func check(_ response: URLResponse, _ data: Data) throws {
         guard let http = response as? HTTPURLResponse else { throw GHError.message("استجابة شبكة غير معروفة.") }
         guard (200...299).contains(http.statusCode) else {
-            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["message"] as? String
-            throw GHError.httpStatus(http.statusCode, message ?? "بدون تفاصيل من الخادم")
+            let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            let message = payload?["message"] as? String ?? "بدون تفاصيل من الخادم"
+            let errors = (payload?["errors"] as? [[String: Any]] ?? []).map { item -> String in
+                let resource = item["resource"] as? String
+                let field = item["field"] as? String
+                let code = item["code"] as? String
+                let detail = item["message"] as? String
+                return [resource, field, code, detail].compactMap { $0 }.joined(separator: " / ")
+            }.filter { !$0.isEmpty }
+            let detail = errors.isEmpty ? message : "\(message) — \(errors.joined(separator: " | "))"
+            throw GHError.httpStatus(http.statusCode, detail)
         }
     }
 }
