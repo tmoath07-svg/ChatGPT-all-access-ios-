@@ -905,6 +905,7 @@ struct ContentView: View {
                     }
                     guard count > 0 else { throw ImportError.emptyArchive }
                 }
+                let preparedPackName = try INRPFOrbxAutoInstallPlanner.normalizePreparedDLC(at: root)
                 let analysis = try await Task.detached(priority: .utility) {
                     try ModAnalyzer.analyze(at: root)
                 }.value
@@ -942,7 +943,8 @@ struct ContentView: View {
                 } else if analysis.isFiveMVehicleResource {
                     status = "تم التعرف على مورد سيارة FiveM. ملفات YFT: \(analysis.yftFiles.count)، ملفات YTD: \(analysis.ytdFiles.count)، ملفات META: \(analysis.vehicleMetaFiles.count). تم الفحص فقط؛ تحويل PS4 يحتاج بناء DLC."
                 } else {
-                    status = "اكتمل فك الملفات. المسار المختار: \(resolvedMode(for: analysis)). تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf. هذا تجهيز وفحص، وليس تحويل PC إلى PS4 تلقائياً."
+                    status = preparedPackName.map { "تم تجهيز حزمة Orbx باسم ($0). " } ?? ""
+                    status += "اكتمل فك الملفات. المسار المختار: \(resolvedMode(for: analysis)). تم العثور على \(analysis.dlcFiles.count) ملف dlc.rpf. هذا تجهيز وفحص، وليس تحويل PC إلى PS4 تلقائياً."
                 }
                 isError = false
             } catch {
@@ -1006,7 +1008,7 @@ struct ContentView: View {
 
     private func generateXML() {
         guard !names.isEmpty else { return }
-        let entries = names.map { "        <Item>/Data/orbx/gta/rpf/dlc_addon/\($0)/</Item>" }
+        let entries = names.map { "        <Item>/data/orbx/gta/rpf/dlc_addon/\($0)/</Item>" }
             .joined(separator: "\n")
         let xml = """
         <?xml version="1.0" encoding="UTF-8"?>
