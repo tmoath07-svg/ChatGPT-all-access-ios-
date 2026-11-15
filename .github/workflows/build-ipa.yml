@@ -241,13 +241,16 @@ jobs:
           zip -qry INRPF-6.0-unsigned.ipa Payload
           unzip -t INRPF-6.0-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"
-          nm -g "Payload/INRPF.app/$EXECUTABLE" > build/exported-symbols.txt
-          grep -q "_gta_engine_build_rpf7" build/exported-symbols.txt
-          grep -q "_gta_engine_convert_and_build_rpf" build/exported-symbols.txt
-          grep -q "_gta_engine_convert_folder" build/exported-symbols.txt
-          grep -q "_gta_engine_extract_ytd" build/exported-symbols.txt
-          grep -q "_gta_engine_build_ytd" build/exported-symbols.txt
-          grep -q "_gta_engine_convert_fivem_resource" build/exported-symbols.txt
+          # Validate exported C ABI symbols in the Rust static library itself.
+          # The final Mach-O may dead-strip unreferenced public entry points.
+          nm -g build/rust/ios/libgta_local_engine.a > build/exported-engine-symbols.txt
+          for symbol in _gta_engine_build_rpf7 _gta_engine_convert_and_build_rpf _gta_engine_convert_folder _gta_engine_extract_ytd _gta_engine_build_ytd _gta_engine_convert_fivem_resource; do
+            if ! grep -q "$symbol" build/exported-engine-symbols.txt; then
+              echo "Missing required engine ABI symbol in static library: $symbol"
+              grep -E 'gta_engine_' build/exported-engine-symbols.txt | head -80 || true
+              exit 1
+            fi
+          done
 
           mkdir -p release-package
           cp INRPF-6.0-unsigned.ipa release-package/INRPF-6.0-unsigned.ipa
