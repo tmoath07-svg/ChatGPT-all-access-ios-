@@ -18,8 +18,8 @@ struct OrbxPS4TransferView: View {
     @State private var uploadedFiles = 0
     @State private var didAutoStart = false
 
-    private let remoteRoot = "/Data/orbx/gta/rpf"
-    private let remoteDLClistDirectory = "/Data/orbx/gta"
+    private let remoteRoot = "/data/orbx/gta/rpf"
+    private let remoteDLClistDirectory = "/data/orbx/gta"
     private var purple: Color { Color(red: 0.70, green: 0.42, blue: 0.88) }
     private var selectedPackageURL: URL? { availablePackages.first { $0.path == selectedPackagePath } }
 
