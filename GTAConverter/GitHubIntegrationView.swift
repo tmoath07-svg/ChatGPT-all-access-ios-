@@ -303,8 +303,40 @@ private final class GitHubIntegrationClient: ObservableObject {
         status = "المرحلة 1/4: التحقق من فرع المستودع..."
         do {
             let _: GHBranchCheck = try await api("/repos/\(repository.full_name)/branches/\(branchEncoded)")
+        } catch GHError.httpStatus(404, _) {
+            // A newly-created GitHub repository can briefly exist without a Git ref.
+            // Bootstrap its default branch with the first commit through Contents API.
+            // Omitting "branch" is intentional: the requested ref does not exist yet.
+            status = "المرحلة 1/4: إنشاء أول commit لتهيئة الفرع الافتراضي..."
+            do {
+                let bootstrapText = "# INRPF workspace\\n\\nThis repository is managed by INRPF.\\n"
+                let _: GHContentResult = try await api(
+                    "/repos/\(repository.full_name)/contents/README.md",
+                    method: "PUT",
+                    body: [
+                        "message": "INRPF: initialize default branch",
+                        "content": Data(bootstrapText.utf8).base64EncodedString()
+                    ]
+                )
+                var branchReady = false
+                for attempt in 0..<5 {
+                    do {
+                        let _: GHBranchCheck = try await api("/repos/\(repository.full_name)/branches/\(branchEncoded)")
+                        branchReady = true
+                        break
+                    } catch {
+                        if attempt == 4 { throw error }
+                        try await Task.sleep(nanoseconds: 600_000_000)
+                    }
+                }
+                guard branchReady else {
+                    throw GHError.message("تم إنشاء ملف التهيئة لكن GitHub لم يُظهر الفرع بعد.")
+                }
+            } catch {
+                throw GHError.message("المستودع \(repository.full_name) لا يحتوي فرعاً بعد، وفشلت تهيئته تلقائياً: \\(error.localizedDescription)")
+            }
         } catch {
-            throw GHError.message("فشل التحقق من الفرع «\(branchName)» في \(repository.full_name): \(error.localizedDescription)")
+            throw GHError.message("فشل التحقق من الفرع «\\(branchName)» في \\(repository.full_name): \\(error.localizedDescription)")
         }
 
         // Fetch the canonical workflow from the app repository, never from the
