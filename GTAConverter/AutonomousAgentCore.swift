@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 struct AgentChatMessage: Identifiable {
     let id = UUID()
