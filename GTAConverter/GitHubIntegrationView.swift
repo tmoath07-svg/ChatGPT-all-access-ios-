@@ -1020,6 +1020,31 @@ struct GitHubIntegrationView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                NavigationLink(destination: OrbxPS4TransferView()) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "gamecontroller.fill")
+                            .font(.title2)
+                            .foregroundStyle(.purple)
+                            .frame(width: 42, height: 42)
+                            .background(Color.purple.opacity(0.16), in: RoundedRectangle(cornerRadius: 12))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("إعدادات PS4 والتركيب التلقائي")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.primary)
+                            Text("عنوان السوني وFTP والحزم الجاهزة")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.left")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                    .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.075), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
                 if !client.userCode.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("رمز التحقق").font(.headline)
