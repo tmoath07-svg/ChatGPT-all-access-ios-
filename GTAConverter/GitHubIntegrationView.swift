@@ -307,27 +307,41 @@ private final class GitHubIntegrationClient: ObservableObject {
             throw GHError.message("فشل التحقق من الفرع «\(branchName)» في \(repository.full_name): \(error.localizedDescription)")
         }
 
-        // Fetch the workflow through the authenticated GitHub API. The previous
-        // raw.githubusercontent.com URL returned 404 for private source repositories.
-        status = "المرحلة 2/4: تنزيل ملف Workflow من GitHub..."
+        // Fetch the canonical workflow from the app repository, never from the
+        // user's newly-created workspace. Try the development branch first, then
+        // the default branch so a branch rename cannot strand new repositories.
+        status = "المرحلة 2/4: تنزيل ملف Workflow من مستودع INRPF..."
         let workflowPath = ".github/workflows/convert-pc-to-ps4.yml"
         let encodedWorkflowPath = workflowPath.split(separator: "/").map {
             String($0).addingPercentEncoding(withAllowedCharacters: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")) ?? String($0)
         }.joined(separator: "/")
         let workflowData: Data
-        do {
-            let source: GHRepositoryFile = try await api(
-                "/repos/tmoath07-svg/ChatGPT-all-access-ios-/contents/\(encodedWorkflowPath)?ref=feature/inrpf-github-device-flow"
-            )
-            guard let encoded = source.content,
-                  let decoded = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
-                  !decoded.isEmpty else {
-                throw GHError.message("استجابة GitHub لا تحتوي ملف Workflow صالحاً بترميز Base64.")
+        var workflowSourceError: Error?
+        var downloadedWorkflow: Data?
+        for sourceRef in ["feature/inrpf-github-device-flow", "main"] {
+            let encodedRef = sourceRef.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? sourceRef
+            do {
+                let source: GHRepositoryFile = try await api(
+                    "/repos/tmoath07-svg/ChatGPT-all-access-ios-/contents/\(encodedWorkflowPath)?ref=\(encodedRef)"
+                )
+                guard source.encoding == "base64",
+                      let encoded = source.content,
+                      let decoded = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
+                      !decoded.isEmpty else {
+                    throw GHError.message("استجابة GitHub لا تحتوي ملف Workflow صالحاً بترميز Base64 (المصدر: \(sourceRef)).")
+                }
+                downloadedWorkflow = decoded
+                break
+            } catch {
+                workflowSourceError = error
+                if case GHError.httpStatus(404, _) = error { continue }
+                throw GHError.message("فشل تنزيل Workflow من فرع \(sourceRef): \(error.localizedDescription)")
             }
-            workflowData = decoded
-        } catch {
-            throw GHError.message("فشل تنزيل Workflow من مستودع INRPF (المسار: \(workflowPath)): \(error.localizedDescription)")
         }
+        guard let verifiedWorkflow = downloadedWorkflow else {
+            throw GHError.message("لم يتم العثور على Workflow في فرعي feature/inrpf-github-device-flow أو main. \(workflowSourceError?.localizedDescription ?? "")")
+        }
+        workflowData = verifiedWorkflow
 
         status = "المرحلة 3/4: تنزيل حزمة أدوات التحويل..."
         let toolkitURL = URL(string: "https://raw.githubusercontent.com/tmoath07-svg/Ps4tools/main/ZokiiStudio-Toolkit-FIXED.zip")!
@@ -378,19 +392,31 @@ private final class GitHubIntegrationClient: ObservableObject {
         if let sha = existing?.resolvedSHA {
             if sha == expectedSHA {
                 status = skipIfExists ? "حزمة التحويل مطابقة وموجودة مسبقاً." : "ملف Workflow مطابق وموجود مسبقاً."
-                return
+            } else {
+                let _: GHContentResult = try await api(
+                    "/repos/\(repository.full_name)/contents/\(encodedPath)",
+                    method: "PUT",
+                    body: ["message": message, "content": data.base64EncodedString(), "sha": sha, "branch": branch]
+                )
             }
-            let _: GHContentResult = try await api(
-                "/repos/\(repository.full_name)/contents/\(encodedPath)",
-                method: "PUT",
-                body: ["message": message, "content": data.base64EncodedString(), "sha": sha, "branch": branch]
-            )
         } else {
+            // GitHub's Contents API creates missing parent directories for this path.
             let _: GHContentResult = try await api(
                 "/repos/\(repository.full_name)/contents/\(encodedPath)",
                 method: "PUT",
                 body: ["message": message, "content": data.base64EncodedString(), "branch": branch]
             )
+        }
+        // A successful PUT alone is not enough: read the exact target path back
+        // from the user's selected branch and compare bytes before Actions lookup.
+        let verification: GHRepositoryFile = try await api(
+            "/repos/\(repository.full_name)/contents/\(encodedPath)?ref=\(branch)"
+        )
+        guard verification.encoding == "base64",
+              let encoded = verification.content,
+              let actual = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
+              actual == data else {
+            throw GHError.message("GitHub لم يؤكد وجود الملف بالمحتوى الصحيح بعد الرفع: \(repository.full_name)/\(path) — الفرع: \(branch)")
         }
     }
 
