@@ -33,6 +33,7 @@ jobs:
           set -euo pipefail
           rustup show
           rustup target add aarch64-apple-ios
+          rustup component add llvm-tools-preview
           cargo --version
           rustc --version
 
@@ -243,7 +244,10 @@ jobs:
           test -x "Payload/INRPF.app/$EXECUTABLE"
           # Validate exported C ABI symbols in the Rust static library itself.
           # The final Mach-O may dead-strip unreferenced public entry points.
-          nm -g build/rust/ios/libgta_local_engine.a > build/exported-engine-symbols.txt
+          RUST_LLVM_TOOLS="$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin"
+          LLVM_NM="$RUST_LLVM_TOOLS/llvm-nm"
+          test -x "$LLVM_NM"
+          "$LLVM_NM" --extern-only build/rust/ios/libgta_local_engine.a > build/exported-engine-symbols.txt
           for symbol in _gta_engine_build_rpf7 _gta_engine_convert_and_build_rpf _gta_engine_convert_folder _gta_engine_extract_ytd _gta_engine_build_ytd _gta_engine_convert_fivem_resource; do
             if ! grep -q "$symbol" build/exported-engine-symbols.txt; then
               echo "Missing required engine ABI symbol in static library: $symbol"
