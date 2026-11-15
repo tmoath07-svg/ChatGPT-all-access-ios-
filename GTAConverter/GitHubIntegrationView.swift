@@ -395,7 +395,15 @@ private final class GitHubIntegrationClient: ObservableObject {
             }
         }
         guard !files.isEmpty else { throw GHError.message("المجلد المختار لا يحتوي ملفات.") }
-        let tag = "inrpf-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8).lowercased())"
+        // Validate every input before creating a Release so invalid files do not leave empty Releases behind.
+        for item in files {
+            let attributes = try fm.attributesOfItem(atPath: item.0.path)
+            let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
+            guard size > 0 && size <= 2_000_000_000 else {
+                throw GHError.message("حجم الملف غير مدعوم في Release: \(item.1)")
+            }
+        }
+        let tag = "inrpf-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.lowercased())"
         status = "جاري إنشاء Release: \(tag)"
         let release: GHRelease
         do {
@@ -405,12 +413,9 @@ private final class GitHubIntegrationClient: ObservableObject {
         }
         var manifest: [[String: String]] = []
         for (index, item) in files.enumerated() {
-            let attributes = try fm.attributesOfItem(atPath: item.0.path)
-            let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
-            guard size > 0 && size <= 2_000_000_000 else {
-                throw GHError.message("حجم الملف غير مدعوم في Release: \(item.1)")
-            }
-            let assetName = String(format: "inrpf-input-%05d.bin", index + 1)
+            // Each Release asset gets a globally unique name. GitHub returns HTTP 422
+            // when an asset with the same name already exists on the target Release.
+            let assetName = "inrpf-input-\(String(format: "%05d", index + 1))-\(UUID().uuidString.lowercased()).bin"
             do {
                 try await uploadReleaseAsset(item.0, name: assetName, release: release)
             } catch {
@@ -681,7 +686,6 @@ struct GitHubIntegrationView: View {
     @State private var activeReleaseTag: String?
     @State private var workflowDispatchStartedAt: Date?
     @State private var downloadedResultURLs: [URL] = []
-    @State private var showingLegacyTools = false
     @State private var activeSheet: ActiveSheet?
     @State private var selectedFileURLs: [URL] = []
     @State private var appFiles: [URL] = []
@@ -700,7 +704,7 @@ struct GitHubIntegrationView: View {
         client.repositories.first { $0.id == selectedRepositoryID }
     }
     private var selectedWorkflow: GHWorkflow? {
-        client.workflows.first { $0.id == selectedWorkflowID }
+        client.workflows.first { $0.id == selectedWorkflowID } ?? client.workflows.first
     }
 
     private var resolvedConversionMode: String {
@@ -839,10 +843,6 @@ struct GitHubIntegrationView: View {
         .navigationTitle(client.isAuthorized ? "INRPF • GitHub" : "INRPF")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showingLegacyTools) {
-            NavigationStack { ContentView() }
-                .preferredColorScheme(.dark)
-        }
         .onAppear {
             if client.isAuthorized {
                 didConfirmGitHubSession = true
@@ -958,17 +958,6 @@ struct GitHubIntegrationView: View {
                 }
                 Spacer(minLength: 0)
             }
-            Button {
-                showingLegacyTools = true
-            } label: {
-                Label("أدوات INRPF القديمة", systemImage: "square.grid.2x2")
-                    .font(.subheadline.bold())
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
-            }
-            .buttonStyle(.plain)
-
             if client.isAuthorized {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("الحساب متصل", systemImage: "checkmark.circle.fill")
@@ -1124,7 +1113,7 @@ struct GitHubIntegrationView: View {
 
     private var uploadSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("رفع ملفات إلى GitHub Release").font(.headline)
+            Text("ملفات التحويل").font(.headline)
             Text(selectedRepository?.full_name ?? "اختر مستودعاً أولاً")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
@@ -1163,21 +1152,6 @@ struct GitHubIntegrationView: View {
                     Label(file.lastPathComponent, systemImage: "folder.badge.plus").font(.caption).lineLimit(1)
                 }.buttonStyle(.plain)
             }
-            Button("رفع جميع الملفات إلى Release") {
-                guard let repository = selectedRepository else { return }
-                let urls = selectedFileURLs
-                let folder = inputFolder.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
-                guard !folder.isEmpty else { client.status = "اكتب مجلد الإدخال."; return }
-                Task {
-                    do {
-                        let tag = try await client.uploadItems(urls, to: repository, inputFolder: folder, branch: branchName)
-                        activeReleaseTag = tag
-                        client.status = "تم رفع الملفات إلى Release وإنشاء Tag: \(tag)"
-                    } catch { client.status = error.localizedDescription }
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(selectedRepository == nil || selectedFileURLs.isEmpty)
             Text("يدعم اختيار الملفات والمجلدات من «الملفات»، والسحب والإفلات، والصور والكاميرا. تظهر المجلدات الداخلية ضمن المتصفح.")
                 .font(.caption2).foregroundStyle(.secondary)
         }
@@ -1311,7 +1285,9 @@ struct GitHubIntegrationView: View {
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("تنزيل") {
+                    Link("رابط التنزيل المباشر", destination: URL(string: asset.browser_download_url)!)
+                        .font(.caption)
+                    Button("تنزيل إلى INRPF") {
                         guard let repository = selectedRepository else { return }
                         Task {
                             do {
@@ -1419,10 +1395,10 @@ struct GitHubIntegrationView: View {
                 .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
             TextField("اسم Spawn للسيارة", text: $vehicleSpawnName)
                 .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
-            Button("رفع الملفات ثم تشغيل Workflow") {
-                guard let repository = selectedRepository, let workflow = selectedWorkflow else { return }
+            Button("رفع ملفات تشغيل المستودع") {
+                guard let repository = selectedRepository else { return }
                 let urls = selectedFileURLs
-                let baseFolder = inputFolder.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+                let baseFolder = inputFolder.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "/")))
                 guard !baseFolder.isEmpty,
                       !baseFolder.split(separator: "/").contains(".."),
                       !baseFolder.split(separator: "/").contains(".") else {
@@ -1433,7 +1409,20 @@ struct GitHubIntegrationView: View {
                 Task {
                     do {
                         guard !urls.isEmpty else {
-                            throw GHError.message("اختر ملفات التحويل قبل تشغيل Workflow.")
+                            throw GHError.message("اختر ملفات التحويل قبل تشغيل المستودع.")
+                        }
+                        guard !branchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                            throw GHError.message("تعذر تحديد الفرع الافتراضي للمستودع.")
+                        }
+                        client.status = "جاري رفع ملفات تشغيل INRPF ومحرك التحويل إلى GitHub..."
+                        try await client.ensureConversionAssets(
+                            for: repository,
+                            branch: branchName,
+                            toolkitPath: toolkitZip
+                        )
+                        await client.loadWorkflows(for: repository)
+                        guard let workflow = selectedWorkflow else {
+                            throw GHError.message("تم تجهيز ملفات المستودع، لكن GitHub لم يعرض Workflow التحويل بعد. حدّث المستودع ثم أعد المحاولة.")
                         }
                         let tag = try await client.uploadItems(urls, to: repository, inputFolder: folder, branch: branchName)
                         activeReleaseTag = tag
@@ -1448,11 +1437,14 @@ struct GitHubIntegrationView: View {
                         ])
                         selectedFileURLs = []
                         monitorRefreshToken += 1
-                        client.status = "تم إنشاء Release وTag \(tag)، ورفع المدخلات وتشغيل Workflow."
-                    } catch { client.status = error.localizedDescription }
+                        client.status = "اكتمل الرفع، وبدأ تشغيل \(workflow.name) على المستودع. Tag: \(tag)"
+                    } catch {
+                        workflowDispatchStartedAt = nil
+                        client.status = error.localizedDescription
+                    }
                 }
             }
-            .buttonStyle(.borderedProminent).disabled(selectedWorkflow == nil || selectedRepository == nil || selectedFileURLs.isEmpty)
+            .buttonStyle(.borderedProminent).disabled(selectedRepository == nil || selectedFileURLs.isEmpty || client.isBusy)
         }
         .padding(16).background(Color(red: 0.075, green: 0.085, blue: 0.13).opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.075), lineWidth: 1))
