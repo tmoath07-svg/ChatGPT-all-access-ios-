@@ -95,6 +95,11 @@ jobs:
           grep -Fq 'gh release upload' .github/workflows/convert-pc-to-ps4.yml
           grep -Fq 'contents: write' .github/workflows/convert-pc-to-ps4.yml
           grep -Fq 'conversionMode == "أوتو"' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'UNUserNotificationCenter' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'UNNotificationRequest' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'INRPFCompletionNotification.requestPermission' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'اكتمل تحويل INRPF بنجاح' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'تعذر إكمال تحويل INRPF' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'GHWorkflowRun' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'loadRuns(for repository: GHRepository)' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'client.loadRuns(for: repository)' GTAConverter/GitHubIntegrationView.swift
