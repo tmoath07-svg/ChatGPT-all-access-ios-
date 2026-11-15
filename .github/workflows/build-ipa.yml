@@ -63,7 +63,8 @@ jobs:
           set -euo pipefail
           grep -Fq 'GitHubIntegrationView()' GTAConverter/GTAConverterApp.swift
           grep -Fq 'NavigationStack {' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'ContentView()' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'struct ContentView' GTAConverter/ContentView.swift
+          test -s GTAConverter/ContentView.swift
           ! grep -Fq 'showingLegacyTools' GTAConverter/GitHubIntegrationView.swift
           ! grep -Fq 'أدوات INRPF القديمة' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'Button("رفع ملفات تشغيل المستودع")' GTAConverter/GitHubIntegrationView.swift
