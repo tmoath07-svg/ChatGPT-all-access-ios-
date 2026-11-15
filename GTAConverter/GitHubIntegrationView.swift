@@ -297,25 +297,67 @@ private final class GitHubIntegrationClient: ObservableObject {
     }
 
     func ensureConversionAssets(for repository: GHRepository, branch: String, toolkitPath: String) async throws {
-        let branchEncoded = branch.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? branch
-        status = "جاري تجهيز مستودعك بملفات INRPF الأساسية..."
-        let workflowURL = URL(string: "https://raw.githubusercontent.com/tmoath07-svg/ChatGPT-all-access-ios-/feature/inrpf-github-device-flow/.github/workflows/convert-pc-to-ps4.yml")!
-        let toolkitURL = URL(string: "https://raw.githubusercontent.com/tmoath07-svg/Ps4tools/main/ZokiiStudio-Toolkit-FIXED.zip")!
-        let (workflowData, workflowResponse) = try await URLSession.shared.data(from: workflowURL)
-        try check(workflowResponse, workflowData)
-        guard !workflowData.isEmpty else { throw GHError.message("ملف Workflow الذي تم تنزيله فارغ.") }
-        let (toolkitData, toolkitResponse) = try await URLSession.shared.data(from: toolkitURL)
-        try check(toolkitResponse, toolkitData)
-        guard !toolkitData.isEmpty, toolkitData.count <= 25 * 1024 * 1024 else {
-            throw GHError.message("حزمة أدوات التحويل فارغة أو تجاوزت 25MB.")
+        let branchName = branch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !branchName.isEmpty else { throw GHError.message("تعذر تحديد الفرع الافتراضي للمستودع.") }
+        let branchEncoded = branchName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? branchName
+        status = "المرحلة 1/4: التحقق من فرع المستودع..."
+        do {
+            let _: GHBranchCheck = try await api("/repos/\(repository.full_name)/branches/\(branchEncoded)")
+        } catch {
+            throw GHError.message("فشل التحقق من الفرع «\(branchName)» في \(repository.full_name): \(error.localizedDescription)")
         }
-        try await uploadRepositoryAsset(workflowData, to: repository,
-            path: ".github/workflows/convert-pc-to-ps4.yml", branch: branchEncoded,
-            message: "INRPF: install conversion workflow", skipIfExists: false)
-        status = "تم تجهيز Workflow. جاري رفع حزمة أدوات التحويل..."
-        try await uploadRepositoryAsset(toolkitData, to: repository,
-            path: toolkitPath, branch: branchEncoded,
-            message: "INRPF: install conversion toolkit", skipIfExists: true)
+
+        // Fetch the workflow through the authenticated GitHub API. The previous
+        // raw.githubusercontent.com URL returned 404 for private source repositories.
+        status = "المرحلة 2/4: تنزيل ملف Workflow من GitHub..."
+        let workflowPath = ".github/workflows/convert-pc-to-ps4.yml"
+        let encodedWorkflowPath = workflowPath.split(separator: "/").map {
+            String($0).addingPercentEncoding(withAllowedCharacters: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")) ?? String($0)
+        }.joined(separator: "/")
+        let workflowData: Data
+        do {
+            let source: GHContentResult = try await api(
+                "/repos/tmoath07-svg/ChatGPT-all-access-ios-/contents/\(encodedWorkflowPath)?ref=feature/inrpf-github-device-flow"
+            )
+            guard let encoded = source.content?.content,
+                  let decoded = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
+                  !decoded.isEmpty else {
+                throw GHError.message("استجابة GitHub لا تحتوي ملف Workflow صالحاً بترميز Base64.")
+            }
+            workflowData = decoded
+        } catch {
+            throw GHError.message("فشل تنزيل Workflow من مستودع INRPF (المسار: \(workflowPath)): \(error.localizedDescription)")
+        }
+
+        status = "المرحلة 3/4: تنزيل حزمة أدوات التحويل..."
+        let toolkitURL = URL(string: "https://raw.githubusercontent.com/tmoath07-svg/Ps4tools/main/ZokiiStudio-Toolkit-FIXED.zip")!
+        let toolkitData: Data
+        do {
+            let (data, response) = try await URLSession.shared.data(from: toolkitURL)
+            try check(response, data)
+            guard !data.isEmpty, data.count <= 25 * 1024 * 1024 else {
+                throw GHError.message("حزمة أدوات التحويل فارغة أو تجاوزت 25MB.")
+            }
+            toolkitData = data
+        } catch {
+            throw GHError.message("فشل تنزيل حزمة الأدوات من Ps4tools/ZokiiStudio-Toolkit-FIXED.zip: \(error.localizedDescription)")
+        }
+
+        status = "المرحلة 4/4: رفع Workflow وحزمة الأدوات إلى مستودعك..."
+        do {
+            try await uploadRepositoryAsset(workflowData, to: repository,
+                path: workflowPath, branch: branchEncoded,
+                message: "INRPF: install conversion workflow", skipIfExists: false)
+        } catch {
+            throw GHError.message("فشل رفع Workflow إلى \(repository.full_name)/\(workflowPath) على الفرع \(branchName): \(error.localizedDescription)")
+        }
+        do {
+            try await uploadRepositoryAsset(toolkitData, to: repository,
+                path: toolkitPath, branch: branchEncoded,
+                message: "INRPF: install conversion toolkit", skipIfExists: true)
+        } catch {
+            throw GHError.message("فشل رفع حزمة الأدوات إلى \(repository.full_name)/\(toolkitPath) على الفرع \(branchName): \(error.localizedDescription)")
+        }
         status = "اكتمل تجهيز المستودع: Workflow ومحرك التحويل جاهزان."
     }
 
@@ -636,6 +678,11 @@ private struct GHContent: Decodable {
     let name: String?
     let sha: String?
     let content: String?
+    let encoding: String?
+}
+
+private struct GHBranchCheck: Decodable {
+    let name: String
 }
 
 private struct CameraCapturePicker: UIViewControllerRepresentable {
