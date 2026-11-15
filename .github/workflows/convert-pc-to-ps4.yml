@@ -812,11 +812,11 @@ jobs:
             cp "toolkit/Finish/dlc.rpf" result/dlc.rpf
           fi
           if [ -f "toolkit/FiveM Multi Vehicle to DLC/Finish/dlc.rpf" ]; then
-            mkdir -p result/FiveM-PS4-DLC
-            cp "toolkit/FiveM Multi Vehicle to DLC/Finish/dlc.rpf" result/FiveM-PS4-DLC/dlc.rpf
-            cp "toolkit/FiveM Multi Vehicle to DLC/Finish/dlclist-entry.txt" result/FiveM-PS4-DLC/ 2>/dev/null || true
-            cp "toolkit/FiveM Multi Vehicle to DLC/Finish/spawn-names.txt" result/FiveM-PS4-DLC/ 2>/dev/null || true
-            cp "toolkit/FiveM Multi Vehicle to DLC/Finish/mod-info.txt" result/FiveM-PS4-DLC/ 2>/dev/null || true
+            mkdir -p result/DLCLIST
+            cp "toolkit/FiveM Multi Vehicle to DLC/Finish/dlc.rpf" result/DLCLIST/dlc.rpf
+            cp "toolkit/FiveM Multi Vehicle to DLC/Finish/dlclist-entry.txt" result/DLCLIST/ 2>/dev/null || true
+            cp "toolkit/FiveM Multi Vehicle to DLC/Finish/spawn-names.txt" result/DLCLIST/ 2>/dev/null || true
+            cp "toolkit/FiveM Multi Vehicle to DLC/Finish/mod-info.txt" result/DLCLIST/ 2>/dev/null || true
             cp "toolkit/FiveM Multi Vehicle to DLC/Finish/dlc.rpf" result/dlc.rpf
             cp "toolkit/FiveM Multi Vehicle to DLC/Finish/dlclist-entry.txt" result/dlclist-entry.txt 2>/dev/null || true
             cp "toolkit/FiveM Multi Vehicle to DLC/Finish/spawn-names.txt" result/spawn-names.txt 2>/dev/null || true
