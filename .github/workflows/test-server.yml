@@ -2,7 +2,7 @@ name: Test INRPF Server
 
 on:
   push:
-    branches: [main, fix/gemini-ios-layout-6.10]
+    branches: [main, fix/gemini-ios-layout-6.10, feature/gemini-premium-tool]
     paths:
       - "server/**"
       - ".github/workflows/test-server.yml"
