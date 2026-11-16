@@ -115,8 +115,6 @@ struct ContentView: View {
                     NavigationLink(destination: AppSettingsView()) { Image(systemName: "gearshape.fill").foregroundStyle(purple) }
                     NavigationLink(destination: INRPFDisplaySurveyView()) { Image(systemName: "rectangle.inset.filled.and.person.filled").foregroundStyle(purple) }
                         .accessibilityLabel("استبيان مشكلة الشاشة")
-                    NavigationLink(destination: InterfaceModeSettingsView()) { Image(systemName: "iphone.gen3").foregroundStyle(purple) }
-                        .accessibilityLabel("نمط الواجهة")
                     NavigationLink(destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails)) {
                         Image(systemName: "waveform.path.ecg").foregroundStyle(purple)
                     }
