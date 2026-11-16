@@ -319,7 +319,13 @@ jobs:
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/INRPF.app"
           test -d "$APP_PATH"
           test -f "$APP_PATH/Info.plist"
-          test -d "$APP_PATH/Base.lproj/LaunchScreen.storyboardc"
+          LAUNCH_STORYBOARD_PATH="$(find "$APP_PATH" -type d -name "LaunchScreen.storyboardc" -print -quit)"
+          if [ -z "$LAUNCH_STORYBOARD_PATH" ]; then
+            echo "Compiled LaunchScreen.storyboardc was not found in the app bundle."
+            find "$APP_PATH" -maxdepth 4 -type d -name "*.storyboardc" -print || true
+            exit 1
+          fi
+          echo "Compiled launch storyboard: $LAUNCH_STORYBOARD_PATH"
 
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
@@ -364,7 +370,7 @@ jobs:
           test "$BUILD" = "82"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes' "$INFO" | grep -q 'public.archive'
           /usr/libexec/PlistBuddy -c 'Print :UILaunchStoryboardName' "$INFO" | grep -qx 'LaunchScreen'
-          test -d "Payload/INRPF.app/Base.lproj/LaunchScreen.storyboardc"
+          test -d "$(find "Payload/INRPF.app" -type d -name "LaunchScreen.storyboardc" -print -quit)"
           grep -q 'MARKETING_VERSION: "6.12"' project.yml
           grep -q 'CURRENT_PROJECT_VERSION: "82"' project.yml
           zip -qry INRPF-6.12-unsigned.ipa Payload
