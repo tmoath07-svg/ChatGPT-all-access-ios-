@@ -896,6 +896,7 @@ struct GitHubIntegrationView: View {
     }
 
     @StateObject private var client = GitHubIntegrationClient()
+    @AppStorage("inrpf_interface_mode") private var interfaceMode = "auto"
     @StateObject private var premiumLicense = INRPFPremiumLicenseClient()
     @ObservedObject private var backgroundTransfers = INRPFBackgroundTransferManager.shared
     @AppStorage("gta_github_authenticated") private var githubAuthenticated = false
@@ -1079,7 +1080,7 @@ struct GitHubIntegrationView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .padding(16)
-            .frame(maxWidth: 620)
+            .frame(maxWidth: interfaceMode == "ios" ? 560 : interfaceMode == "ipados" ? 900 : 760)
             .frame(maxWidth: .infinity)
         }
         } else {
