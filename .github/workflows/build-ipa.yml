@@ -373,10 +373,14 @@ jobs:
           LLVM_NM="$(xcrun --find llvm-nm)"
           test -x "$LLVM_NM"
           "$LLVM_NM" --extern-only build/rust/ios/libgta_local_engine.a > build/exported-engine-symbols.txt
-          for symbol in _gta_engine_build_rpf7 _gta_engine_convert_and_build_rpf _gta_engine_convert_folder _gta_engine_extract_ytd _gta_engine_build_ytd _gta_engine_convert_fivem_resource; do
-            if ! grep -q "$symbol" build/exported-engine-symbols.txt; then
+          # Mach-O tools may display C symbols with a leading underscore, while
+          # other LLVM builds display the same ABI names without that prefix.
+          awk '{print $NF}' build/exported-engine-symbols.txt | sed 's/^_//' | sort -u > build/exported-engine-symbol-names.txt
+          for symbol in gta_engine_build_rpf7 gta_engine_convert_and_build_rpf gta_engine_convert_folder gta_engine_extract_ytd gta_engine_build_ytd gta_engine_convert_fivem_resource; do
+            if ! grep -Fxq "$symbol" build/exported-engine-symbol-names.txt; then
               echo "Missing required engine ABI symbol in static library: $symbol"
-              grep -E 'gta_engine_' build/exported-engine-symbols.txt | head -80 || true
+              echo "Exported gta_engine symbols:"
+              grep -E 'gta_engine_' build/exported-engine-symbol-names.txt | head -80 || true
               exit 1
             fi
           done
