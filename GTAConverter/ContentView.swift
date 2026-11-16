@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 import SwiftArchive
 import UIKit
 
+// Display diagnostics are reachable from the main toolbar on every supported device family.
 struct ContentView: View {
     let initialSourceURL: URL?
     @State private var didApplyInitialSource = false
