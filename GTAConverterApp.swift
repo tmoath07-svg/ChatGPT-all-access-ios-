@@ -37,8 +37,17 @@ struct GTAConverterApp: App {
 
     var body: some Scene {
         WindowGroup {
-            INRPFPhoneRootView()
-                .preferredColorScheme(.dark)
+            GeometryReader { viewport in
+                INRPFPhoneRootView()
+                    .frame(
+                        width: max(1, viewport.size.width),
+                        height: max(1, viewport.size.height),
+                        alignment: .topLeading
+                    )
+                    .clipped()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .preferredColorScheme(.dark)
         }
     }
 }
