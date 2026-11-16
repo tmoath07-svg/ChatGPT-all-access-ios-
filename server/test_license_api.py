@@ -50,6 +50,23 @@ class PremiumLicenseTests(unittest.TestCase):
         self.assertEqual(checked.status_code, 200)
         self.assertTrue(checked.get_json()["active"])
 
+    def test_license_expiry_is_enforced_for_redeem_and_activation(self):
+        import datetime
+        from unittest.mock import patch
+        with patch.object(server, "utc_now", return_value="2026-01-01T00:00:00+00:00"):
+            response = self.client.post(
+                "/api/admin/codes/generate", headers=self.headers,
+                json={"count": 1, "features": ["github_tools"], "duration_days": 1}
+            )
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(payload["duration_days"], 1)
+        code = payload["codes"][0]
+        with patch.object(server, "utc_now", return_value="2026-01-03T00:00:00+00:00"):
+            expired = self.client.post("/api/license/redeem", json={"code": code})
+        self.assertEqual(expired.status_code, 403)
+        self.assertEqual(expired.get_json()["error"], "license_expired")
+
     def test_admin_authentication_and_feature_allowlist(self):
         denied = self.client.post(
             "/api/admin/codes/generate", headers={"Authorization": "Bearer wrong"},
