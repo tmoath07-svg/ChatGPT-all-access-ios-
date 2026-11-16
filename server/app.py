@@ -6,7 +6,7 @@ import re
 import secrets
 import sqlite3
 import string
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -111,7 +111,7 @@ def generate_codes():
     ):
         return jsonify({"ok": False, "error": "duration_days_must_be_1_to_3650_or_null"}), 400
     expires_at = None if duration_days is None else (
-        datetime.now(timezone.utc) + __import__("datetime").timedelta(days=duration_days)
+        datetime.fromisoformat(utc_now()) + timedelta(days=duration_days)
     ).isoformat()
     if not isinstance(count, int) or isinstance(count, bool) or count < 1 or count > 100:
         return jsonify({"ok": False, "error": "count_must_be_1_to_100"}), 400
