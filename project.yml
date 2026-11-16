@@ -71,7 +71,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: "INRPF"
         INFOPLIST_KEY_CFBundleVersion: "82"
-        INFOPLIST_KEY_CFBundleShortVersionString: "6.11"
+        INFOPLIST_KEY_CFBundleShortVersionString: "6.12"
+        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
         INFOPLIST_KEY_LSRequiresIPhoneOS: YES
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "يحتاج INRPF إلى الوصول للشبكة المحلية للاتصال بجهاز PS4 ونقل الملفات عبر FTP."
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
