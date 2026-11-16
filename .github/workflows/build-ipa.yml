@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           swiftc Tests/agent_task_policy_tests.swift -o /tmp/agent-task-policy-tests
           /tmp/agent-task-policy-tests
-          grep -Fq 'AutonomousAgentView()' GTAConverterApp.swift
+          grep -Fq 'AutonomousAgentView()' INRPFPhoneRootView.swift
           grep -Fq 'AIProviderAPI.fetchModels' AutonomousAgentView.swift
           grep -Fq 'AISecretStore.save' AIProviderCore.swift
           grep -Fq 'ps4_search_files' AutonomousAgentCore.swift
@@ -73,8 +73,8 @@ jobs:
       - name: Test Gemini premium tool and managed key proxy
         run: |
           set -euo pipefail
-          grep -Fq 'GeminiToolView()' GTAConverterApp.swift
-          grep -Fq 'Label("Gemini"' GTAConverterApp.swift
+          grep -Fq 'GeminiToolView()' INRPFPhoneRootView.swift
+          grep -Fq 'Label("Gemini"' INRPFPhoneRootView.swift
           grep -Fq 'api/gemini/v1/chat/completions' GeminiToolView.swift
           ! grep -Fq 'AIza' GeminiToolView.swift
           grep -Fq 'responseText(from content: Any?)' GeminiToolView.swift
@@ -129,12 +129,12 @@ jobs:
       - name: Test GitHub start tab and preserved legacy workspace
         run: |
           set -euo pipefail
-          grep -Fq 'TabView(selection: $selectedTab)' GTAConverterApp.swift
-          grep -Fq 'GitHubIntegrationView()' GTAConverterApp.swift
-          grep -Fq 'ContentView()' GTAConverterApp.swift
-          grep -Fq 'Label("GitHub"' GTAConverterApp.swift
-          grep -Fq 'Label("الأدوات"' GTAConverterApp.swift
-          grep -Fq 'selectedTab = 1' GTAConverterApp.swift
+          grep -Fq 'TabView(selection: $selectedTab)' INRPFPhoneRootView.swift
+          grep -Fq 'GitHubIntegrationView()' INRPFPhoneRootView.swift
+          grep -Fq 'ContentView()' INRPFPhoneRootView.swift
+          grep -Fq 'Label("GitHub"' INRPFPhoneRootView.swift
+          grep -Fq 'Label("الأدوات"' INRPFPhoneRootView.swift
+          grep -Fq 'selectedTab = 1' INRPFPhoneRootView.swift
           grep -Fq 'struct ContentView' ContentView.swift
           test -s ContentView.swift
           grep -Fq 'NavigationLink(destination: AppFilesView())' ContentView.swift
@@ -345,7 +345,7 @@ jobs:
           print("Registered Files/Open In document types.")
           PY
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 6.11' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 6.10' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 6.11' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 6.11' "$INFO"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 80' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 80' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
