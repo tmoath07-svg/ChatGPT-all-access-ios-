@@ -9,7 +9,7 @@ Flask API for INRPF health checks, authenticated test reports, and one-time prem
 - Build Command: `pip install -r requirements.txt`
 - Start Command: `gunicorn app:app --bind 0.0.0.0:$PORT`
 - Health Check Path: `/health`
-- Add a **persistent disk** mounted at `/var/data` before using licenses.
+- Set `DATABASE_URL` to the Render PostgreSQL **Internal Database URL**. The service and database must be in the same Render region.
 
 ### Required environment variables
 
@@ -17,7 +17,7 @@ Create strong random values in Render (do not commit them):
 
 - `INRPF_LICENSE_ADMIN_TOKEN`: long private admin password used by the web dashboard.
 - `INRPF_LICENSE_PEPPER`: independent random secret used to HMAC code values.
-- `INRPF_LICENSE_DB`: `/var/data/inrpf-licenses.sqlite3` (must be on the persistent disk).
+- `INRPF_LICENSE_DB`: optional legacy SQLite source path. If that file exists when the PostgreSQL backend initializes, the server imports its license and Gemini-key rows once into PostgreSQL without deleting or modifying the source file. Leave this at `/var/data/inrpf-licenses.sqlite3` only if an older SQLite file is actually present.
 - `INRPF_REPORT_TOKEN`: existing report-ingestion token, if reports are enabled.
 - `GOOGLE_CLOUD_PROJECT_ID`: Google Cloud project ID used to create the Gemini API key.
 - `GOOGLE_SERVICE_ACCOUNT_JSON`: service-account JSON content with `roles/serviceusage.apiKeysAdmin` and `roles/serviceusage.serviceUsageViewer` on the project. Enable both `apikeys.googleapis.com` and `generativelanguage.googleapis.com` before using the dashboard.
@@ -37,6 +37,6 @@ Open `https://YOUR-SERVICE.onrender.com/admin` to manage codes.
 
 The Arabic admin dashboard at `/admin` lets an administrator provision the managed Gemini API key from Google Cloud, choose a batch size, license feature, and expiry (7/30/90/180/365/730 days or no expiry), then generate new batches whenever needed. Each batch is displayed once with copy and TXT export. Expiry is enforced both when redeeming a code and when validating its activation.
 
-Codes are generated with Python's cryptographic random source. Only an HMAC-SHA256 digest is stored. Redemption uses a SQLite `BEGIN IMMEDIATE` transaction and a conditional state transition, so concurrent attempts cannot successfully redeem the same code twice.
+Codes are generated with Python's cryptographic random source. Only an HMAC-SHA256 digest is stored. Production uses Render PostgreSQL transactions and a conditional single-use state transition, so concurrent attempts cannot successfully redeem the same code twice. SQLite is retained only for local development and isolated unit tests. When `DATABASE_URL` is configured, PostgreSQL is the active store.
 
-**iOS integration:** The GitHub workspace now displays a premium gate, redeems a one-time code, stores its activation credential in Keychain, and revalidates the activation with this API on launch. The feature is not production-ready until the current iOS workflow passes and this service is deployed with the required secrets and persistent disk. A modified client can still be patched; server-side validation is the authority. For production, keep the database on a persistent disk and use HTTPS.
+**iOS integration:** The iOS client contract remains unchanged: it redeems a one-time code, stores its activation credential in Keychain, and revalidates the activation with this API on launch. This server-only change does not modify iOS files or workflows. A modified client can still be patched; server-side validation is the authority. Use the Render PostgreSQL internal connection and HTTPS.
