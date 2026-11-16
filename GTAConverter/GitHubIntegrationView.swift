@@ -896,6 +896,7 @@ struct GitHubIntegrationView: View {
     }
 
     @StateObject private var client = GitHubIntegrationClient()
+    @StateObject private var premiumLicense = INRPFPremiumLicenseClient()
     @ObservedObject private var backgroundTransfers = INRPFBackgroundTransferManager.shared
     @AppStorage("gta_github_authenticated") private var githubAuthenticated = false
     @State private var didConfirmGitHubSession = false
@@ -1017,6 +1018,8 @@ struct GitHubIntegrationView: View {
     }
 
     var body: some View {
+        Group {
+        if premiumLicense.hasGitHubTools {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
@@ -1078,6 +1081,10 @@ struct GitHubIntegrationView: View {
             .padding(16)
             .frame(maxWidth: 620)
             .frame(maxWidth: .infinity)
+        }
+        } else {
+            INRPFPremiumLicenseGateView(client: premiumLicense)
+        }
         }
         .background {
             ZStack {
