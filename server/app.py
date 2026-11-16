@@ -55,6 +55,11 @@ def code_digest(code):
     return hmac.new(LICENSE_PEPPER.encode(), normalized.encode(), hashlib.sha256).hexdigest()
 
 
+def authorized():
+    supplied = request.headers.get("Authorization", "")
+    return bool(REPORT_TOKEN) and hmac.compare_digest(supplied, f"Bearer {REPORT_TOKEN}")
+
+
 def admin_authorized():
     supplied = request.headers.get("Authorization", "")
     return bool(LICENSE_ADMIN_TOKEN) and hmac.compare_digest(
