@@ -203,6 +203,13 @@ class PremiumLicenseTests(unittest.TestCase):
         self.assertEqual(allowed.status_code, 200)
         self.assertFalse(allowed.get_json()["configured"])
 
+    def test_admin_dashboard_accepts_license_admin_token(self):
+        response = self.client.post(
+            "/api/admin/auth", json={"password": "test-admin-token"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
+
     def test_admin_authentication_and_feature_allowlist(self):
         denied = self.client.post(
             "/api/admin/codes/generate", headers={"Authorization": "Bearer wrong"},

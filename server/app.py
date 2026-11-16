@@ -351,11 +351,15 @@ def index():
 
 @app.post("/api/admin/auth")
 def admin_auth():
-    if not ADMIN_PASSWORD:
+    # The dashboard password may use either supported admin credential.
+    configured_credentials = [value for value in (ADMIN_PASSWORD, LICENSE_ADMIN_TOKEN) if value]
+    if not configured_credentials:
         return jsonify({"ok": False, "error": "admin_password_not_configured"}), 503
     payload = request.get_json(silent=True) or {}
     supplied = payload.get("password", "")
-    if not isinstance(supplied, str) or not hmac.compare_digest(supplied, ADMIN_PASSWORD):
+    if not isinstance(supplied, str) or not any(
+        hmac.compare_digest(supplied, expected) for expected in configured_credentials
+    ):
         return jsonify({"ok": False, "error": "unauthorized"}), 401
     return jsonify({"ok": True})
 
