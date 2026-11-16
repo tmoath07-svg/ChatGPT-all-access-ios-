@@ -87,17 +87,16 @@ jobs:
           grep -Fq 'responseText(from content: Any?)' GTAConverter/GeminiToolView.swift
           grep -Fq 'case 429:' GTAConverter/GeminiToolView.swift
           grep -Fq 'filter { $0.lowercased().contains("gemini") }' GTAConverter/GeminiToolView.swift
-          grep -Fq 'switch interfaceMode' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'case "ios":' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'case "ipados":' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'default:' GTAConverter/GTAConverterApp.swift
-          ! grep -Fq 'resolvedHorizontalSizeClass' GTAConverter/GTAConverterApp.swift
-          ! grep -Fq '.frame(maxWidth: 560)' GTAConverter/ContentView.swift
-          grep -Fq '.frame(maxWidth: .infinity)' GTAConverter/ContentView.swift
-          grep -Fq 'Text("تلقائي").tag("auto")' GTAConverter/GTAConverterApp.swift
+          python Tests/display_layout_compatibility_tests.py
           source .venv/bin/activate
           (cd server && python -m unittest -v test_license_api.py test_gemini_proxy.py)
           echo "PASS: Gemini response parsing, quota errors, model filtering, and adaptive device layout checks."
+      - name: Test iOS 18-27 adaptive display compatibility
+        run: |
+          set -euo pipefail
+          python Tests/display_layout_compatibility_tests.py
+          echo "PASS: adaptive window sizing and telemetry compatibility."
+
       - name: Test display layout survey and admin reporting
         run: |
           set -euo pipefail

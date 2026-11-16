@@ -1,0 +1,1872 @@
+import SwiftUI
+import CryptoKit
+import SwiftArchive
+import UniformTypeIdentifiers
+import Security
+import UIKit
+import PhotosUI
+import UserNotifications
+
+private struct GHDeviceCode: Decodable {
+    let device_code: String
+    let user_code: String
+    let verification_uri: String
+    let expires_in: Int
+    let interval: Int
+}
+private struct GHTokenResponse: Decodable {
+    let access_token: String?
+    let refresh_token: String?
+    let expires_in: Int?
+    let refresh_token_expires_in: Int?
+    let error: String?
+    let error_description: String?
+}
+private struct GHStoredToken: Codable {
+    var accessToken: String
+    var refreshToken: String?
+    var expiresAt: Date?
+}
+private struct GHUser: Decodable { let login: String }
+private struct GHRepository: Decodable, Identifiable {
+    let id: Int
+    let name: String
+    let full_name: String
+    let isPrivate: Bool
+    let defaultBranch: String?
+    enum CodingKeys: String, CodingKey {
+        case id, name, full_name
+        case isPrivate = "private"
+        case defaultBranch = "default_branch"
+    }
+}
+private struct GHRelease: Decodable {
+    let id: Int
+    let tag_name: String
+    let upload_url: String
+    let html_url: String
+    let assets: [GHReleaseAsset]?
+}
+private struct GHReleaseAsset: Decodable, Identifiable {
+    let id: Int
+    let name: String
+    let size: Int
+    let browser_download_url: String
+}
+private struct GHWorkflowList: Decodable { let workflows: [GHWorkflow] }
+private struct GHWorkflow: Decodable, Identifiable {
+    let id: Int
+    let name: String
+    let path: String
+    let state: String
+}
+private struct GHWorkflowRuns: Decodable { let workflow_runs: [GHWorkflowRun] }
+private struct GHWorkflowJobs: Decodable { let jobs: [GHWorkflowJob] }
+private struct GHWorkflowJob: Decodable, Identifiable {
+    let id: Int
+    let name: String
+    let status: String
+    let conclusion: String?
+    let steps: [GHWorkflowStep]?
+}
+private struct GHWorkflowStep: Decodable, Identifiable {
+    let name: String
+    let status: String
+    let conclusion: String?
+    let number: Int
+    var id: Int { number }
+}
+private struct GHWorkflowRun: Decodable, Identifiable {
+    let id: Int
+    let name: String
+    let run_number: Int
+    let status: String
+    let conclusion: String?
+    let html_url: String
+    let event: String
+    let created_at: String
+    let updated_at: String
+}
+
+private enum GHError: LocalizedError {
+    case message(String)
+    case httpStatus(Int, String)
+    var errorDescription: String? {
+        switch self {
+        case .message(let value): return value
+        case .httpStatus(let code, let message): return "GitHub HTTP \(code): \(message)"
+        }
+    }
+}
+
+private enum GHKeychain {
+    static func save(_ token: GHStoredToken) {
+        guard let data = try? JSONEncoder().encode(token) else { return }
+        delete()
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.tmoath07.inrpf.github",
+            kSecAttrAccount as String: "oauth-token",
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        SecItemAdd(query as CFDictionary, nil)
+    }
+    static func load() -> GHStoredToken? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.tmoath07.inrpf.github",
+            kSecAttrAccount as String: "oauth-token",
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return try? JSONDecoder().decode(GHStoredToken.self, from: data)
+    }
+    static func delete() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.tmoath07.inrpf.github",
+            kSecAttrAccount as String: "oauth-token"
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
+
+@MainActor
+private final class GitHubIntegrationClient: ObservableObject {
+    @Published var isAuthorized = false
+    @Published var username = ""
+    @Published var userCode = ""
+    @Published var verificationURL = URL(string: "https://github.com/login/device")
+    @Published var repositories: [GHRepository] = []
+    @Published var workflows: [GHWorkflow] = []
+    @Published var runs: [GHWorkflowRun] = []
+    @Published var workflowSteps: [GHWorkflowStep] = []
+    @Published var workflowStepsRunID: Int?
+    @Published var releaseAssets: [GHReleaseAsset] = []
+    @Published var status = "اربط حساب GitHub للبدء."
+    @Published var isBusy = false
+
+    private let clientID = "Ov23liCTi2VzD4WSLM7C"
+    private var token = GHKeychain.load()
+    private var pollingTask: Task<Void, Never>?
+
+    // Device authorization can take several minutes while the user switches to Safari.
+    // Keep requests tolerant of brief Wi-Fi/cellular handoffs instead of ending login.
+    private let githubSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.waitsForConnectivity = true
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 180
+        return URLSession(configuration: configuration)
+    }()
+
+    init() {
+        // Never trust a persisted UI flag as proof of authentication.
+        // Validate the Keychain token against GitHub before opening the workspace.
+        isAuthorized = false
+        if token != nil {
+            status = "جارٍ التحقق من جلسة GitHub المحفوظة..."
+            Task { await loadAccount() }
+        }
+    }
+
+    func beginLogin() {
+        guard !isBusy else { return }
+        pollingTask?.cancel()
+        Task {
+            isBusy = true
+            defer { isBusy = false }
+            do {
+                let device = try await requestDeviceCode()
+                userCode = device.user_code
+                verificationURL = URL(string: device.verification_uri)
+                status = "افتح GitHub وأدخل الرمز. الرمز صالح لمدة 15 دقيقة."
+                pollingTask = Task { await poll(device) }
+            } catch {
+                status = "تعذر بدء تسجيل الدخول: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func requestDeviceCode() async throws -> GHDeviceCode {
+        var request = URLRequest(url: URL(string: "https://github.com/login/device/code")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = formBody(["client_id": clientID, "scope": "repo workflow offline_access"])
+        let (data, response) = try await githubSession.data(for: request)
+        try check(response, data)
+        return try JSONDecoder().decode(GHDeviceCode.self, from: data)
+    }
+
+    private func poll(_ device: GHDeviceCode) async {
+        let deadline = Date().addingTimeInterval(TimeInterval(device.expires_in))
+        var interval = max(5, device.interval)
+        while !Task.isCancelled && Date() < deadline {
+            do {
+                try await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
+                if Task.isCancelled { return }
+                var request = URLRequest(url: URL(string: "https://github.com/login/oauth/access_token")!)
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Accept")
+                request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+                request.httpBody = formBody([
+                    "client_id": clientID,
+                    "device_code": device.device_code,
+                    "grant_type": "urn:ietf:params:oauth:grant-type:device_code"
+                ])
+                let (data, response) = try await URLSession.shared.data(for: request)
+                try check(response, data)
+                let result = try JSONDecoder().decode(GHTokenResponse.self, from: data)
+                if let access = result.access_token {
+                    let now = Date()
+                    token = GHStoredToken(
+                        accessToken: access,
+                        refreshToken: result.refresh_token,
+                        expiresAt: result.expires_in.map { now.addingTimeInterval(TimeInterval($0)) }
+                    )
+                    if let token { GHKeychain.save(token) }
+                    userCode = ""
+                    isAuthorized = true
+                    status = "تم ربط GitHub. جارٍ تحميل الحساب..."
+                    await loadAccount()
+                    return
+                }
+                switch result.error ?? "" {
+                case "authorization_pending":
+                    status = "بانتظار موافقتك في GitHub..."
+                case "slow_down":
+                    interval += 5
+                    status = "GitHub طلب إبطاء التحقق؛ المحاولة التالية بعد \(interval) ثوانٍ."
+                case "expired_token":
+                    userCode = ""
+                    status = "انتهت صلاحية الرمز. ابدأ تسجيل الدخول من جديد."
+                    return
+                case "access_denied":
+                    userCode = ""
+                    status = "تم رفض تسجيل الدخول."
+                    return
+                default:
+                    if let message = result.error_description {
+                        userCode = ""
+                        status = "فشل تسجيل الدخول: \(message)"
+                        return
+                    }
+                }
+            } catch is CancellationError {
+                return
+            } catch let error as URLError where [
+                .timedOut, .networkConnectionLost, .notConnectedToInternet,
+                .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed,
+                .dataNotAllowed, .internationalRoamingOff
+            ].contains(error.code) {
+                // A temporary disconnect must not destroy a valid device code.
+                // Retry with a bounded delay until GitHub's device code expires.
+                status = "انقطع الاتصال مؤقتاً؛ رمز التحقق محفوظ، جارٍ إعادة المحاولة..."
+                do {
+                    try await Task.sleep(nanoseconds: 5_000_000_000)
+                    if Task.isCancelled { return }
+                    interval = min(interval + 2, 30)
+                    continue
+                } catch {
+                    return
+                }
+            } catch {
+                status = "تعذر إكمال التحقق من GitHub: \(error.localizedDescription)"
+                return
+            }
+        }
+        if !Task.isCancelled {
+            userCode = ""
+            status = "انتهت مدة الرمز. ابدأ تسجيل الدخول من جديد."
+        }
+    }
+
+    func cancelLogin() {
+        pollingTask?.cancel()
+        pollingTask = nil
+        userCode = ""
+        status = "تم إلغاء تسجيل الدخول."
+    }
+
+    func signOut() {
+        pollingTask?.cancel()
+        GHKeychain.delete()
+        token = nil
+        isAuthorized = false
+        username = ""
+        repositories = []
+        workflows = []
+        runs = []
+        userCode = ""
+        status = "تم تسجيل الخروج."
+    }
+
+    func loadAccount() async {
+        do {
+            let user: GHUser = try await api("/user")
+            username = user.login
+            isAuthorized = true
+            status = "متصل بحساب @\(user.login)"
+            await loadRepositories()
+        } catch {
+            isAuthorized = false
+            status = "تعذر التحقق من الحساب: \(error.localizedDescription)"
+        }
+    }
+
+    func loadRepositories() async {
+        do {
+            repositories = try await api("/user/repos?sort=updated&per_page=100")
+            status = "تم تحميل \(repositories.count) مستودع."
+        } catch {
+            status = "تعذر تحميل المستودعات: \(error.localizedDescription)"
+        }
+    }
+
+    func createRepository(name: String, isPrivate: Bool) async throws -> GHRepository {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { throw GHError.message("اكتب اسم المستودع.") }
+        let repository: GHRepository = try await api("/user/repos", method: "POST", body: [
+            "name": name, "private": isPrivate, "auto_init": true,
+            "description": "Mod workspace managed by INRPF"
+        ])
+        await loadRepositories()
+        status = "تم إنشاء المستودع \(repository.full_name)."
+        return repository
+    }
+
+    func ensureConversionAssets(for repository: GHRepository, branch: String, toolkitPath: String) async throws {
+        let branchName = branch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !branchName.isEmpty else { throw GHError.message("تعذر تحديد الفرع الافتراضي للمستودع.") }
+        let branchPathCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
+        let branchEncoded = branchName.addingPercentEncoding(withAllowedCharacters: branchPathCharacters) ?? branchName
+        status = "المرحلة 1/4: التحقق من فرع المستودع..."
+        do {
+            let _: GHBranchCheck = try await api("/repos/\(repository.full_name)/branches/\(branchEncoded)")
+        } catch GHError.httpStatus(404, _) {
+            // A newly-created GitHub repository can briefly exist without a Git ref.
+            // Bootstrap its default branch with the first commit through Contents API.
+            // Omitting "branch" is intentional: the requested ref does not exist yet.
+            status = "المرحلة 1/4: إنشاء أول commit لتهيئة الفرع الافتراضي..."
+            do {
+                let bootstrapText = "# INRPF workspace\n\nThis repository is managed by INRPF.\n"
+                let _: GHContentResult = try await api(
+                    "/repos/\(repository.full_name)/contents/README.md",
+                    method: "PUT",
+                    body: [
+                        "message": "INRPF: initialize default branch",
+                        "content": Data(bootstrapText.utf8).base64EncodedString()
+                    ]
+                )
+                var branchReady = false
+                for attempt in 0..<5 {
+                    do {
+                        let _: GHBranchCheck = try await api("/repos/\(repository.full_name)/branches/\(branchEncoded)")
+                        branchReady = true
+                        break
+                    } catch {
+                        if attempt == 4 { throw error }
+                        try await Task.sleep(nanoseconds: 600_000_000)
+                    }
+                }
+                guard branchReady else {
+                    throw GHError.message("تم إنشاء ملف التهيئة لكن GitHub لم يُظهر الفرع بعد.")
+                }
+            } catch {
+                throw GHError.message("المستودع \(repository.full_name) لا يحتوي فرعاً بعد، وفشلت تهيئته تلقائياً: \(error.localizedDescription)")
+            }
+        } catch {
+            throw GHError.message("فشل التحقق من الفرع «\(branchName)» في \(repository.full_name): \(error.localizedDescription)")
+        }
+
+        // Fetch the canonical workflow from the app repository, never from the
+        // user's newly-created workspace. Try the development branch first, then
+        // the default branch so a branch rename cannot strand new repositories.
+        status = "المرحلة 2/4: تنزيل ملف Workflow من مستودع INRPF..."
+        let workflowPath = ".github/workflows/convert-pc-to-ps4.yml"
+        let encodedWorkflowPath = workflowPath.split(separator: "/").map {
+            String($0).addingPercentEncoding(withAllowedCharacters: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")) ?? String($0)
+        }.joined(separator: "/")
+        let workflowData: Data
+        var workflowSourceError: Error?
+        var downloadedWorkflow: Data?
+        for sourceRef in ["feature/inrpf-github-device-flow", "main"] {
+            let encodedRef = sourceRef.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? sourceRef
+            do {
+                let source: GHRepositoryFile = try await api(
+                    "/repos/tmoath07-svg/ChatGPT-all-access-ios-/contents/\(encodedWorkflowPath)?ref=\(encodedRef)"
+                )
+                guard source.encoding == "base64",
+                      let encoded = source.content,
+                      let decoded = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
+                      !decoded.isEmpty else {
+                    throw GHError.message("استجابة GitHub لا تحتوي ملف Workflow صالحاً بترميز Base64 (المصدر: \(sourceRef)).")
+                }
+                downloadedWorkflow = decoded
+                break
+            } catch {
+                workflowSourceError = error
+                if case GHError.httpStatus(404, _) = error { continue }
+                throw GHError.message("فشل تنزيل Workflow من فرع \(sourceRef): \(error.localizedDescription)")
+            }
+        }
+        guard let verifiedWorkflow = downloadedWorkflow else {
+            throw GHError.message("لم يتم العثور على Workflow في فرعي feature/inrpf-github-device-flow أو main. \(workflowSourceError?.localizedDescription ?? "")")
+        }
+        workflowData = verifiedWorkflow
+
+        status = "المرحلة 3/4: تنزيل حزمة أدوات التحويل..."
+        let toolkitURL = URL(string: "https://raw.githubusercontent.com/tmoath07-svg/Ps4tools/main/ZokiiStudio-Toolkit-FIXED.zip")!
+        let toolkitData: Data
+        do {
+            let (data, response) = try await githubSession.data(from: toolkitURL)
+            try check(response, data)
+            guard !data.isEmpty, data.count <= 25 * 1024 * 1024 else {
+                throw GHError.message("حزمة أدوات التحويل فارغة أو تجاوزت 25MB.")
+            }
+            toolkitData = data
+        } catch {
+            throw GHError.message("فشل تنزيل حزمة الأدوات من Ps4tools/ZokiiStudio-Toolkit-FIXED.zip: \(error.localizedDescription)")
+        }
+
+        status = "المرحلة 4/4: رفع Workflow وحزمة الأدوات إلى مستودعك..."
+        do {
+            try await uploadRepositoryAsset(workflowData, to: repository,
+                path: workflowPath, branch: branchEncoded,
+                message: "INRPF: install conversion workflow", skipIfExists: false)
+        } catch {
+            throw GHError.message("فشل رفع Workflow إلى \(repository.full_name)/\(workflowPath) على الفرع \(branchName): \(error.localizedDescription)")
+        }
+        do {
+            try await uploadRepositoryAsset(toolkitData, to: repository,
+                path: toolkitPath, branch: branchEncoded,
+                message: "INRPF: install conversion toolkit", skipIfExists: true)
+        } catch {
+            throw GHError.message("فشل رفع حزمة الأدوات إلى \(repository.full_name)/\(toolkitPath) على الفرع \(branchName): \(error.localizedDescription)")
+        }
+        status = "اكتمل تجهيز المستودع: Workflow ومحرك التحويل جاهزان."
+    }
+
+    private func uploadRepositoryAsset(_ data: Data, to repository: GHRepository, path: String,
+                                       branch: String, message: String, skipIfExists: Bool) async throws {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
+        let encodedPath = path.split(separator: "/").map {
+            String($0).addingPercentEncoding(withAllowedCharacters: allowed) ?? String($0)
+        }.joined(separator: "/")
+        let existing: GHContentResult?
+        do {
+            existing = try await api("/repos/\(repository.full_name)/contents/\(encodedPath)?ref=\(branch)")
+        } catch GHError.httpStatus(404, _) {
+            existing = nil
+        }
+        let gitHeader = Data("blob \(data.count)\0".utf8)
+        let expectedSHA = Insecure.SHA1.hash(data: gitHeader + data).map { String(format: "%02x", $0) }.joined()
+        var writeResult: GHContentResult?
+        if let sha = existing?.resolvedSHA {
+            if sha == expectedSHA {
+                status = skipIfExists ? "حزمة التحويل مطابقة وموجودة مسبقاً." : "ملف Workflow مطابق وموجود مسبقاً."
+            } else {
+                writeResult = try await api(
+                    "/repos/\(repository.full_name)/contents/\(encodedPath)",
+                    method: "PUT",
+                    body: ["message": message, "content": data.base64EncodedString(), "sha": sha, "branch": branch]
+                )
+            }
+        } else {
+            writeResult = try await api(
+                "/repos/\(repository.full_name)/contents/\(encodedPath)",
+                method: "PUT",
+                body: ["message": message, "content": data.base64EncodedString(), "branch": branch]
+            )
+        }
+
+        // Trust the SHA returned by the successful write, then allow the Contents
+        // read endpoint time to become consistent before declaring a mismatch.
+        if let returnedSHA = writeResult?.resolvedSHA, returnedSHA != expectedSHA {
+            throw GHError.message("استجابة GitHub لعملية الكتابة أعادت SHA غير مطابق للملف المحلي: \(path)")
+        }
+
+        var verification: GHContentResult?
+        var lastReadError: Error?
+        for attempt in 0..<5 {
+            do {
+                let current: GHContentResult = try await api(
+                    "/repos/\(repository.full_name)/contents/\(encodedPath)?ref=\(branch)"
+                )
+                if current.resolvedSHA == expectedSHA {
+                    verification = current
+                    break
+                }
+                if attempt < 4 { try await Task.sleep(nanoseconds: 700_000_000) }
+            } catch {
+                lastReadError = error
+                if attempt < 4 { try await Task.sleep(nanoseconds: 700_000_000) }
+            }
+        }
+        guard let verified = verification else {
+            let actual = writeResult?.resolvedSHA ?? "غير متاح"
+            let detail = lastReadError.map { " — تعذر إعادة القراءة: \($0.localizedDescription)" } ?? ""
+            throw GHError.message("لم يتأكد GitHub من محتوى الملف بعد 5 محاولات: \(repository.full_name)/\(path) — المتوقع: \(expectedSHA)، SHA استجابة الرفع: \(actual)\(detail)")
+        }
+        if let encoded = verified.content?.content,
+           verified.content?.encoding == "base64",
+           let actual = Data(base64Encoded: encoded.replacingOccurrences(of: "\n", with: "")),
+           actual != data {
+            throw GHError.message("محتوى الملف بعد الرفع لا يطابق الملف الأصلي: \(repository.full_name)/\(path)")
+        }
+    }
+
+    func uploadFile(_ url: URL, to repository: GHRepository, repositoryPath: String) async throws {
+        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard size > 0 && size <= 90 * 1024 * 1024 else {
+            throw GHError.message("الملف فارغ أو يتجاوز حد الرفع المباشر 90MB: \(url.lastPathComponent)")
+        }
+        let data = try Data(contentsOf: url)
+        let pathCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
+        let encodedPath = repositoryPath.split(separator: "/").map {
+            String($0).addingPercentEncoding(withAllowedCharacters: pathCharacters) ?? String($0)
+        }.joined(separator: "/")
+        let _: GHContentResult = try await api(
+            "/repos/\(repository.full_name)/contents/\(encodedPath)",
+            method: "PUT",
+            body: ["message": "INRPF: upload \(url.lastPathComponent)", "content": data.base64EncodedString()]
+        )
+        status = "تم رفع \(url.lastPathComponent)."
+    }
+
+    func uploadItems(_ urls: [URL], to repository: GHRepository, inputFolder: String,
+                     branch: String) async throws -> String {
+        guard !urls.isEmpty else { throw GHError.message("اختر ملفات التحويل أولاً.") }
+        var files: [(URL, String)] = []
+        let fm = FileManager.default
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+                throw GHError.message("الملف غير موجود: \(url.lastPathComponent)")
+            }
+            if isDirectory.boolValue {
+                guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey], options: [.skipsHiddenFiles]) else {
+                    throw GHError.message("تعذر قراءة المجلد: \(url.lastPathComponent)")
+                }
+                for case let child as URL in enumerator {
+                    let values = try child.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey])
+                    guard values.isRegularFile == true else { continue }
+                    let relative = String(child.path.dropFirst(url.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                    files.append((child, url.lastPathComponent + "/" + relative))
+                }
+            } else {
+                files.append((url, url.lastPathComponent))
+            }
+        }
+        guard !files.isEmpty else { throw GHError.message("المجلد المختار لا يحتوي ملفات.") }
+        // Validate every input before creating a Release so invalid files do not leave empty Releases behind.
+        for item in files {
+            let attributes = try fm.attributesOfItem(atPath: item.0.path)
+            let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
+            guard size > 0 && size <= 2_000_000_000 else {
+                throw GHError.message("حجم الملف غير مدعوم في Release: \(item.1)")
+            }
+        }
+        let tag = "inrpf-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.lowercased())"
+        status = "جاري إنشاء Release: \(tag)"
+        let release: GHRelease
+        do {
+            release = try await createInputRelease(tag: tag, repository: repository, branch: branch)
+        } catch {
+            throw GHError.message("فشل إنشاء Release قبل رفع الملفات: \(error.localizedDescription)")
+        }
+        var manifest: [[String: String]] = []
+        for (index, item) in files.enumerated() {
+            // Each Release asset gets a globally unique name. GitHub returns HTTP 422
+            // when an asset with the same name already exists on the target Release.
+            let assetName = "inrpf-input-\(String(format: "%05d", index + 1))-\(UUID().uuidString.lowercased()).bin"
+            do {
+                try await uploadReleaseAsset(item.0, name: assetName, release: release)
+            } catch {
+                throw GHError.message("فشل رفع الملف \(item.1) باسم \(assetName): \(error.localizedDescription)")
+            }
+            manifest.append(["asset": assetName, "path": item.1])
+            status = "رفع ملفات Release: \(index + 1) من \(files.count)"
+        }
+        let manifestData = try JSONSerialization.data(withJSONObject: ["files": manifest], options: [.prettyPrinted, .sortedKeys])
+        let manifestURL = fm.temporaryDirectory.appendingPathComponent("inrpf-input-manifest-\(UUID().uuidString).json")
+        try manifestData.write(to: manifestURL, options: .atomic)
+        defer { try? fm.removeItem(at: manifestURL) }
+        do {
+            try await uploadReleaseAsset(manifestURL, name: "inrpf-input-manifest.json", release: release)
+        } catch {
+            throw GHError.message("تم رفع ملفات الإدخال، لكن فشل رفع manifest: \(error.localizedDescription)")
+        }
+        status = "اكتمل رفع \(files.count) ملفاً إلى Release \(tag)."
+        return tag
+    }
+
+    private func createInputRelease(tag: String, repository: GHRepository, branch: String) async throws -> GHRelease {
+        let release: GHRelease = try await api("/repos/\(repository.full_name)/releases", method: "POST", body: [
+            "tag_name": tag,
+            "target_commitish": branch,
+            "name": "INRPF Input • \(tag)",
+            "body": "Input files uploaded by INRPF. The conversion workflow will publish its results to this release.",
+            "draft": false,
+            "prerelease": false
+        ])
+        return release
+    }
+
+    private func uploadReleaseAsset(_ fileURL: URL, name: String, release: GHRelease) async throws {
+        guard let token = token?.accessToken else { throw GHError.message("سجّل الدخول أولاً.") }
+        let base = release.upload_url.components(separatedBy: "{").first ?? release.upload_url
+        guard var components = URLComponents(string: base) else {
+            throw GHError.message("رابط رفع Release غير صالح.")
+        }
+        components.queryItems = [URLQueryItem(name: "name", value: name)]
+        guard let url = components.url else { throw GHError.message("تعذر تكوين رابط رفع Release.") }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        _ = try await INRPFBackgroundTransferManager.shared.upload(request, from: fileURL, name: name)
+    }
+
+    func loadReleaseAssets(for repository: GHRepository, tag: String) async {
+        do {
+            let encoded = tag.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? tag
+            let release: GHRelease = try await api("/repos/\(repository.full_name)/releases/tags/\(encoded)")
+            releaseAssets = release.assets ?? []
+            status = "تم تحديث ملفات Release \(tag)."
+        } catch {
+            releaseAssets = []
+            status = "تعذر قراءة Release \(tag): \(error.localizedDescription)"
+        }
+    }
+
+    func downloadReleaseAsset(_ asset: GHReleaseAsset, from repository: GHRepository) async throws -> URL {
+        try await refreshIfNeeded()
+        guard let access = token?.accessToken else { throw GHError.message("سجّل الدخول أولاً.") }
+        let endpoint = "https://api.github.com/repos/\(repository.full_name)/releases/assets/\(asset.id)"
+        var request = URLRequest(url: URL(string: endpoint)!)
+        request.setValue("Bearer \(access)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
+        let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("GTA Converter/INRPF Results", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let safeName = asset.name.replacingOccurrences(of: "/", with: "_")
+        let destination = root.appendingPathComponent(safeName)
+        return try await INRPFBackgroundTransferManager.shared.download(
+            request, to: destination, name: asset.name
+        )
+    }
+
+    func loadWorkflows(for repository: GHRepository) async {
+        do {
+            let response: GHWorkflowList = try await api("/repos/\(repository.full_name)/actions/workflows?per_page=100")
+            workflows = response.workflows.filter {
+                $0.state == "active" && $0.path.hasSuffix("convert-pc-to-ps4.yml")
+            }
+            status = workflows.isEmpty
+                ? "لم أجد Workflow التحويل convert-pc-to-ps4.yml في هذا المستودع."
+                : "تم العثور على Workflow التحويل الصحيح."
+        } catch {
+            workflows = []
+            status = "تعذر قراءة Workflows: \(error.localizedDescription)"
+        }
+    }
+
+    func loadRuns(for repository: GHRepository) async {
+        do {
+            let response: GHWorkflowRuns = try await api("/repos/\(repository.full_name)/actions/runs?per_page=8")
+            runs = response.workflow_runs
+            if let latest = runs.first {
+                await loadWorkflowSteps(for: repository, runID: latest.id)
+            } else {
+                workflowSteps = []
+                workflowStepsRunID = nil
+            }
+        } catch {
+            status = "تعذر تحميل سجل GitHub Actions: \(error.localizedDescription)"
+        }
+    }
+
+    func loadWorkflowSteps(for repository: GHRepository, runID: Int) async {
+        do {
+            let response: GHWorkflowJobs = try await api(
+                "/repos/\(repository.full_name)/actions/runs/\(runID)/jobs?per_page=100"
+            )
+            workflowSteps = response.jobs
+                .flatMap { $0.steps ?? [] }
+                .sorted { $0.number < $1.number }
+            workflowStepsRunID = runID
+        } catch {
+            status = "تعذر تحميل خطوات التحويل: \(error.localizedDescription)"
+        }
+    }
+
+    func dispatch(_ workflow: GHWorkflow, repository: GHRepository, ref: String, inputs: [String: String]) async throws {
+        let ref = ref.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ref.isEmpty else { throw GHError.message("اكتب اسم الفرع، مثل main.") }
+        try await apiNoContent(
+            "/repos/\(repository.full_name)/actions/workflows/\(workflow.id)/dispatches",
+            body: ["ref": ref, "inputs": inputs]
+        )
+        status = "تم إرسال طلب تشغيل \(workflow.name) على \(ref)."
+    }
+
+    private func api<T: Decodable>(_ path: String, method: String = "GET", body: [String: Any]? = nil) async throws -> T {
+        try await refreshIfNeeded()
+        guard let access = token?.accessToken else { throw GHError.message("سجّل الدخول أولاً.") }
+        var request = URLRequest(url: URL(string: "https://api.github.com" + path)!)
+        request.httpMethod = method
+        request.setValue("Bearer \(access)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try check(response, data)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func apiNoContent(_ path: String, body: [String: Any]) async throws {
+        try await refreshIfNeeded()
+        guard let access = token?.accessToken else { throw GHError.message("سجّل الدخول أولاً.") }
+        var request = URLRequest(url: URL(string: "https://api.github.com" + path)!)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(access)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try check(response, data)
+    }
+
+    private func refreshIfNeeded() async throws {
+        guard var current = token, let expiry = current.expiresAt,
+              expiry <= Date().addingTimeInterval(120) else { return }
+        guard let refresh = current.refreshToken else {
+            signOut()
+            throw GHError.message("انتهت الجلسة. سجّل الدخول مجدداً.")
+        }
+        var request = URLRequest(url: URL(string: "https://github.com/login/oauth/access_token")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = formBody([
+            "client_id": clientID, "grant_type": "refresh_token", "refresh_token": refresh
+        ])
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try check(response, data)
+        let result = try JSONDecoder().decode(GHTokenResponse.self, from: data)
+        guard let access = result.access_token else {
+            signOut()
+            throw GHError.message(result.error_description ?? "تعذّر تحديث جلسة GitHub.")
+        }
+        let now = Date()
+        current.accessToken = access
+        current.refreshToken = result.refresh_token ?? refresh
+        current.expiresAt = result.expires_in.map { now.addingTimeInterval(TimeInterval($0)) }
+        token = current
+        GHKeychain.save(current)
+    }
+
+    private func formBody(_ values: [String: String]) -> Data {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
+        let fields = values.map { key, value in
+            "\(key.addingPercentEncoding(withAllowedCharacters: allowed) ?? key)=\(value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value)"
+        }.joined(separator: "&")
+        return Data(fields.utf8)
+    }
+
+    private func check(_ response: URLResponse, _ data: Data) throws {
+        guard let http = response as? HTTPURLResponse else { throw GHError.message("استجابة شبكة غير معروفة.") }
+        guard (200...299).contains(http.statusCode) else {
+            let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            let message = payload?["message"] as? String ?? "بدون تفاصيل من الخادم"
+            let errors = (payload?["errors"] as? [[String: Any]] ?? []).map { item -> String in
+                let resource = item["resource"] as? String
+                let field = item["field"] as? String
+                let code = item["code"] as? String
+                let detail = item["message"] as? String
+                return [resource, field, code, detail].compactMap { $0 }.joined(separator: " / ")
+            }.filter { !$0.isEmpty }
+            let detail = errors.isEmpty ? message : "\(message) — \(errors.joined(separator: " | "))"
+            throw GHError.httpStatus(http.statusCode, detail)
+        }
+    }
+}
+
+private struct GHContentResult: Decodable {
+    let content: GHContent?
+    let sha: String?
+
+    var resolvedSHA: String? { content?.sha ?? sha }
+
+    private enum CodingKeys: String, CodingKey { case content, sha }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        sha = try? values.decode(String.self, forKey: .sha)
+        content = try? values.decode(GHContent.self, forKey: .content)
+    }
+}
+private struct GHContent: Decodable {
+    let name: String?
+    let sha: String?
+    let content: String?
+    let encoding: String?
+}
+
+// GET /contents/{path} returns Base64 text at the top-level "content" key,
+// unlike PUT responses where "content" is a nested object.
+private struct GHRepositoryFile: Decodable {
+    let content: String?
+    let encoding: String?
+}
+
+private struct GHBranchCheck: Decodable {
+    let name: String
+}
+
+private struct CameraCapturePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    let onDismiss: () -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: CameraCapturePicker
+        init(_ parent: CameraCapturePicker) { self.parent = parent }
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            parent.image = info[.originalImage] as? UIImage
+            parent.onDismiss()
+            picker.dismiss(animated: true)
+        }
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.onDismiss()
+            picker.dismiss(animated: true)
+        }
+    }
+}
+
+
+@MainActor
+private enum INRPFCompletionNotification {
+    static func requestPermission() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .notDetermined else { return }
+        _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+    }
+
+    static func send(title: String, body: String, identifier: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "inrpf-conversion-\(identifier)",
+            content: content,
+            trigger: nil
+        )
+        try? await UNUserNotificationCenter.current().add(request)
+    }
+}
+
+struct GitHubIntegrationView: View {
+    private enum ActiveSheet: String, Identifiable, Equatable {
+        case camera, files, folder
+        var id: String { rawValue }
+    }
+
+    @StateObject private var client = GitHubIntegrationClient()
+    @StateObject private var premiumLicense = INRPFPremiumLicenseClient()
+    @ObservedObject private var backgroundTransfers = INRPFBackgroundTransferManager.shared
+    @AppStorage("gta_github_authenticated") private var githubAuthenticated = false
+    @State private var didConfirmGitHubSession = false
+    @State private var repositoryName = ""
+    @State private var isPrivate = true
+    @State private var selectedRepositoryID: Int?
+    @State private var selectedWorkflowID: Int?
+    @State private var branchName = "main"
+    @State private var activeReleaseTag: String?
+    @State private var workflowDispatchStartedAt: Date?
+    @State private var downloadedResultURLs: [URL] = []
+    @State private var activeSheet: ActiveSheet?
+    @State private var selectedFileURLs: [URL] = []
+    @State private var appFiles: [URL] = []
+    @State private var monitorRefreshToken = 0
+    @State private var autoDetectedMode: String?
+    @State private var isDetectingFileTypes = false
+    @State private var photoSelections: [PhotosPickerItem] = []
+    @State private var cameraImage: UIImage?
+    @State private var isDropTargeted = false
+    @State private var inputFolder = "uploads/inrpf-input"
+    @State private var conversionMode = "أوتو"
+    @State private var toolkitZip = "tools-source/ZokiiStudio-Toolkit-FIXED.zip"
+    @State private var vehicleSpawnName = "buccaneer2"
+
+    private var selectedRepository: GHRepository? {
+        client.repositories.first { $0.id == selectedRepositoryID }
+    }
+    private var selectedWorkflow: GHWorkflow? {
+        client.workflows.first { $0.id == selectedWorkflowID } ?? client.workflows.first
+    }
+
+    private var resolvedConversionMode: String {
+        guard conversionMode == "أوتو" else { return conversionMode }
+        if let autoDetectedMode { return autoDetectedMode }
+        let extensions = Set(selectedFileURLs.map { $0.pathExtension.lowercased() })
+        if extensions.contains("rpf") { return "تحويل DLC الكمبيوتر إلى DLC السوني" }
+        if extensions.contains("yft") || extensions.contains("ytd") {
+            return "تحويل YFT وYTD وبناء DLC متعدد السيارات للسوني"
+        }
+        if selectedFileURLs.contains(where: isFiveMResourceFolder) {
+            return "تحويل مود FiveM متعدد السيارات إلى DLC للسوني"
+        }
+        if !extensions.isDisjoint(with: ["zip", "rar", "7z"]) {
+            return "تحويل ملفات PC إلى PS4"
+        }
+        return "تحويل الملفات وبناء RPF"
+    }
+
+    private var autoDetectionSummary: String {
+        guard !selectedFileURLs.isEmpty else { return "أضف ملفاتك، وراح يحدد INRPF نوعها تلقائياً." }
+        if isDetectingFileTypes { return "جاري فحص محتويات الملفات والأرشيفات..." }
+        let names = selectedFileURLs.map { $0.pathExtension.isEmpty ? "مجلد" : $0.pathExtension.uppercased() }
+        return "تم التعرف على: \(Array(Set(names)).sorted().joined(separator: "، ")) — الإجراء: \(resolvedConversionMode)"
+    }
+
+    private func updateAutoDetection(for urls: [URL]) async {
+        guard conversionMode == "أوتو" else { return }
+        guard !urls.isEmpty else {
+            autoDetectedMode = nil
+            isDetectingFileTypes = false
+            return
+        }
+        isDetectingFileTypes = true
+        defer { isDetectingFileTypes = false }
+        var paths: [String] = []
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { continue }
+            if isDirectory.boolValue {
+                if let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
+                    for case let child as URL in enumerator {
+                        if (try? child.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true {
+                            paths.append(String(child.path.dropFirst(url.path.count)).lowercased())
+                        }
+                        if paths.count >= 20_000 { break }
+                    }
+                }
+            } else if ["zip", "rar", "7z", "tar", "gz"].contains(url.pathExtension.lowercased()) {
+                do {
+                    let reader = try await ArchiveReader(reading: .fileURL(url))
+                    var inspected = 0
+                    while let entry = try await reader.nextEntry(), inspected < 20_000 {
+                        paths.append(entry.path.lowercased())
+                        inspected += 1
+                    }
+                } catch {
+                    paths.append(url.lastPathComponent.lowercased())
+                }
+            } else {
+                paths.append(url.lastPathComponent.lowercased())
+            }
+        }
+        let joined = paths.joined(separator: "\n")
+        if joined.contains("stream/") && joined.contains("data/") && joined.contains(".yft") && joined.contains(".meta") {
+            autoDetectedMode = "تحويل مود FiveM متعدد السيارات إلى DLC للسوني"
+        } else if paths.contains(where: { $0.hasSuffix(".rpf") }) {
+            autoDetectedMode = "تحويل DLC الكمبيوتر إلى DLC السوني"
+        } else if paths.contains(where: { $0.hasSuffix(".yft") || $0.hasSuffix(".ytd") }) {
+            autoDetectedMode = "تحويل YFT وYTD وبناء DLC متعدد السيارات للسوني"
+        } else if paths.contains(where: { [".zip", ".rar", ".7z"].contains(URL(fileURLWithPath: $0).pathExtension.lowercased()) }) {
+            autoDetectedMode = "تحويل ملفات PC إلى PS4"
+        } else {
+            autoDetectedMode = "تحويل الملفات وبناء RPF"
+        }
+    }
+
+    private func isFiveMResourceFolder(_ url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else { return false }
+        let stream = url.appendingPathComponent("stream", isDirectory: true)
+        let data = url.appendingPathComponent("data", isDirectory: true)
+        var streamIsDirectory: ObjCBool = false
+        var dataIsDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: stream.path, isDirectory: &streamIsDirectory)
+            && streamIsDirectory.boolValue
+            && FileManager.default.fileExists(atPath: data.path, isDirectory: &dataIsDirectory)
+            && dataIsDirectory.boolValue
+    }
+
+    var body: some View {
+        Group {
+        if premiumLicense.hasGitHubTools {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                NavigationLink(destination: OrbxPS4TransferView()) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "gamecontroller.fill")
+                            .font(.title2)
+                            .foregroundStyle(.purple)
+                            .frame(width: 42, height: 42)
+                            .background(Color.purple.opacity(0.16), in: RoundedRectangle(cornerRadius: 12))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("إعدادات PS4 والتركيب التلقائي")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.primary)
+                            Text("عنوان السوني وFTP والحزم الجاهزة")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.left")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                    .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.075), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                if !client.userCode.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("رمز التحقق").font(.headline)
+                        Text(client.userCode)
+                            .font(.system(size: 30, weight: .bold, design: .monospaced))
+                            .frame(maxWidth: .infinity).padding(14)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                        HStack {
+                            Button("نسخ الرمز") { UIPasteboard.general.string = client.userCode }
+                            Spacer()
+                            if let url = client.verificationURL { Link("فتح GitHub", destination: url) }
+                        }
+                        Button("إلغاء تسجيل الدخول", role: .cancel) { client.cancelLogin() }
+                    }
+                    .padding(16).background(Color(red: 0.075, green: 0.085, blue: 0.13).opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.075), lineWidth: 1))
+                }
+                if client.isAuthorized {
+                    repositorySection
+                    uploadSection
+                    workflowSection
+                    releaseResultsSection
+                }
+                Text(client.status)
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                    .background(Color.white.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .padding(16)
+            .frame(maxWidth: 620)
+            .frame(maxWidth: .infinity)
+        }
+        } else {
+            INRPFPremiumLicenseGateView(client: premiumLicense)
+        }
+        }
+        .background {
+            ZStack {
+                LinearGradient(colors: [Color(red: 0.025, green: 0.035, blue: 0.065), Color(red: 0.055, green: 0.035, blue: 0.10), Color.black],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                Circle().fill(Color(red: 0.30, green: 0.22, blue: 0.75).opacity(0.16)).frame(width: 320).blur(radius: 90).offset(x: 170, y: -310)
+            }.ignoresSafeArea()
+        }
+        .navigationTitle(client.isAuthorized ? "INRPF • GitHub" : "INRPF")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                NavigationLink(destination: INRPFDeviceTestLabView()) {
+                    Image(systemName: "ipad.and.iphone").foregroundStyle(.purple)
+                }
+                .accessibilityLabel("مختبر الجهاز")
+                NavigationLink(destination: AppFilesView()) {
+                    Image(systemName: "folder.fill").foregroundStyle(.purple)
+                }
+                .accessibilityLabel("الملفات")
+                NavigationLink(destination: AppSettingsView()) {
+                    Image(systemName: "gearshape.fill").foregroundStyle(.purple)
+                }
+                .accessibilityLabel("الإعدادات")
+                NavigationLink(destination: AppDiagnosticsView(sourceURL: nil, outputFolder: nil, latestError: "")) {
+                    Image(systemName: "waveform.path.ecg").foregroundStyle(.purple)
+                }
+                .accessibilityLabel("التشخيصات")
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            if client.isAuthorized {
+                didConfirmGitHubSession = true
+                githubAuthenticated = true
+            }
+        }
+        .onChange(of: client.isAuthorized) { _, authorized in
+            if authorized {
+                didConfirmGitHubSession = true
+                githubAuthenticated = true
+            } else if didConfirmGitHubSession {
+                githubAuthenticated = false
+            }
+        }
+        .task(id: "\(selectedRepositoryID ?? 0)-\(monitorRefreshToken)") {
+            guard let repository = selectedRepository,
+                  workflowDispatchStartedAt != nil else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(8))
+                await client.loadRuns(for: repository)
+                guard let latest = client.runs.first,
+                      let startedAt = workflowDispatchStartedAt,
+                      let createdAt = ISO8601DateFormatter().date(from: latest.created_at),
+                      createdAt >= startedAt.addingTimeInterval(-60) else { continue }
+                await client.loadWorkflowSteps(for: repository, runID: latest.id)
+                if latest.status == "completed" {
+                    if latest.conclusion == "success" {
+                        if let tag = activeReleaseTag {
+                            await client.loadReleaseAssets(for: repository, tag: tag)
+                        }
+                        client.status = "انتهى التحويل بنجاح. رابط الناتج ظاهر في قسم ملفات الناتج."
+                        await INRPFCompletionNotification.send(
+                            title: "اكتمل تحويل INRPF بنجاح",
+                            body: "ملفات الناتج جاهزة داخل Release في قسم ملفات الناتج.",
+                            identifier: "\(latest.id)-success"
+                        )
+                    } else {
+                        client.status = "انتهى تشغيل GitHub Actions بنتيجة: \(latest.conclusion ?? "غير معروفة"). افتح سجل التشغيل لمعرفة الخطوة التي فشلت."
+                        await INRPFCompletionNotification.send(
+                            title: "تعذر إكمال تحويل INRPF",
+                            body: "انتهى تشغيل GitHub Actions بفشل. افتح سجل التشغيل لمعرفة السبب.",
+                            identifier: "\(latest.id)-failure"
+                        )
+                    }
+                    break
+                }
+            }
+        }
+        .onChange(of: selectedFileURLs) { _, urls in
+            Task { await updateAutoDetection(for: urls) }
+        }
+        .onChange(of: conversionMode) { _, mode in
+            if mode == "أوتو" {
+                Task { await updateAutoDetection(for: selectedFileURLs) }
+            }
+        }
+        .onChange(of: photoSelections) { _, items in
+            Task { await importPhotos(items) }
+        }
+        .onChange(of: cameraImage) { _, image in
+            guard let image, let data = image.jpegData(compressionQuality: 0.92) else { return }
+            do {
+                let url = try saveImportedData(data, name: "camera-\(UUID().uuidString).jpg")
+                selectedFileURLs.append(url)
+                client.status = "تمت إضافة صورة الكاميرا إلى قائمة الرفع."
+            } catch { client.status = error.localizedDescription }
+            cameraImage = nil
+            activeSheet = nil
+        }
+        .sheet(isPresented: Binding(
+            get: { activeSheet == .camera },
+            set: { if !$0 && activeSheet == .camera { activeSheet = nil } }
+        )) {
+            CameraCapturePicker(image: $cameraImage, onDismiss: { activeSheet = nil })
+                .ignoresSafeArea()
+        }
+        .inrpfDocumentPicker(
+            isPresented: Binding(
+                get: { activeSheet == .files },
+                set: { if !$0 && activeSheet == .files { activeSheet = nil } }
+            ),
+            contentTypes: [.item],
+            allowsMultipleSelection: true,
+            onCompletion: { result in
+                activeSheet = nil
+                importGitHubItems(result, itemDescription: "ملف")
+            },
+            onCancellation: {
+                activeSheet = nil
+                client.status = "تم إلغاء اختيار الملفات."
+            }
+        )
+        .inrpfDocumentPicker(
+            isPresented: Binding(
+                get: { activeSheet == .folder },
+                set: { if !$0 && activeSheet == .folder { activeSheet = nil } }
+            ),
+            contentTypes: [.folder],
+            allowsMultipleSelection: false,
+            onCompletion: { result in
+                activeSheet = nil
+                importGitHubItems(result, itemDescription: "مجلد")
+            },
+            onCancellation: {
+                activeSheet = nil
+                client.status = "تم إلغاء اختيار المجلد."
+            }
+        )
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                        .fill(LinearGradient(colors: [Color.white.opacity(0.19), Color.white.opacity(0.055)],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 62, height: 62)
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.system(size: 25, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("INRPF").font(.system(size: 27, weight: .black, design: .rounded))
+                        .tracking(0.4).foregroundStyle(.white)
+                    Text("GITHUB CONNECTED WORKSPACE")
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .tracking(1.25).foregroundStyle(Color.white.opacity(0.52))
+                }
+                Spacer(minLength: 0)
+            }
+            if client.isAuthorized {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("الحساب متصل", systemImage: "checkmark.circle.fill")
+                        .font(.headline).foregroundStyle(.green)
+                    Text("@\(client.username)")
+                        .font(.title3.bold()).foregroundStyle(.white)
+                    Text("مستودعاتك وملفاتك وعمليات التحويل مرتبطة بحساب GitHub.")
+                        .font(.subheadline).foregroundStyle(.white.opacity(0.68))
+                    HStack(spacing: 10) {
+                        Button {
+                            Task { await client.loadRepositories() }
+                        } label: {
+                            Label("تحديث المستودعات", systemImage: "arrow.clockwise")
+                                .frame(maxWidth: .infinity)
+                        }.buttonStyle(.borderedProminent)
+                        Button("تسجيل الخروج", role: .destructive) {
+                            client.signOut()
+                        }.buttonStyle(.bordered)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("كل شغلك يبدأ من GitHub")
+                        .font(.system(size: 25, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("سجّل دخولك عشان تربط مستودعاتك، تنشئ مساحة لموداتك، وترفع الملفات وتشغّل GitHub Actions من داخل INRPF.")
+                        .font(.subheadline).foregroundStyle(.white.opacity(0.70))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button {
+                        client.beginLogin()
+                    } label: {
+                        HStack(spacing: 10) {
+                            if client.isBusy { ProgressView().tint(.black) }
+                            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                .font(.headline)
+                            Text(client.isBusy ? "جاري الاتصال بـ GitHub..." : "تسجيل الدخول باستخدام GitHub")
+                                .font(.headline.bold())
+                        }
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity).padding(.vertical, 16)
+                        .background(.white, in: RoundedRectangle(cornerRadius: 15))
+                    }
+                    .buttonStyle(.plain).disabled(client.isBusy)
+
+                    HStack(spacing: 5) {
+                        Text("ما عندك حساب؟").foregroundStyle(.white.opacity(0.58))
+                        Link("إنشاء حساب GitHub", destination: URL(string: "https://github.com/signup")!)
+                            .fontWeight(.semibold).foregroundStyle(Color(red: 0.55, green: 0.72, blue: 1))
+                    }
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 3)
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.shield.fill").foregroundStyle(.green)
+                        Text("تتم المصادقة عبر GitHub Device Flow، ويحفظ رمز الجلسة في Keychain.")
+                            .font(.caption2).foregroundStyle(.white.opacity(0.55))
+                    }
+                    .padding(.top, 5)
+                }
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(colors: [Color(red: 0.16, green: 0.12, blue: 0.28), Color(red: 0.055, green: 0.055, blue: 0.075)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(.white.opacity(0.11)))
+    }
+
+    private var repositorySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("المستودعات").font(.headline)
+            if client.repositories.isEmpty {
+                Text("لا توجد مستودعات محمّلة حالياً.").font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(client.repositories) { repository in
+                Button {
+                    selectedRepositoryID = repository.id
+                    selectedWorkflowID = nil
+                    activeReleaseTag = nil
+                    workflowDispatchStartedAt = nil
+                    client.releaseAssets = []
+                    branchName = repository.defaultBranch ?? "main"
+                    client.workflows = []
+                    client.runs = []
+                    Task {
+                        do {
+                            try await client.ensureConversionAssets(
+                                for: repository,
+                                branch: repository.defaultBranch ?? "main",
+                                toolkitPath: toolkitZip
+                            )
+                            await client.loadWorkflows(for: repository)
+                            await client.loadRuns(for: repository)
+                        } catch {
+                            client.workflows = []
+                            client.status = "تعذر تجهيز المستودع تلقائياً: \(error.localizedDescription)"
+                        }
+                    }
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(repository.full_name).font(.subheadline.bold())
+                            Text(repository.isPrivate ? "خاص" : "عام").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if selectedRepositoryID == repository.id {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        }
+                    }
+                    .padding(11)
+                    .background(selectedRepositoryID == repository.id ? Color.purple.opacity(0.22) : Color.white.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }.buttonStyle(.plain)
+            }
+            Divider()
+            Text("إنشاء مستودع جديد").font(.subheadline.bold())
+            TextField("اسم المستودع", text: $repositoryName)
+                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
+            Toggle("مستودع خاص", isOn: $isPrivate)
+            Button("إنشاء المستودع") {
+                Task {
+                    do {
+                        let repository = try await client.createRepository(name: repositoryName, isPrivate: isPrivate)
+                        repositoryName = ""
+                        selectedRepositoryID = repository.id
+                        selectedWorkflowID = nil
+                        activeReleaseTag = nil
+                        workflowDispatchStartedAt = nil
+                        client.releaseAssets = []
+                        branchName = repository.defaultBranch ?? "main"
+                        client.workflows = []
+                        client.runs = []
+                        try await client.ensureConversionAssets(
+                            for: repository,
+                            branch: branchName,
+                            toolkitPath: toolkitZip
+                        )
+                        await client.loadWorkflows(for: repository)
+                        await client.loadRuns(for: repository)
+                    } catch { client.status = error.localizedDescription }
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(repositoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .padding(16).background(Color(red: 0.075, green: 0.085, blue: 0.13).opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.075), lineWidth: 1))
+    }
+
+    private var uploadSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("ملفات التحويل").font(.headline)
+            Text(selectedRepository?.full_name ?? "اختر مستودعاً أولاً")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Button("اختيار ملفات") {
+                    client.status = "اختر الملفات المراد رفعها من تطبيق «الملفات»."
+                    activeSheet = .files
+                }
+                .buttonStyle(.bordered)
+                Button("اختيار مجلد") {
+                    client.status = "اختر مجلد المود من تطبيق «الملفات»."
+                    activeSheet = .folder
+                }
+                .buttonStyle(.bordered)
+            }
+            HStack {
+                PhotosPicker(selection: $photoSelections, maxSelectionCount: 20, matching: .images) {
+                    Label("مكتبة الصور", systemImage: "photo.on.rectangle")
+                }.buttonStyle(.bordered)
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button { activeSheet = .camera } label: {
+                        Label("الكاميرا", systemImage: "camera")
+                    }.buttonStyle(.bordered)
+                }
+            }
+            Text("عدد العناصر المحددة: \(selectedFileURLs.count)").font(.caption).foregroundStyle(.secondary)
+            ForEach(selectedFileURLs, id: \.path) { file in
+                Label(file.lastPathComponent, systemImage: "doc.fill").font(.caption).lineLimit(1)
+            }
+            TextField("مجلد الإدخال في المستودع", text: $inputFolder)
+                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
+            Button("تحديث متصفح ملفات INRPF") { refreshAppFiles() }.buttonStyle(.bordered)
+            ForEach(appFiles.prefix(30), id: \.path) { file in
+                Button {
+                    if !selectedFileURLs.contains(file) { selectedFileURLs.append(file) }
+                } label: {
+                    Label(file.lastPathComponent, systemImage: "folder.badge.plus").font(.caption).lineLimit(1)
+                }.buttonStyle(.plain)
+            }
+            Text("يدعم اختيار الملفات والمجلدات من «الملفات»، والسحب والإفلات، والصور والكاميرا. تظهر المجلدات الداخلية ضمن المتصفح.")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .background(isDropTargeted ? Color.purple.opacity(0.22) : Color.white.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
+            for provider in providers {
+                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                    let source: URL?
+                    if let value = item as? URL { source = value }
+                    else if let data = item as? Data { source = URL(dataRepresentation: data, relativeTo: nil) }
+                    else if let value = item as? String { source = URL(string: value) }
+                    else { source = nil }
+                    guard let source, source.isFileURL,
+                          let copied = try? FileImportService.importItem(from: source, category: "GitHubUploads") else { return }
+                    DispatchQueue.main.async {
+                        if !selectedFileURLs.contains(copied) { selectedFileURLs.append(copied) }
+                        client.status = "تمت إضافة الملف المسحوب إلى قائمة الرفع."
+                    }
+                }
+            }
+            return !providers.isEmpty
+        }
+
+    }
+
+
+    private func importGitHubItems(_ result: Result<[URL], Error>, itemDescription: String) {
+        activeSheet = nil
+        switch result {
+        case .success(let urls):
+            guard !urls.isEmpty else {
+                client.status = "لم يتم اختيار أي عنصر."
+                return
+            }
+            client.status = "تم اختيار العناصر. جاري نسخها بأمان إلى مساحة INRPF..."
+            Task {
+                do {
+                    let imported = try await Task.detached(priority: .userInitiated) {
+                        try urls.map {
+                            try FileImportService.importItem(from: $0, category: "GitHubUploads")
+                        }
+                    }.value
+                    selectedFileURLs.append(contentsOf: imported)
+                    client.status = "تم نسخ \(imported.count) \(itemDescription) إلى قائمة الرفع."
+                } catch {
+                    client.status = "تعذر نسخ العناصر: \(error.localizedDescription)"
+                }
+            }
+        case .failure(let error):
+            client.status = "تعذر استيراد العناصر: \(error.localizedDescription)"
+        }
+    }
+
+    private func importPhotos(_ items: [PhotosPickerItem]) async {
+        for item in items {
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+            do {
+                let url = try saveImportedData(data, name: "photo-\(UUID().uuidString).\(ext)")
+                selectedFileURLs.append(url)
+            } catch { client.status = error.localizedDescription }
+        }
+        photoSelections = []
+        if !selectedFileURLs.isEmpty { client.status = "تمت إضافة الصور إلى قائمة الرفع." }
+    }
+
+    private func saveImportedData(_ data: Data, name: String) throws -> URL {
+        let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("GTA Converter/GitHubUploads", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let url = root.appendingPathComponent(name)
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
+    private func refreshAppFiles() {
+        let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("GTA Converter", isDirectory: true)
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            appFiles = []
+            return
+        }
+        appFiles = enumerator.compactMap { item in
+            guard let url = item as? URL,
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey]),
+                  values.isSymbolicLink != true,
+                  values.isRegularFile == true || values.isDirectory == true else { return nil }
+            return url
+        }.sorted { lhs, rhs in
+            let leftDirectory = (try? lhs.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            let rightDirectory = (try? rhs.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            if leftDirectory != rightDirectory { return leftDirectory }
+            return lhs.lastPathComponent.localizedCaseInsensitiveCompare(rhs.lastPathComponent) == .orderedAscending
+        }
+    }
+
+    private var releaseResultsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ملفات الناتج في Release").font(.headline)
+                    Text(activeReleaseTag ?? "تظهر هنا ملفات التحويل بعد انتهاء GitHub Actions.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    guard let repository = selectedRepository, let tag = activeReleaseTag else { return }
+                    Task { await client.loadReleaseAssets(for: repository, tag: tag) }
+                } label: {
+                    Image(systemName: "arrow.clockwise").padding(9)
+                        .background(Color.white.opacity(0.08), in: Circle())
+                }.disabled(selectedRepository == nil || activeReleaseTag == nil)
+            }
+            let outputs = client.releaseAssets.filter { !$0.name.hasPrefix("inrpf-input-") }
+            if outputs.isEmpty {
+                Text("ما فيه نواتج منشورة لهذا الـ Release حتى الآن.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(outputs) { asset in
+                HStack(spacing: 10) {
+                    Image(systemName: "doc.zipper").foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(asset.name).font(.caption.bold())
+                        Text(ByteCountFormatter.string(fromByteCount: Int64(asset.size), countStyle: .file))
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Link("رابط التنزيل المباشر", destination: URL(string: asset.browser_download_url)!)
+                        .font(.caption)
+                    Button("تنزيل إلى INRPF") {
+                        guard let repository = selectedRepository else { return }
+                        Task {
+                            do {
+                                let url = try await client.downloadReleaseAsset(asset, from: repository)
+                                downloadedResultURLs.removeAll { $0.lastPathComponent == url.lastPathComponent }
+                                downloadedResultURLs.append(url)
+                                client.status = "تم تنزيل \(asset.name) إلى ملفات INRPF."
+                                refreshAppFiles()
+                            } catch {
+                                client.status = "تعذر تنزيل \(asset.name): \(error.localizedDescription)"
+                            }
+                        }
+                    }.buttonStyle(.borderedProminent)
+                }
+                if let localURL = downloadedResultURLs.first(where: { $0.lastPathComponent == asset.name }) {
+                    ShareLink(item: localURL) {
+                        Label("حفظ في تطبيق الملفات", systemImage: "square.and.arrow.up")
+                            .font(.caption)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(red: 0.075, green: 0.085, blue: 0.13).opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.075), lineWidth: 1))
+    }
+
+    private var transferProgressSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("نقل الملفات في الخلفية").font(.subheadline.bold())
+            ForEach(backgroundTransfers.transfers) { transfer in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Image(systemName: transfer.direction == "رفع" ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
+                            .foregroundStyle(transfer.state == "اكتمل" ? .green : .cyan)
+                        Text(transfer.name).font(.caption.bold()).lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text(transfer.state).font(.caption2).foregroundStyle(.secondary)
+                    }
+                    ProgressView(value: transfer.fractionCompleted)
+                        .tint(transfer.state == "اكتمل" ? .green : .cyan)
+                    HStack {
+                        Text(ByteCountFormatter.string(fromByteCount: transfer.completedBytes, countStyle: .file))
+                        Spacer()
+                        Text(transfer.totalBytes > 0
+                             ? ByteCountFormatter.string(fromByteCount: transfer.totalBytes, countStyle: .file)
+                             : "الحجم الكلي غير معروف")
+                    }
+                    .font(.caption2).foregroundStyle(.secondary)
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+        .padding(12)
+        .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var workflowStepsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("مراحل التحويل").font(.subheadline.bold())
+                Spacer()
+                Text("\(client.workflowSteps.filter { $0.status == "completed" }.count) / \(client.workflowSteps.count)")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            ForEach(client.workflowSteps) { step in
+                HStack(alignment: .top, spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(workflowStepColor(step).opacity(0.18))
+                            .frame(width: 28, height: 28)
+                        if step.status == "completed" && step.conclusion == "success" {
+                            Image(systemName: "checkmark").font(.caption.bold()).foregroundStyle(.green)
+                        } else if step.status == "completed" && step.conclusion == "failure" {
+                            Image(systemName: "xmark").font(.caption.bold()).foregroundStyle(.red)
+                        } else {
+                            Text(String(step.number)).font(.caption2.bold()).foregroundStyle(workflowStepColor(step))
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(arabicWorkflowStep(step.name))
+                            .font(.caption.bold())
+                            .foregroundStyle(step.status == "in_progress" ? .white : .primary)
+                        Text(workflowStepStatus(step))
+                            .font(.caption2)
+                            .foregroundStyle(workflowStepColor(step))
+                    }
+                    Spacer()
+                    if step.status == "in_progress" {
+                        ProgressView().controlSize(.small).tint(.cyan)
+                    }
+                }
+                .padding(.vertical, 3)
+            }
+        }
+        .padding(12)
+        .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func workflowStepColor(_ step: GHWorkflowStep) -> Color {
+        if step.status == "in_progress" { return .cyan }
+        if step.status == "completed" && step.conclusion == "success" { return .green }
+        if step.status == "completed" && step.conclusion == "failure" { return .red }
+        if step.status == "completed" && step.conclusion == "skipped" { return .gray }
+        return .secondary
+    }
+
+    private func workflowStepStatus(_ step: GHWorkflowStep) -> String {
+        if step.status == "in_progress" { return "جارية الآن" }
+        if step.status == "completed" {
+            switch step.conclusion ?? "" {
+            case "success": return "اكتملت"
+            case "failure": return "فشلت"
+            case "skipped": return "تم تخطيها"
+            case "cancelled": return "أُلغيت"
+            default: return "انتهت"
+            }
+        }
+        return "بانتظار التنفيذ"
+    }
+
+    private func arabicWorkflowStep(_ name: String) -> String {
+        switch name {
+        case "Set up job": return "تجهيز بيئة التشغيل"
+        case "Checkout GTA Converter repository": return "تحميل ملفات المستودع"
+        case "Download and restore INRPF Release input": return "تنزيل ملفات الإدخال من Release"
+        case "Set up Python": return "تجهيز Python"
+        case "Extract tools ZIP": return "فك حزمة أدوات التحويل"
+        case "Install Python dependencies": return "تثبيت المكتبات المطلوبة"
+        case "Install archive and Windows runtime": return "تجهيز أدوات الأرشفة وبيئة التشغيل"
+        case "Prepare mod input": return "تجهيز ملفات المود وفك الأرشيفات"
+        case "Audit Python tools": return "فحص أدوات التحويل"
+        case "Build FiveM multi-vehicle DLC for PS4": return "بناء DLC متعدد السيارات (FiveM)"
+        case "Build one vehicle as a PS4 DLC": return "بناء DLC لسيارة واحدة"
+        case "Convert complete PC DLC RPF to PS4 DLC RPF": return "تحويل أرشيف DLC من PC إلى PS4"
+        case "Convert PC resources to PS4 resources": return "تحويل موارد PC إلى موارد PS4"
+        case "Extract YTD textures": return "استخراج خامات YTD"
+        case "Extract RPF archives": return "فك أرشيفات RPF"
+        case "Build RPF archive": return "بناء أرشيف RPF"
+        case "Collect results": return "تجميع ملفات الناتج والتقارير"
+        case "Publish converted files to the input Release": return "رفع الملفات الناتجة إلى Release"
+        case "Post Set up Python": return "إنهاء تجهيز Python"
+        case "Post Checkout GTA Converter repository": return "إنهاء الوصول للمستودع"
+        case "Complete job": return "إكمال مهمة التحويل"
+        default: return name
+        }
+    }
+
+    private var workflowSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("GitHub Actions").font(.headline)
+                    Text("متابعة عمليات التحويل وحالتها مباشرة").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    guard let repository = selectedRepository else { return }
+                    Task { await client.loadRuns(for: repository) }
+                } label: {
+                    Image(systemName: "arrow.clockwise").font(.headline).padding(9)
+                        .background(Color.white.opacity(0.08), in: Circle())
+                }.disabled(selectedRepository == nil)
+            }
+            if !backgroundTransfers.transfers.isEmpty {
+                transferProgressSection
+            }
+            if !client.workflowSteps.isEmpty {
+                workflowStepsSection
+            }
+            if client.workflows.isEmpty {
+                Text("لا توجد Workflows مفعّلة لهذا المستودع.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(client.workflows) { workflow in
+                Button { selectedWorkflowID = workflow.id } label: {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(workflow.name).font(.subheadline.bold())
+                            Text(workflow.path).font(.caption2).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if selectedWorkflowID == workflow.id {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        }
+                    }
+                    .padding(10)
+                    .background(selectedWorkflowID == workflow.id ? Color.purple.opacity(0.22) : Color.white.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }.buttonStyle(.plain)
+            }
+            if !client.runs.isEmpty {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text("آخر عمليات التشغيل").font(.subheadline.bold())
+                    ForEach(client.runs) { run in
+                        Link(destination: URL(string: run.html_url) ?? URL(string: "https://github.com")!) {
+                            HStack(spacing: 10) {
+                                Image(systemName: run.status == "completed"
+                                      ? (run.conclusion == "success" ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                      : "arrow.triangle.2.circlepath")
+                                    .foregroundStyle(run.status == "completed"
+                                                     ? (run.conclusion == "success" ? .green : .red)
+                                                     : .orange)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("\(run.name) • #\(run.run_number)").font(.caption.bold()).foregroundStyle(.white)
+                                    Text(run.status == "completed" ? "مكتمل: \(run.conclusion ?? "غير محدد")" : "قيد التنفيذ: \(run.status)")
+                                        .font(.caption2).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "arrow.up.right").font(.caption2).foregroundStyle(.secondary)
+                            }
+                            .padding(10)
+                            .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
+                }
+            } else {
+                Text("ما فيه عمليات تشغيل ظاهرة حالياً.").font(.caption).foregroundStyle(.secondary)
+            }
+            Picker("نوع التحويل", selection: $conversionMode) {
+                ForEach(["أوتو", "فحص الأدوات", "تحويل ملفات PC إلى PS4", "تحويل سيارة إلى DLC للسوني", "تحويل الملفات وبناء RPF", "تحويل DLC الكمبيوتر إلى DLC السوني", "تحويل مود FiveM متعدد السيارات إلى DLC للسوني", "تحويل YFT وYTD وبناء DLC متعدد السيارات للسوني", "استخراج الصور من YTD", "فك ملفات RPF", "بناء ملف RPF"], id: \.self) { Text($0).tag($0) }
+            }
+            .pickerStyle(.menu)
+            if conversionMode == "أوتو" {
+                Label(autoDetectionSummary, systemImage: "sparkles")
+                    .font(.caption).foregroundStyle(Color(red: 0.65, green: 0.78, blue: 1))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            TextField("اسم الفرع", text: $branchName)
+                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
+            TextField("مسار ZIP الأدوات", text: $toolkitZip)
+                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
+            TextField("اسم Spawn للسيارة", text: $vehicleSpawnName)
+                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never)
+            Button("رفع ملفات تشغيل المستودع") {
+                guard let repository = selectedRepository else { return }
+                let urls = selectedFileURLs
+                let baseFolder = inputFolder.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "/")))
+                guard !baseFolder.isEmpty,
+                      !baseFolder.split(separator: "/").contains(".."),
+                      !baseFolder.split(separator: "/").contains(".") else {
+                    client.status = "مسار مجلد الإدخال غير صالح."
+                    return
+                }
+                let folder = "\(baseFolder)/inrpf-\(UUID().uuidString.lowercased())"
+                Task {
+                    await INRPFCompletionNotification.requestPermission()
+                    client.isBusy = true
+                    defer { client.isBusy = false }
+                    do {
+                        guard !urls.isEmpty else {
+                            throw GHError.message("اختر ملفات التحويل قبل تشغيل المستودع.")
+                        }
+                        guard !branchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                            throw GHError.message("تعذر تحديد الفرع الافتراضي للمستودع.")
+                        }
+                        client.status = "جاري رفع ملفات تشغيل INRPF ومحرك التحويل إلى GitHub..."
+                        try await client.ensureConversionAssets(
+                            for: repository,
+                            branch: branchName,
+                            toolkitPath: toolkitZip
+                        )
+                        await client.loadWorkflows(for: repository)
+                        guard let workflow = selectedWorkflow else {
+                            throw GHError.message("تم تجهيز ملفات المستودع، لكن GitHub لم يعرض Workflow التحويل بعد. حدّث المستودع ثم أعد المحاولة.")
+                        }
+                        let tag = try await client.uploadItems(urls, to: repository, inputFolder: folder, branch: branchName)
+                        activeReleaseTag = tag
+                        workflowDispatchStartedAt = Date()
+                        try await client.dispatch(workflow, repository: repository, ref: branchName, inputs: [
+                            "mode": resolvedConversionMode,
+                            "toolkit_zip": toolkitZip,
+                            "url": "",
+                            "input_folder": folder,
+                            "release_tag": tag,
+                            "vehicle_spawn_name": vehicleSpawnName
+                        ])
+                        selectedFileURLs = []
+                        monitorRefreshToken += 1
+                        client.status = "اكتمل الرفع، وبدأ تشغيل \(workflow.name) على المستودع. Tag: \(tag)"
+                    } catch {
+                        workflowDispatchStartedAt = nil
+                        client.status = error.localizedDescription
+                    }
+                }
+            }
+            .buttonStyle(.borderedProminent).disabled(selectedRepository == nil || selectedFileURLs.isEmpty || client.isBusy)
+        }
+        .padding(16).background(Color(red: 0.075, green: 0.085, blue: 0.13).opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.075), lineWidth: 1))
+    }
+}
