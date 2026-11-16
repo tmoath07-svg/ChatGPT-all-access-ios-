@@ -94,7 +94,7 @@ struct ContentView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
                     .padding(.bottom, 28)
-                    .frame(maxWidth: 560)
+                    // Fill the available window instead of rendering as a narrow centered panel.
                     .frame(maxWidth: .infinity)
                 }
                 .scrollIndicators(.hidden)
