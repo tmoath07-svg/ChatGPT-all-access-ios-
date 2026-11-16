@@ -2,7 +2,7 @@ name: Build INRPF IPA
 
 on:
   push:
-    branches: [main, fix/import-drop-redesign, feature/local-engine-ios, feature/import-ftp-folder-fix, feature/inrpf-github-device-flow, feature/autonomous-ai-agent, feature/premium-license-manager, feature/gemini-premium-tool]
+    branches: [main, fix/import-drop-redesign, feature/local-engine-ios, feature/import-ftp-folder-fix, feature/inrpf-github-device-flow, feature/autonomous-ai-agent, feature/premium-license-manager, feature/gemini-premium-tool, fix/gemini-ios-layout-6.10]
   workflow_dispatch:
 
 permissions:
@@ -75,7 +75,14 @@ jobs:
           grep -Fq 'generativelanguage.googleapis.com' server/app.py
           grep -Fq 'gemini_tool' server/admin/index.html
           ! grep -Fq 'AIza' GTAConverter/GeminiToolView.swift
-          echo "PASS: Gemini tab, premium entitlement, and server-side key proxy checks."
+          grep -Fq 'responseText(from content: Any?)' GTAConverter/GeminiToolView.swift
+          grep -Fq 'case 429:' GTAConverter/GeminiToolView.swift
+          grep -Fq 'filter { $0.lowercased().contains("gemini") }' GTAConverter/GeminiToolView.swift
+          grep -Fq 'resolvedHorizontalSizeClass' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'UIDevice.current.userInterfaceIdiom == .pad ? .regular : .compact' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'Text("تلقائي").tag("auto")' GTAConverter/GTAConverterApp.swift
+          (cd server && python -m unittest -v test_license_api.py test_gemini_proxy.py)
+          echo "PASS: Gemini response parsing, quota errors, model filtering, and adaptive device layout checks."
       - name: Test FiveM resource analyzer
         run: |
           set -euo pipefail
@@ -94,8 +101,8 @@ jobs:
           assert "[FiveM] SKIP" in source or "[FiveM] SKIPPED" in source
           print("FiveM multi-candidate workflow script: syntax OK")
           PY
-          grep -q 'MARKETING_VERSION: "6.08"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "79"' project.yml
+          grep -q 'MARKETING_VERSION: "6.10"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "80"' project.yml
           ! grep -Fq '.fileImporter(' GTAConverter/ContentView.swift GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'activeImportPicker = .archive' GTAConverter/ContentView.swift
           grep -Fq 'activeImportPicker = .folder' GTAConverter/ContentView.swift
@@ -326,21 +333,21 @@ jobs:
           print("Registered Files/Open In document types.")
           PY
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.tmoath07.gta-converter' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.tmoath07.gta-converter' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 6.08' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 6.08' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 79' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 79' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 6.10' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 6.10' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 80' "$INFO" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 80' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
           BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")
 
           test "$BUNDLE_ID" = "com.tmoath07.gta-converter"
-          test "$VERSION" = "6.08"
-          test "$BUILD" = "79"
+          test "$VERSION" = "6.10"
+          test "$BUILD" = "80"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes' "$INFO" | grep -q 'public.archive'
-          grep -q 'MARKETING_VERSION: "6.08"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "79"' project.yml
-          zip -qry INRPF-6.08-unsigned.ipa Payload
-          unzip -t INRPF-6.08-unsigned.ipa
+          grep -q 'MARKETING_VERSION: "6.10"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "80"' project.yml
+          zip -qry INRPF-6.10-unsigned.ipa Payload
+          unzip -t INRPF-6.10-unsigned.ipa
           test -x "Payload/INRPF.app/$EXECUTABLE"
           # Validate exported C ABI symbols in the Rust static library itself.
           # The final Mach-O may dead-strip unreferenced public entry points.
@@ -357,12 +364,12 @@ jobs:
           done
 
           mkdir -p release-package
-          cp INRPF-6.08-unsigned.ipa release-package/INRPF-6.08-unsigned.ipa
+          cp INRPF-6.10-unsigned.ipa release-package/INRPF-6.10-unsigned.ipa
           cat > release-package/اقرأ-أولاً.txt <<'EOF'
-          INRPF 6.08 - IPA غير موقّع
+          INRPF 6.10 - IPA غير موقّع
 
           1) فك ضغط ملف GitHub Actions الذي تم تنزيله.
-          2) استخرج ملف INRPF-6.08-unsigned.ipa.
+          2) استخرج ملف INRPF-6.10-unsigned.ipa.
           3) ثبّت ملف IPA باستخدام SideStore بعد توقيعه.
 
           يتضمن هذا الإصدار محركاً محلياً لموارد المركبات، وفاحص RPF يعرض بيانات META الخاصة بالمركبات فقط، وتحليلاً وتحويلاً بنيوياً للموارد المدعومة، واستخراج وبناء قواميس YTD بصيغتها المدعومة. لا يتضمن استخراجاً عاماً لأرشيف RPF.
@@ -378,7 +385,7 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: INRPF-6.08-Install-Package
+          name: INRPF-6.10-Install-Package
           path: release-package/
           if-no-files-found: error
           retention-days: 14
