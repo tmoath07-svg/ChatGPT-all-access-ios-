@@ -9,6 +9,9 @@ import UIKit
 struct GTAAppBackground: View {
     @AppStorage("gta_background_color") private var backgroundColor = "midnight"
     @AppStorage("gta_custom_background_path") private var customPath = ""
+    @AppStorage("inrpf_theme_id") private var themeID = "purple-night"
+    @AppStorage("gta_motion_enabled") private var motionEnabled = true
+    @State private var animationPhase = false
 
     private var color: Color {
         switch backgroundColor {
@@ -20,10 +23,44 @@ struct GTAAppBackground: View {
         }
     }
 
+    private var animatedTheme: Bool {
+        ["cyber-cyan", "pink-neon", "teal-matrix", "ice-storm", "cyan-midnight"].contains(themeID)
+    }
+
+    private var motionAccent: Color {
+        switch themeID {
+        case "pink-neon": return .pink
+        case "teal-matrix": return .teal
+        case "ice-storm": return Color(red: 0.55, green: 0.78, blue: 1.0)
+        case "cyan-midnight", "cyber-cyan": return .cyan
+        default: return .purple
+        }
+    }
+
     var body: some View {
         GeometryReader { proxy in
             ZStack {
                 color.ignoresSafeArea()
+                if motionEnabled && animatedTheme {
+                    Circle()
+                        .fill(motionAccent.opacity(0.19))
+                        .frame(width: max(280, proxy.size.width * 0.78),
+                               height: max(280, proxy.size.width * 0.78))
+                        .blur(radius: 72)
+                        .offset(x: animationPhase ? proxy.size.width * 0.34 : -proxy.size.width * 0.34,
+                                y: animationPhase ? -proxy.size.height * 0.18 : proxy.size.height * 0.18)
+                        .animation(.easeInOut(duration: 10).repeatForever(autoreverses: true), value: animationPhase)
+                        .allowsHitTesting(false)
+                    Circle()
+                        .fill(motionAccent.opacity(0.11))
+                        .frame(width: max(220, proxy.size.width * 0.58),
+                               height: max(220, proxy.size.width * 0.58))
+                        .blur(radius: 82)
+                        .offset(x: animationPhase ? -proxy.size.width * 0.38 : proxy.size.width * 0.38,
+                                y: animationPhase ? proxy.size.height * 0.26 : -proxy.size.height * 0.26)
+                        .animation(.easeInOut(duration: 13).repeatForever(autoreverses: true), value: animationPhase)
+                        .allowsHitTesting(false)
+                }
                 if !customPath.isEmpty, let image = UIImage(contentsOfFile: customPath) {
                     Image(uiImage: image)
                         .resizable()
@@ -33,6 +70,17 @@ struct GTAAppBackground: View {
                         .overlay(Color.black.opacity(0.58))
                         .ignoresSafeArea()
                 }
+            }
+            .onAppear {
+                if motionEnabled && animatedTheme { animationPhase = true }
+            }
+            .onChange(of: themeID) { _ in
+                animationPhase = false
+                if motionEnabled && animatedTheme { animationPhase = true }
+            }
+            .onChange(of: motionEnabled) { enabled in
+                if enabled && animatedTheme { animationPhase.toggle() }
+                else { animationPhase = false }
             }
         }
         .ignoresSafeArea()

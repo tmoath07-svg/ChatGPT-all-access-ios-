@@ -252,19 +252,16 @@ struct ContentView: View {
     private var homeMenuEntries: [HomeMenuEntry] {
         [
             .init(id: "engine", title: "المحرك المحلي", icon: "cpu.fill"),
-            .init(id: "fivem", title: "استوديو FiveM", icon: "car.side.3.fill"),
             .init(id: "ftp", title: "FTP جهاز PS4", icon: "network"),
             .init(id: "github", title: "ربط GitHub", icon: "chevron.left.forwardslash.chevron.right"),
+            .init(id: "ai", title: "المساعد الذكي", icon: "brain.head.profile"),
             .init(id: "orbx", title: "إرسال تلقائي للسوني", icon: "gamecontroller.fill"),
             .init(id: "rpf", title: "محرر RPF", icon: "archivebox.fill"),
-            .init(id: "cloud", title: "التحويل السحابي (احتياطي)", icon: "cloud.gear.fill"),
             .init(id: "browser", title: "متصفح المودات", icon: "globe"),
             .init(id: "library", title: "مكتبة المودات", icon: "square.grid.2x2.fill"),
             .init(id: "downloads", title: "التنزيلات", icon: "arrow.down.circle.fill"),
             .init(id: "history", title: "سجل العمليات", icon: "clock.arrow.circlepath"),
-            .init(id: "ytd", title: "محرر YTD", icon: "photo.stack.fill"),
             .init(id: "setup", title: "التخصيص واللغة", icon: "paintpalette.fill"),
-            .init(id: "features", title: "الميزات", icon: "square.grid.2x2"),
             .init(id: "files", title: "ملفاتي", icon: "folder.fill"),
             .init(id: "settings", title: "الإعدادات", icon: "gearshape.fill"),
             .init(id: "diagnostics", title: "استكشاف المشاكل وحلها", icon: "wrench.and.screwdriver.fill"),
@@ -322,6 +319,7 @@ struct ContentView: View {
         case "fivem": FiveMStudioView()
         case "ftp": FTPBrowserView()
         case "github": GitHubIntegrationView()
+        case "ai": AutonomousAgentView()
         case "orbx": OrbxPS4TransferView()
         case "rpf": LocalEngineView(initialFolder: outputFolder)
         case "cloud": CloudConversionView()
@@ -1617,17 +1615,17 @@ private struct HomeMenuCustomizationView: View {
     @AppStorage("inrpf_home_menu_style") private var menuStyle = "pill"
     @AppStorage("inrpf_home_menu_position") private var menuPosition = "top"
     @State private var order = [
-        "engine", "fivem", "ftp", "orbx", "rpf", "cloud", "browser", "library",
-        "downloads", "history", "ytd", "setup", "features", "files", "settings",
+        "engine", "ftp", "github", "ai", "orbx", "rpf", "browser", "library",
+        "downloads", "history", "setup", "files", "settings",
         "diagnostics", "creator", "customize"
     ]
     private let labels: [(String, String)] = [
-        ("engine", "المحرك المحلي"), ("fivem", "استوديو FiveM"), ("ftp", "FTP جهاز PS4"),
-        ("orbx", "إرسال تلقائي للسوني"), ("rpf", "محرر RPF"), ("cloud", "التحويل السحابي"),
+        ("engine", "المحرك المحلي"), ("ftp", "FTP جهاز PS4"), ("github", "ربط GitHub"),
+        ("ai", "المساعد الذكي"), ("orbx", "إرسال تلقائي للسوني"), ("rpf", "محرر RPF"),
         ("browser", "متصفح المودات"), ("library", "مكتبة المودات"), ("downloads", "التنزيلات"),
-        ("history", "سجل العمليات"), ("ytd", "محرر YTD"), ("setup", "التخصيص واللغة"),
-        ("features", "الميزات"), ("files", "ملفاتي"), ("settings", "الإعدادات"),
-        ("diagnostics", "استكشاف المشاكل وحلها"), ("creator", "المبدع"), ("customize", "ترتيب القوائم")
+        ("history", "سجل العمليات"), ("setup", "التخصيص واللغة"), ("files", "ملفاتي"),
+        ("settings", "الإعدادات"), ("diagnostics", "استكشاف المشاكل وحلها"),
+        ("creator", "المبدع"), ("customize", "ترتيب القوائم")
     ]
 
     var body: some View {

@@ -147,7 +147,22 @@ jobs:
           grep -Fq 'لم يتم العثور على Workflow في فرعي feature/inrpf-github-device-flow أو main' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'فشل رفع Workflow إلى' GTAConverter/GitHubIntegrationView.swift
           ! grep -Fq 'GTAOnboardingView' GTAConverter/ContentView.swift
-          echo "PASS: GitHub is the start tab; all legacy toolbar destinations and native importers remain available."
+          grep -Fq '.init(id: "ai", title: "المساعد الذكي"' GTAConverter/ContentView.swift
+          grep -Fq 'case "ai": AutonomousAgentView()' GTAConverter/ContentView.swift
+          ! grep -Fq '.init(id: "fivem"' GTAConverter/ContentView.swift
+          ! grep -Fq '.init(id: "cloud"' GTAConverter/ContentView.swift
+          ! grep -Fq '.init(id: "ytd"' GTAConverter/ContentView.swift
+          ! grep -Fq '.init(id: "features"' GTAConverter/ContentView.swift
+          ! grep -Fq '("ytd", "محرر YTD")' GTAConverter/ContentView.swift
+          ! grep -Fq '("features", "الميزات")' GTAConverter/ContentView.swift
+          grep -Fq 'case "fivem": FiveMStudioView()' GTAConverter/ContentView.swift
+          grep -Fq 'case "cloud": CloudConversionView()' GTAConverter/ContentView.swift
+          grep -Fq 'case "ytd": YTDTextureLabView()' GTAConverter/ContentView.swift
+          grep -Fq 'generativelanguage.googleapis.com/v1beta/openai' GTAConverter/AIProviderCore.swift
+          grep -Fq 'geminiDailyLimit = 30' GTAConverter/AIProviderCore.swift
+          grep -Fq 'Install the Gemini provider configuration automatically' GTAConverter/AIProviderCore.swift
+          grep -Fq 'repeatForever(autoreverses: true)' GTAConverter/GTAModSuiteViews.swift
+          echo "PASS: removed toolbar shortcuts, retained feature implementations, auto-provisioned Gemini and animated themes."
       - name: Test shared file import service
         run: |
           set -euo pipefail
