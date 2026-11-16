@@ -24,10 +24,12 @@ Open `https://YOUR-SERVICE.onrender.com/admin` to manage codes.
 
 ## Premium license API
 
-- `POST /api/admin/codes/generate` — admin-only; JSON: `{"count":60,"features":["github_tools"]}`. Returns plaintext codes once.
+- `POST /api/admin/codes/generate` — admin-only; JSON: `{"count":60,"features":["github_tools"],"duration_days":30}`. Set `duration_days` to 1–3650, or `null` for codes that never expire. Returns plaintext codes once.
 - `GET /api/admin/codes` — admin-only inventory; only masked suffixes are returned.
 - `POST /api/admin/codes/revoke` — admin-only; JSON: `{"last4":"ABCD"}`; revokes unused codes sharing that suffix.
 - `POST /api/license/redeem` — public one-time redemption; JSON: `{"code":"INRPF-XXXX-XXXX-XXXX-XXXX"}`.
+
+The Arabic admin dashboard at `/admin` lets you choose a batch size, license feature, and expiry (7/30/90/180/365/730 days or no expiry), then generate new batches whenever needed. Each batch is displayed once with copy and TXT export. Expiry is enforced both when redeeming a code and when validating its activation.
 
 Codes are generated with Python's cryptographic random source. Only an HMAC-SHA256 digest is stored. Redemption uses a SQLite `BEGIN IMMEDIATE` transaction and a conditional state transition, so concurrent attempts cannot successfully redeem the same code twice.
 
