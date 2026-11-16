@@ -96,6 +96,7 @@ class PremiumLicenseTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 400)
 
     def test_all_legacy_duration_options_are_supported_and_start_on_activation(self):
+        from datetime import datetime, timedelta
         from unittest.mock import patch
 
         for days in (7, 30, 90, 180, 365, 730):
