@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090713"><title>INRPF Premium License Manager</title>
+<style>
+:root{color-scheme:dark;--bg:#090713;--panel:#141126;--panel2:#1b1732;--line:#30284b;--text:#f7f4ff;--muted:#aaa2c4;--accent:#9b72ff;--good:#4ade80;--bad:#fb7185}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 85% 0%,#28164b 0,transparent 40%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}
+main{width:min(1050px,calc(100% - 28px));margin:34px auto}.top{display:flex;align-items:center;gap:14px;margin-bottom:24px}.logo{width:54px;height:54px;border-radius:17px;background:linear-gradient(145deg,#a78bfa,#6d28d9);display:grid;place-items:center;font-size:25px;font-weight:900}.eyebrow{font-size:11px;letter-spacing:2px;color:#b9a7ff}.title{font-size:clamp(24px,5vw,36px);font-weight:850;margin:3px 0}.sub{color:var(--muted);font-size:14px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.stat,.panel{background:linear-gradient(145deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:18px}.stat small{color:var(--muted)}.num{font-size:29px;font-weight:850;margin-top:7px}.panel{margin-top:14px}.panel h2{font-size:17px;margin:0 0 14px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}input,select{background:#0d0a19;color:var(--text);border:1px solid var(--line);border-radius:11px;padding:13px;font-size:14px;min-width:0;flex:1}button{border:0;border-radius:11px;padding:13px 17px;font-weight:750;background:var(--accent);color:white;cursor:pointer}button.secondary{background:#30264d}button:disabled{opacity:.5;cursor:wait}.hint{font-size:12px;color:var(--muted);line-height:1.8;margin-top:10px}.status{padding:12px;border-radius:10px;background:#0d0a19;color:var(--muted);font-size:13px;margin-top:12px}.status.ok{color:var(--good)}.status.err{color:var(--bad)}.codes{white-space:pre-wrap;direction:ltr;text-align:left;background:#080611;border:1px solid var(--line);border-radius:12px;padding:14px;max-height:330px;overflow:auto;font:13px/2 ui-monospace,monospace}.hidden{display:none!important}.tablewrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:11px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th{color:var(--muted)}.pill{padding:4px 9px;border-radius:20px;background:#342b4f;font-size:11px}.unused{color:var(--good)}.redeemed{color:#fbbf24}.revoked{color:var(--bad)}footer{color:#716987;text-align:center;font-size:11px;margin:25px}
+@media(max-width:650px){.grid{grid-template-columns:1fr}.row>*{width:100%}.row input{flex-basis:100%}main{margin-top:20px}}
+</style></head>
+<body><main>
+<header class="top"><div class="logo">I</div><div><div class="eyebrow">INRPF / CONTROL PANEL</div><div class="title">Premium License Manager</div><div class="sub">إدارة أكواد التفعيل لمزايا INRPF المدفوعة</div></div></header>
+<section class="grid">
+<div class="stat"><small>إجمالي الأكواد المعروضة</small><div class="num" id="total">—</div></div>
+<div class="stat"><small>غير مستخدمة</small><div class="num" id="unused">—</div></div>
+<div class="stat"><small>مفعّلة / مستهلكة</small><div class="num" id="redeemed">—</div></div>
+</section>
+<section class="panel" id="loginPanel"><h2>🔐 دخول المدير</h2><div class="row"><input id="adminToken" type="password" autocomplete="current-password" placeholder="Admin token"><button id="loginBtn">دخول</button></div><div class="hint">رمز الإدارة يبقى في جلسة المتصفح الحالية فقط. لا تضعه داخل التطبيق أو ملفات GitHub.</div><div id="loginStatus" class="status">أدخل رمز الإدارة الذي تضيفه في Environment Variables على Render.</div></section>
+<section class="panel hidden" id="manager">
+<h2>🎟️ إنشاء أكواد جديدة</h2>
+<div class="row"><input id="count" type="number" min="1" max="100" value="60" aria-label="عدد الأكواد"><select id="feature"><option value="github_tools">أدوات GitHub المميزة</option><option value="github_tools,ai_repair_pro">GitHub + AI Repair Pro</option><option value="github_tools,advanced_ftp">GitHub + Advanced FTP</option></select><button id="generateBtn">توليد الأكواد</button></div>
+<div class="hint">كل كود صالح لتفعيل واحد فقط. الكود الكامل يظهر مرة واحدة بعد التوليد؛ قاعدة البيانات تحتفظ ببصمته فقط.</div>
+<div id="generatedWrap" class="hidden"><div class="row" style="margin:14px 0"><strong>الأكواد الجديدة — احفظها الآن</strong><button class="secondary" id="copyBtn">نسخ الكل</button><button class="secondary" id="downloadBtn">تنزيل TXT</button></div><pre id="generated" class="codes"></pre></div>
+<div id="actionStatus" class="status">جاهز.</div>
+</section>
+<section class="panel hidden" id="inventory"><div class="row" style="justify-content:space-between"><h2>📋 سجل الأكواد</h2><button class="secondary" id="refreshBtn">تحديث</button></div><div class="tablewrap"><table><thead><tr><th>آخر 4 خانات</th><th>الحالة</th><th>المزايا</th><th>تاريخ الإنشاء</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+<footer>INRPF Premium • لا يتم تخزين الأكواد الصريحة في قاعدة البيانات</footer>
+</main>
+<script>
+let token="",lastCodes=[];
+const $=id=>document.getElementById(id);
+function setStatus(id,msg,kind=""){const el=$(id);el.textContent=msg;el.className="status "+kind}
+async function api(path,options={}){const response=await fetch(path,{...options,headers:{"Content-Type":"application/json","Authorization":"Bearer "+token,...(options.headers||{})}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||("HTTP "+response.status));return data}
+async function loadInventory(){const data=await api("/api/admin/codes");const list=data.codes||[];$("total").textContent=list.length;$("unused").textContent=list.filter(x=>x.status==="unused").length;$("redeemed").textContent=list.filter(x=>x.status==="redeemed").length;$("rows").innerHTML=list.map(x=>'<tr><td dir="ltr">••••-'+x.last4+'</td><td><span class="pill '+x.status+'">'+({unused:"متاح",redeemed:"مستخدم",revoked:"ملغي"}[x.status]||x.status)+'</span></td><td>'+x.features.join(", ")+'</td><td>'+new Date(x.created_at).toLocaleString("ar-SA")+'</td></tr>').join("")}
+$("loginBtn").onclick=async()=>{token=$("adminToken").value.trim();try{await loadInventory();sessionStorage.setItem("inrpf-admin-token",token);$("loginPanel").classList.add("hidden");$("manager").classList.remove("hidden");$("inventory").classList.remove("hidden");setStatus("actionStatus","تم تسجيل الدخول. قاعدة الأكواد متصلة.","ok")}catch(e){token="";setStatus("loginStatus","فشل الدخول: "+e.message,"err")}};
+$("generateBtn").onclick=async()=>{const count=Number($("count").value);const features=$("feature").value.split(",");$("generateBtn").disabled=true;try{const data=await api("/api/admin/codes/generate",{method:"POST",body:JSON.stringify({count,features})});lastCodes=data.codes;$("generated").textContent=lastCodes.join("\n");$("generatedWrap").classList.remove("hidden");setStatus("actionStatus","تم توليد "+data.count+" كود. انسخها أو نزّلها الآن؛ لن تظهر كاملة مرة ثانية.","ok");await loadInventory()}catch(e){setStatus("actionStatus","فشل التوليد: "+e.message,"err")}finally{$("generateBtn").disabled=false}};
+$("copyBtn").onclick=async()=>{await navigator.clipboard.writeText(lastCodes.join("\n"));setStatus("actionStatus","تم نسخ الأكواد.","ok")};
+$("downloadBtn").onclick=()=>{const blob=new Blob([lastCodes.join("\n")+"\n"],{type:"text/plain;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="INRPF-premium-codes.txt";a.click();URL.revokeObjectURL(a.href)};
+$("refreshBtn").onclick=async()=>{try{await loadInventory();setStatus("actionStatus","تم تحديث السجل.","ok")}catch(e){setStatus("actionStatus",e.message,"err")}};
+const saved=sessionStorage.getItem("inrpf-admin-token");if(saved){$("adminToken").value=saved;$("loginBtn").click()}
+</script></body></html>
