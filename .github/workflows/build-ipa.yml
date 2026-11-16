@@ -43,7 +43,7 @@ jobs:
           source .venv/bin/activate
           grep -Fq 'INRPFPremiumLicenseGateView(client: premiumLicense)' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'api/license/redeem' GTAConverter/PremiumLicenseClient.swift
-          grep -Fq 'api/license/validate' GTAConverter/PremiumLicenseClient.swift
+          grep -Fq 'api/license/validate' PremiumLicenseClient.swift
           echo "PASS: one-time license API and GitHub premium gate checks."
 
       - name: Install Rust toolchain for iOS
