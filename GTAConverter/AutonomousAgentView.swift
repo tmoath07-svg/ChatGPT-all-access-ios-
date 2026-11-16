@@ -79,8 +79,11 @@ struct AutonomousAgentView: View {
                 Label("مزودات الذكاء الاصطناعي", systemImage: "cpu")
                     .font(.headline).foregroundStyle(.white)
                 Spacer()
+                Button { prepareGeminiProvider() } label: {
+                    Label("إضافة Gemini", systemImage: "sparkles").font(.caption.bold())
+                }
                 Button { showingProviderEditor = true } label: {
-                    Label("إضافة", systemImage: "plus").font(.caption.bold())
+                    Label("إضافة مخصص", systemImage: "plus").font(.caption.bold())
                 }
             }
             if providers.providers.isEmpty {
@@ -99,6 +102,10 @@ struct AutonomousAgentView: View {
                 if let selected = providers.selectedProvider {
                     Text("Base URL: \(selected.baseURL)")
                         .font(.caption2).foregroundStyle(.white.opacity(0.55))
+                    if selected.baseURL.lowercased().contains("generativelanguage.googleapis.com") {
+                        Text("حد INRPF المحلي: 30 طلباً يومياً، وبحد أقصى 1024 توكن للإجابة. حصة Google الفعلية مستقلة وقد تكون أقل.")
+                            .font(.caption2).foregroundStyle(.orange)
+                    }
                     TextField("Model ID", text: $modelID)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                         .padding(11).background(.black.opacity(0.22)).clipShape(RoundedRectangle(cornerRadius: 10))
@@ -227,6 +234,17 @@ struct AutonomousAgentView: View {
             .disabled(isSending || input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(15).background(.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func prepareGeminiProvider() {
+        providerName = "Google Gemini"
+        baseURL = "https://generativelanguage.googleapis.com/v1beta/openai"
+        apiKey = ""
+        modelID = ""
+        discoveredModels = []
+        errorText = ""
+        statusText = "أدخل مفتاح Gemini API الخاص بك، ثم اضغط جلب النماذج."
+        showingProviderEditor = true
     }
 
     private func saveProvider() {
