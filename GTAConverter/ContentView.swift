@@ -112,6 +112,8 @@ struct ContentView: View {
                     .accessibilityLabel("مختبر الجهاز")
                     NavigationLink(destination: AppFilesView()) { Image(systemName: "folder.fill").foregroundStyle(purple) }
                     NavigationLink(destination: AppSettingsView()) { Image(systemName: "gearshape.fill").foregroundStyle(purple) }
+                    NavigationLink(destination: InterfaceModeSettingsView()) { Image(systemName: "iphone.gen3").foregroundStyle(purple) }
+                        .accessibilityLabel("نمط الواجهة")
                     NavigationLink(destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails)) {
                         Image(systemName: "waveform.path.ecg").foregroundStyle(purple)
                     }
