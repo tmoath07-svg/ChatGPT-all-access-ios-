@@ -383,9 +383,16 @@ jobs:
           test -x "Payload/INRPF.app/$EXECUTABLE"
           # Validate exported C ABI symbols in the Rust static library itself.
           # The final Mach-O may dead-strip unreferenced public entry points.
-          LLVM_NM="$(xcrun --find llvm-nm)"
-          test -x "$LLVM_NM"
-          "$LLVM_NM" --extern-only build/rust/ios/libgta_local_engine.a > build/exported-engine-symbols.txt
+          # Use the LLVM tools shipped with the active Rust toolchain. Xcode's
+          # llvm-nm can be older than Rust's LLVM producer and reject valid objects.
+          RUST_HOST="$(rustc -vV | sed -n 's/^host: //p')"
+          RUST_LLVM_NM="$(rustc --print sysroot)/lib/rustlib/$RUST_HOST/bin/llvm-nm"
+          if [ ! -x "$RUST_LLVM_NM" ]; then
+            echo "Rust llvm-nm was not found at $RUST_LLVM_NM"
+            find "$(rustc --print sysroot)/lib/rustlib" -type f -name llvm-nm -print || true
+            exit 1
+          fi
+          "$RUST_LLVM_NM" --extern-only build/rust/ios/libgta_local_engine.a > build/exported-engine-symbols.txt
           # Mach-O tools may display C symbols with a leading underscore, while
           # other LLVM builds display the same ABI names without that prefix.
           awk '{print $NF}' build/exported-engine-symbols.txt | sed 's/^_//' | sort -u > build/exported-engine-symbol-names.txt
