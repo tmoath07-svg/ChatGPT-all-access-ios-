@@ -2,8 +2,7 @@ import SwiftUI
 
 struct AutonomousAgentView: View {
     @StateObject private var providers = AIProviderStore()
-    @AppStorage("inrpf_interface_mode") private var interfaceMode = "auto"
-    @State private var providerName = ""
+        @State private var providerName = ""
     @State private var baseURL = "https://freemodel.in/v1"
     @State private var apiKey = ""
     @State private var modelID = ""
@@ -37,7 +36,7 @@ struct AutonomousAgentView: View {
                         chatPanel(proxy: proxy)
                     }
                     .padding(16)
-                    .frame(maxWidth: interfaceMode == "ios" ? 560 : interfaceMode == "ipados" ? 900 : 760)
+                    .frame(maxWidth: 560)
                     .frame(maxWidth: .infinity)
                 }
                 .scrollIndicators(.hidden)
