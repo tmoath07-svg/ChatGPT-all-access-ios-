@@ -79,7 +79,7 @@ jobs:
           grep -Fq 'case 429:' GTAConverter/GeminiToolView.swift
           grep -Fq 'filter { $0.lowercased().contains("gemini") }' GTAConverter/GeminiToolView.swift
           grep -Fq 'resolvedHorizontalSizeClass' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'UIDevice.current.userInterfaceIdiom == .pad ? .regular : .compact' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'if UIDevice.current.userInterfaceIdiom == .phone { return .compact }' GTAConverter/GTAConverterApp.swift
           grep -Fq 'Text("تلقائي").tag("auto")' GTAConverter/GTAConverterApp.swift
           (cd server && python -m unittest -v test_license_api.py test_gemini_proxy.py)
           echo "PASS: Gemini response parsing, quota errors, model filtering, and adaptive device layout checks."

@@ -38,10 +38,12 @@ struct GTAConverterApp: App {
     @AppStorage("inrpf_interface_mode") private var interfaceMode = "auto"
 
     private var resolvedHorizontalSizeClass: UserInterfaceSizeClass {
+        // iPhones always use the compact navigation layout, including Plus/Max models.
+        if UIDevice.current.userInterfaceIdiom == .phone { return .compact }
         switch interfaceMode {
         case "ios": return .compact
         case "ipados": return .regular
-        default: return UIDevice.current.userInterfaceIdiom == .pad ? .regular : .compact
+        default: return .regular
         }
     }
 
