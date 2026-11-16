@@ -20,7 +20,7 @@ Create strong random values in Render (do not commit them):
 - `INRPF_LICENSE_DB`: `/var/data/inrpf-licenses.sqlite3` (must be on the persistent disk).
 - `INRPF_REPORT_TOKEN`: existing report-ingestion token, if reports are enabled.
 - `GOOGLE_CLOUD_PROJECT_ID`: Google Cloud project ID used to create the Gemini API key.
-- `GOOGLE_SERVICE_ACCOUNT_JSON`: service-account JSON content with `roles/serviceusage.apiKeysAdmin` on the project and the API Keys API enabled.
+- `GOOGLE_SERVICE_ACCOUNT_JSON`: service-account JSON content with `roles/serviceusage.apiKeysAdmin` and `roles/serviceusage.serviceUsageViewer` on the project. Enable both `apikeys.googleapis.com` and `generativelanguage.googleapis.com` before using the dashboard.
 - `INRPF_GEMINI_ENCRYPTION_KEY`: Fernet key used to encrypt the Google API key at rest; generate once with `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'` and keep it stable.
 
 Open `https://YOUR-SERVICE.onrender.com/admin` to manage codes.
