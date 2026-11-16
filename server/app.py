@@ -42,9 +42,13 @@ def db():
             features_json TEXT NOT NULL,
             created_at TEXT NOT NULL,
             redeemed_at TEXT,
-            activation_id TEXT
+            activation_id TEXT,
+            expires_at TEXT
         )
     """)
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(premium_codes)").fetchall()}
+    if "expires_at" not in columns:
+        connection.execute("ALTER TABLE premium_codes ADD COLUMN expires_at TEXT")
     return connection
 
 
@@ -100,6 +104,15 @@ def generate_codes():
     payload = request.get_json(silent=True) or {}
     count = payload.get("count", 60)
     features = payload.get("features", ["github_tools"])
+    duration_days = payload.get("duration_days", 30)
+    if duration_days is not None and (
+        not isinstance(duration_days, int) or isinstance(duration_days, bool)
+        or duration_days < 1 or duration_days > 3650
+    ):
+        return jsonify({"ok": False, "error": "duration_days_must_be_1_to_3650_or_null"}), 400
+    expires_at = None if duration_days is None else (
+        datetime.now(timezone.utc) + __import__("datetime").timedelta(days=duration_days)
+    ).isoformat()
     if not isinstance(count, int) or isinstance(count, bool) or count < 1 or count > 100:
         return jsonify({"ok": False, "error": "count_must_be_1_to_100"}), 400
     if not isinstance(features, list) or not features or any(
@@ -117,8 +130,8 @@ def generate_codes():
                 digest = code_digest(code)
                 try:
                     connection.execute(
-                        "INSERT INTO premium_codes(code_hash,code_hint,status,features_json,created_at) VALUES(?,?,?,?,?)",
-                        (digest, code[-4:], "unused", json.dumps(features), utc_now())
+                        "INSERT INTO premium_codes(code_hash,code_hint,status,features_json,created_at,expires_at) VALUES(?,?,?,?,?,?)",
+                        (digest, code[-4:], "unused", json.dumps(features), utc_now(), expires_at)
                     )
                     generated.append(code)
                     break
@@ -133,7 +146,8 @@ def generate_codes():
     finally:
         connection.close()
     # Plaintext codes are returned once and are never stored in the database or logs.
-    return jsonify({"ok": True, "count": len(generated), "features": features, "codes": generated}), 201
+    return jsonify({"ok": True, "count": len(generated), "features": features,
+                    "duration_days": duration_days, "expires_at": expires_at, "codes": generated}), 201
 
 
 @app.get("/api/admin/codes")
@@ -145,12 +159,12 @@ def list_codes():
     connection = db()
     try:
         rows = connection.execute(
-            "SELECT code_hint,status,features_json,created_at,redeemed_at FROM premium_codes ORDER BY created_at DESC LIMIT 500"
+            "SELECT code_hint,status,features_json,created_at,redeemed_at,expires_at FROM premium_codes ORDER BY created_at DESC LIMIT 500"
         ).fetchall()
         return jsonify({"ok": True, "codes": [
             {"last4": row["code_hint"], "status": row["status"],
              "features": json.loads(row["features_json"]), "created_at": row["created_at"],
-             "redeemed_at": row["redeemed_at"]} for row in rows
+             "redeemed_at": row["redeemed_at"], "expires_at": row["expires_at"]} for row in rows
         ]})
     finally:
         connection.close()
@@ -193,12 +207,15 @@ def validate_activation():
     connection = db()
     try:
         row = connection.execute(
-            "SELECT features_json FROM premium_codes WHERE activation_id=? AND status='redeemed'",
+            "SELECT features_json,expires_at FROM premium_codes WHERE activation_id=? AND status='redeemed'",
             (activation_hash,)
         ).fetchone()
         if row is None:
             return jsonify({"ok": False, "active": False, "error": "activation_not_found"}), 401
-        return jsonify({"ok": True, "active": True, "features": json.loads(row["features_json"])})
+        if row["expires_at"] and row["expires_at"] <= utc_now():
+            return jsonify({"ok": False, "active": False, "error": "license_expired"}), 403
+        return jsonify({"ok": True, "active": True, "features": json.loads(row["features_json"]),
+                        "expires_at": row["expires_at"]})
     finally:
         connection.close()
 
@@ -220,7 +237,7 @@ def redeem_code():
     try:
         connection.execute("BEGIN IMMEDIATE")
         row = connection.execute(
-            "SELECT status,features_json FROM premium_codes WHERE code_hash=?", (digest,)
+            "SELECT status,features_json,expires_at FROM premium_codes WHERE code_hash=?", (digest,)
         ).fetchone()
         if row is None:
             connection.execute("ROLLBACK")
@@ -228,6 +245,9 @@ def redeem_code():
         if row["status"] != "unused":
             connection.execute("ROLLBACK")
             return jsonify({"ok": False, "error": "code_already_used"}), 409
+        if row["expires_at"] and row["expires_at"] <= utc_now():
+            connection.execute("ROLLBACK")
+            return jsonify({"ok": False, "error": "license_expired"}), 403
         activation_hash = hmac.new(
             LICENSE_PEPPER.encode(), ("activation:" + activation_id).encode(), hashlib.sha256
         ).hexdigest()
@@ -237,7 +257,8 @@ def redeem_code():
         )
         features = json.loads(row["features_json"])
         connection.execute("COMMIT")
-        return jsonify({"ok": True, "activation_id": activation_id, "features": features, "status": "active"}), 200
+        return jsonify({"ok": True, "activation_id": activation_id, "features": features,
+                        "expires_at": row["expires_at"], "status": "active"}), 200
     except Exception:
         connection.execute("ROLLBACK")
         app.logger.exception("License redemption failed")
