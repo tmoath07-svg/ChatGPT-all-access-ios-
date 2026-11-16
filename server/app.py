@@ -172,6 +172,29 @@ def revoke_code():
         connection.close()
 
 
+@app.post("/api/license/validate")
+def validate_activation():
+    if not LICENSE_PEPPER:
+        return jsonify({"ok": False, "error": "licensing_not_configured"}), 503
+    supplied = request.headers.get("Authorization", "")
+    if not supplied.startswith("Bearer "):
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    activation_id = supplied[7:].strip()
+    if not activation_id or len(activation_id) > 128:
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    connection = db()
+    try:
+        row = connection.execute(
+            "SELECT features_json FROM premium_codes WHERE activation_id=? AND status='redeemed'",
+            (activation_id,)
+        ).fetchone()
+        if row is None:
+            return jsonify({"ok": False, "active": False, "error": "activation_not_found"}), 401
+        return jsonify({"ok": True, "active": True, "features": json.loads(row["features_json"])})
+    finally:
+        connection.close()
+
+
 @app.post("/api/license/redeem")
 def redeem_code():
     if not LICENSE_PEPPER:
