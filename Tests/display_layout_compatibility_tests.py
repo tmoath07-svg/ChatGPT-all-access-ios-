@@ -12,6 +12,7 @@ assert 'iOS: "17.0"' in project, "Minimum deployment target must continue to cov
 assert 'TARGETED_DEVICE_FAMILY: "1,2"' in project, "Both iPhone and iPad must remain targeted."
 assert "INRPFPhoneRootView.swift" in project, "The new iPhone shell must be compiled into the app target."
 assert "GeometryReader" in app and "scene.size.width < 600" in app, "Root must choose the compact shell from actual scene width."
+assert "UIDevice.current.userInterfaceIdiom == .phone" in app, "iPhone must keep its dedicated shell in both orientations."
 assert "INRPFPhoneRootView()" in app, "Compact scenes must use the dedicated iPhone shell."
 assert "TabView(selection: $selectedTab)" in app, "The existing iPad tab interface must remain intact."
 assert "GitHubIntegrationView()" in phone and "ContentView()" in phone
