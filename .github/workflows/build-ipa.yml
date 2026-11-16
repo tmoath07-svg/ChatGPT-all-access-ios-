@@ -317,6 +317,7 @@ jobs:
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/INRPF.app"
           test -d "$APP_PATH"
           test -f "$APP_PATH/Info.plist"
+          test -d "$APP_PATH/Base.lproj/LaunchScreen.storyboardc"
 
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
@@ -332,6 +333,8 @@ jobs:
               info = plistlib.load(stream)
           if info.get("UIDeviceFamily") != [1]:
               raise SystemExit(f"Expected iPhone-only UIDeviceFamily [1], got {info.get('UIDeviceFamily')!r}")
+          if info.get("UILaunchStoryboardName") != "LaunchScreen":
+              raise SystemExit("Expected UILaunchStoryboardName=LaunchScreen in generated Info.plist")
           info["CFBundleDocumentTypes"] = [{
               "CFBundleTypeName": "INRPF Mod and Archive",
               "CFBundleTypeRole": "Editor",
@@ -358,6 +361,8 @@ jobs:
           test "$VERSION" = "6.12"
           test "$BUILD" = "82"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes' "$INFO" | grep -q 'public.archive'
+          /usr/libexec/PlistBuddy -c 'Print :UILaunchStoryboardName' "$INFO" | grep -qx 'LaunchScreen'
+          test -d "Payload/INRPF.app/Base.lproj/LaunchScreen.storyboardc"
           grep -q 'MARKETING_VERSION: "6.12"' project.yml
           grep -q 'CURRENT_PROJECT_VERSION: "82"' project.yml
           zip -qry INRPF-6.12-unsigned.ipa Payload
