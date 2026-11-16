@@ -37,54 +37,58 @@ struct GTAConverterApp: App {
     @State private var selectedTab = 0
     @AppStorage("inrpf_interface_mode") private var interfaceMode = "auto"
 
-    private var resolvedHorizontalSizeClass: UserInterfaceSizeClass {
-        // iPhones always use the compact navigation layout, including Plus/Max models.
-        if UIDevice.current.userInterfaceIdiom == .phone { return .compact }
-        switch interfaceMode {
-        case "ios": return .compact
-        case "ipados": return .regular
-        default: return .regular
+    // Keep the system-provided size class in automatic mode. Only override it
+    // when the user explicitly chooses an interface layout.
+    private var appTabs: some View {
+        TabView(selection: $selectedTab) {
+            NavigationStack {
+                GitHubIntegrationView()
+            }
+            .tabItem {
+                Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
+            }
+            .tag(0)
+
+            NavigationStack {
+                GeminiToolView()
+            }
+            .tabItem {
+                Label("Gemini", systemImage: "sparkles")
+            }
+            .tag(2)
+
+            ContentView()
+                .tabItem {
+                    Label("الأدوات", systemImage: "square.grid.2x2.fill")
+                }
+                .tag(1)
+
+            NavigationStack {
+                AutonomousAgentView()
+            }
+            .tabItem {
+                Label("AI Agent", systemImage: "brain.head.profile")
+            }
+            .tag(3)
+        }
+        .onOpenURL { _ in
+            selectedTab = 1
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            TabView(selection: $selectedTab) {
-                NavigationStack {
-                    GitHubIntegrationView()
+            Group {
+                switch interfaceMode {
+                case "ios":
+                    appTabs.environment(\.horizontalSizeClass, .compact)
+                case "ipados":
+                    appTabs.environment(\.horizontalSizeClass, .regular)
+                default:
+                    appTabs
                 }
-                .tabItem {
-                    Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
-                }
-                .tag(0)
-
-                NavigationStack {
-                    GeminiToolView()
-                }
-                .tabItem {
-                    Label("Gemini", systemImage: "sparkles")
-                }
-                .tag(2)
-
-                ContentView()
-                    .tabItem {
-                        Label("الأدوات", systemImage: "square.grid.2x2.fill")
-                    }
-                    .tag(1)
-
-                NavigationStack {
-                    AutonomousAgentView()
-                }
-                .tabItem {
-                    Label("AI Agent", systemImage: "brain.head.profile")
-                }
-                .tag(3)
             }
             .preferredColorScheme(.dark)
-            .onOpenURL { _ in
-                selectedTab = 1
-            }
-            .environment(\.horizontalSizeClass, resolvedHorizontalSizeClass)
         }
     }
 }
