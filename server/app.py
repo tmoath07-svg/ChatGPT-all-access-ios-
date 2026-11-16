@@ -477,6 +477,87 @@ def gemini_chat_completions():
     return proxy_gemini("chat/completions")
 
 
+@app.post("/api/display-surveys")
+def receive_display_survey():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"ok": False, "error": "expected_json_object"}), 400
+
+    allowed = {
+        "issue": 80, "frequency": 40, "interface_mode": 20,
+        "device_family": 20, "device_model": 80, "os_version": 40,
+        "screen_size": 40, "screen_scale": 20, "orientation": 20,
+        "horizontal_size_class": 20, "vertical_size_class": 20,
+        "app_version": 20, "build_number": 20, "notes": 300
+    }
+    clean = {}
+    for key, max_length in allowed.items():
+        value = payload.get(key, "")
+        if not isinstance(value, str) or len(value) > max_length:
+            return jsonify({"ok": False, "error": "invalid_" + key}), 400
+        clean[key] = value.strip()
+
+    if clean["issue"] not in {"square", "cropped", "oversized", "tiny", "layout_switch", "other"}:
+        return jsonify({"ok": False, "error": "invalid_issue"}), 400
+    if clean["frequency"] not in {"always", "sometimes", "after_rotation", "after_switch", "once"}:
+        return jsonify({"ok": False, "error": "invalid_frequency"}), 400
+    if clean["interface_mode"] not in {"auto", "ios", "ipados", "unknown"}:
+        return jsonify({"ok": False, "error": "invalid_interface_mode"}), 400
+    if clean["device_family"] not in {"iPhone", "iPad", "other"}:
+        return jsonify({"ok": False, "error": "invalid_device_family"}), 400
+
+    try:
+        connection = db()
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS display_surveys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                received_at TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            )
+        """)
+        connection.execute(
+            "INSERT INTO display_surveys (received_at, payload_json) VALUES (?, ?)",
+            (utc_now(), json.dumps(clean, ensure_ascii=False))
+        )
+        connection.close()
+    except (OSError, sqlite3.Error):
+        app.logger.exception("Could not store display survey")
+        return jsonify({"ok": False, "error": "storage_error"}), 500
+    return jsonify({"ok": True}), 201
+
+
+@app.get("/api/admin/display-surveys")
+def list_display_surveys():
+    if not admin_authorized():
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    try:
+        connection = db()
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS display_surveys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                received_at TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            )
+        """)
+        rows = connection.execute(
+            "SELECT id, received_at, payload_json FROM display_surveys ORDER BY id DESC LIMIT 300"
+        ).fetchall()
+        connection.close()
+        surveys = []
+        for row in rows:
+            try:
+                surveys.append({
+                    "id": row["id"], "received_at": row["received_at"],
+                    **json.loads(row["payload_json"])
+                })
+            except (json.JSONDecodeError, TypeError):
+                continue
+        return jsonify({"ok": True, "count": len(surveys), "surveys": surveys})
+    except (OSError, sqlite3.Error):
+        app.logger.exception("Could not read display surveys")
+        return jsonify({"ok": False, "error": "storage_error"}), 500
+
+
 @app.post("/api/reports")
 def receive_report():
     if not REPORT_TOKEN:
