@@ -2,7 +2,7 @@ name: Test INRPF Server
 
 on:
   push:
-    branches: [main, fix/gemini-ios-layout-6.10, feature/gemini-premium-tool]
+    branches: [main, fix/gemini-ios-layout-6.10, feature/gemini-premium-tool, feature/display-layout-survey]
     paths:
       - "server/**"
       - ".github/workflows/test-server.yml"
@@ -29,5 +29,5 @@ jobs:
         run: |
           set -euo pipefail
           cd server
-          python -m unittest -v test_license_api.py test_gemini_proxy.py
+          python -m unittest -v test_license_api.py test_gemini_proxy.py test_display_survey_api.py
           python -m py_compile app.py test_license_api.py test_gemini_proxy.py
