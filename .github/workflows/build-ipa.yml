@@ -2,7 +2,7 @@ name: Build INRPF IPA
 
 on:
   push:
-    branches: [main, fix/import-drop-redesign, feature/local-engine-ios, feature/import-ftp-folder-fix, feature/inrpf-github-device-flow, feature/autonomous-ai-agent, feature/premium-license-manager, feature/gemini-premium-tool, fix/gemini-ios-layout-6.10]
+    branches: [main, fix/import-drop-redesign, feature/local-engine-ios, feature/import-ftp-folder-fix, feature/inrpf-github-device-flow, feature/autonomous-ai-agent, feature/premium-license-manager, feature/gemini-premium-tool, fix/gemini-ios-layout-6.10, feature/display-layout-survey]
     paths:
       - "GTAConverter/**"
       - "LocalEngine/**"
@@ -92,6 +92,16 @@ jobs:
           source .venv/bin/activate
           (cd server && python -m unittest -v test_license_api.py test_gemini_proxy.py)
           echo "PASS: Gemini response parsing, quota errors, model filtering, and adaptive device layout checks."
+      - name: Test display layout survey and admin reporting
+        run: |
+          set -euo pipefail
+          grep -Fq 'INRPFDisplaySurveyView()' GTAConverter/ContentView.swift
+          grep -Fq 'api/display-surveys' GTAConverter/INRPFDisplaySurveyView.swift
+          grep -Fq 'api/admin/display-surveys' server/admin/index.html
+          grep -Fq 'display_surveys' server/app.py
+          source .venv/bin/activate
+          (cd server && python -m unittest -v test_display_survey_api.py)
+          echo "PASS: in-app display survey and protected admin reporting checks."
       - name: Test FiveM resource analyzer
         run: |
           set -euo pipefail
