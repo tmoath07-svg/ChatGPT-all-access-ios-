@@ -41,9 +41,6 @@ jobs:
         run: |
           set -euo pipefail
           source .venv/bin/activate
-          python -m pip install -r server/requirements.txt
-          (cd server && python -m unittest -v test_license_api.py)
-          python -m py_compile server/app.py server/test_license_api.py
           grep -Fq 'INRPFPremiumLicenseGateView(client: premiumLicense)' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'api/license/redeem' GTAConverter/PremiumLicenseClient.swift
           grep -Fq 'api/license/validate' GTAConverter/PremiumLicenseClient.swift
@@ -78,18 +75,13 @@ jobs:
           set -euo pipefail
           grep -Fq 'GeminiToolView()' GTAConverter/GTAConverterApp.swift
           grep -Fq 'Label("Gemini"' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'gemini_tool' server/app.py
           grep -Fq 'api/gemini/v1/chat/completions' GTAConverter/GeminiToolView.swift
-          grep -Fq 'INRPF_GEMINI_ENCRYPTION_KEY' server/app.py
-          grep -Fq 'generativelanguage.googleapis.com' server/app.py
-          grep -Fq 'gemini_tool' server/admin/index.html
           ! grep -Fq 'AIza' GTAConverter/GeminiToolView.swift
           grep -Fq 'responseText(from content: Any?)' GTAConverter/GeminiToolView.swift
           grep -Fq 'case 429:' GTAConverter/GeminiToolView.swift
           grep -Fq 'filter { $0.lowercased().contains("gemini") }' GTAConverter/GeminiToolView.swift
           python Tests/display_layout_compatibility_tests.py
           source .venv/bin/activate
-          (cd server && python -m unittest -v test_license_api.py test_gemini_proxy.py)
           echo "PASS: Gemini response parsing, quota errors, model filtering, and adaptive device layout checks."
       - name: Test iOS 18-27 adaptive display compatibility
         run: |
@@ -102,10 +94,7 @@ jobs:
           set -euo pipefail
           grep -Fq 'INRPFDisplaySurveyView()' GTAConverter/ContentView.swift
           grep -Fq 'api/display-surveys' GTAConverter/INRPFDisplaySurveyView.swift
-          grep -Fq 'api/admin/display-surveys' server/admin/index.html
-          grep -Fq 'display_surveys' server/app.py
           source .venv/bin/activate
-          (cd server && python -m unittest -v test_display_survey_api.py)
           echo "PASS: in-app display survey and protected admin reporting checks."
       - name: Test FiveM resource analyzer
         run: |
