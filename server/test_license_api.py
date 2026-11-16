@@ -67,6 +67,31 @@ class PremiumLicenseTests(unittest.TestCase):
         self.assertEqual(expired.status_code, 403)
         self.assertEqual(expired.get_json()["error"], "license_expired")
 
+    def test_gemini_feature_code_unlocks_only_proxy_for_licensed_activation(self):
+        generated = self.client.post(
+            "/api/admin/codes/generate", headers=self.headers,
+            json={"count": 1, "features": ["gemini_tool"]}
+        )
+        self.assertEqual(generated.status_code, 201)
+        code = generated.get_json()["codes"][0]
+        redeemed = self.client.post("/api/license/redeem", json={"code": code})
+        self.assertEqual(redeemed.status_code, 200)
+        activation = redeemed.get_json()["activation_id"]
+        denied = self.client.get("/api/gemini/v1/models")
+        self.assertEqual(denied.status_code, 403)
+        authorized_but_unconfigured = self.client.get(
+            "/api/gemini/v1/models",
+            headers={"Authorization": "Bearer " + activation}
+        )
+        self.assertEqual(authorized_but_unconfigured.status_code, 503)
+
+    def test_gemini_key_status_is_admin_only(self):
+        denied = self.client.get("/api/admin/gemini/status")
+        self.assertEqual(denied.status_code, 401)
+        allowed = self.client.get("/api/admin/gemini/status", headers=self.headers)
+        self.assertEqual(allowed.status_code, 200)
+        self.assertFalse(allowed.get_json()["configured"])
+
     def test_admin_authentication_and_feature_allowlist(self):
         denied = self.client.post(
             "/api/admin/codes/generate", headers={"Authorization": "Bearer wrong"},
