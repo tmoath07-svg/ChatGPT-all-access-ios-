@@ -34,7 +34,147 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+class _PostgresConnection:
+    """Small DB-API compatibility layer for the existing SQLite-oriented queries."""
+
+    def __init__(self, connection):
+        self._connection = connection
+
+    def execute(self, query, params=()):
+        query = query.replace("BEGIN IMMEDIATE", "BEGIN").replace("?", "%s")
+        return self._connection.execute(query, params)
+
+    def close(self):
+        self._connection.close()
+
+
+def _migrate_legacy_sqlite(connection):
+    """Import the old on-disk SQLite license store once; never delete or modify it."""
+    path = Path(LICENSE_DB)
+    if not path.is_file():
+        return
+
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version TEXT PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        )
+    """)
+    connection.execute("BEGIN")
+    try:
+        # Serialize concurrent Gunicorn workers attempting the one-time import.
+        connection.execute("SELECT pg_advisory_xact_lock(%s)", (81420261116,))
+        applied = connection.execute(
+            "SELECT 1 FROM schema_migrations WHERE version=%s",
+            ("legacy-sqlite-license-import-v1",)
+        ).fetchone()
+        if applied:
+            connection.execute("COMMIT")
+            return
+
+        with sqlite3.connect(f"file:{path.resolve()}?mode=ro", uri=True) as legacy:
+            legacy.row_factory = sqlite3.Row
+            tables = {
+                row[0] for row in legacy.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            if "premium_codes" in tables:
+                columns = {
+                    row[1] for row in legacy.execute(
+                        "PRAGMA table_info(premium_codes)"
+                    ).fetchall()
+                }
+                expires_expr = "expires_at" if "expires_at" in columns else "NULL"
+                duration_expr = "duration_seconds" if "duration_seconds" in columns else "NULL"
+                rows = legacy.execute(
+                    "SELECT code_hash,code_hint,status,features_json,created_at,"
+                    f"redeemed_at,activation_id,{expires_expr},{duration_expr} "
+                    "FROM premium_codes"
+                ).fetchall()
+                for row in rows:
+                    connection.execute(
+                        "INSERT INTO premium_codes "
+                        "(code_hash,code_hint,status,features_json,created_at,redeemed_at,"
+                        "activation_id,expires_at,duration_seconds) "
+                        "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                        "ON CONFLICT(code_hash) DO NOTHING",
+                        tuple(row)
+                    )
+
+            if "gemini_keys" in tables:
+                rows = legacy.execute(
+                    "SELECT id,resource_name,encrypted_key,key_hint,created_at FROM gemini_keys"
+                ).fetchall()
+                for row in rows:
+                    connection.execute(
+                        "INSERT INTO gemini_keys(id,resource_name,encrypted_key,key_hint,created_at) "
+                        "VALUES(%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING",
+                        tuple(row)
+                    )
+
+        connection.execute(
+            "INSERT INTO schema_migrations(version,applied_at) VALUES(%s,%s) "
+            "ON CONFLICT(version) DO NOTHING",
+            ("legacy-sqlite-license-import-v1", utc_now())
+        )
+        connection.execute("COMMIT")
+        app.logger.info("Legacy SQLite license-store import completed; source file retained.")
+    except Exception:
+        connection.execute("ROLLBACK")
+        app.logger.exception("Legacy SQLite license-store import failed")
+        raise
+
+
 def db():
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    if database_url:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+
+            raw = psycopg.connect(
+                database_url,
+                row_factory=dict_row,
+                autocommit=True,
+                connect_timeout=10
+            )
+            connection = _PostgresConnection(raw)
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS gemini_keys (
+                    id INTEGER PRIMARY KEY CHECK(id = 1),
+                    resource_name TEXT NOT NULL,
+                    encrypted_key TEXT NOT NULL,
+                    key_hint TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS premium_codes (
+                    code_hash TEXT PRIMARY KEY,
+                    code_hint TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK(status IN ('unused','redeemed','revoked')),
+                    features_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    redeemed_at TEXT,
+                    activation_id TEXT,
+                    expires_at TEXT,
+                    duration_seconds BIGINT
+                )
+            """)
+            connection.execute(
+                "ALTER TABLE premium_codes ADD COLUMN IF NOT EXISTS expires_at TEXT"
+            )
+            connection.execute(
+                "ALTER TABLE premium_codes ADD COLUMN IF NOT EXISTS duration_seconds BIGINT"
+            )
+            _migrate_legacy_sqlite(connection)
+            return connection
+        except Exception:
+            app.logger.exception("PostgreSQL connection/schema initialization failed")
+            raise
+
+    # SQLite remains available for local development and the existing isolated tests.
     path = Path(LICENSE_DB)
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(str(path), timeout=15, isolation_level=None)
