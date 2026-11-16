@@ -35,7 +35,15 @@ final class INRPFAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
 struct GTAConverterApp: App {
     @UIApplicationDelegateAdaptor(INRPFAppDelegate.self) private var appDelegate
     @State private var selectedTab = 0
-    @AppStorage("inrpf_interface_mode") private var interfaceMode = "ios"
+    @AppStorage("inrpf_interface_mode") private var interfaceMode = "auto"
+
+    private var resolvedHorizontalSizeClass: UserInterfaceSizeClass {
+        switch interfaceMode {
+        case "ios": return .compact
+        case "ipados": return .regular
+        default: return UIDevice.current.userInterfaceIdiom == .pad ? .regular : .compact
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -74,30 +82,35 @@ struct GTAConverterApp: App {
             .onOpenURL { _ in
                 selectedTab = 1
             }
-            .environment(\.horizontalSizeClass, interfaceMode == "ios" ? .compact : .regular)
+            .environment(\.horizontalSizeClass, resolvedHorizontalSizeClass)
         }
     }
 }
 
 
 struct InterfaceModeSettingsView: View {
-    @AppStorage("inrpf_interface_mode") private var interfaceMode = "ios"
+    @AppStorage("inrpf_interface_mode") private var interfaceMode = "auto"
 
     var body: some View {
         Form {
             Section("نمط الواجهة") {
                 Picker("طريقة العرض", selection: $interfaceMode) {
+                    Text("تلقائي").tag("auto")
                     Text("iOS").tag("ios")
                     Text("iPadOS").tag("ipados")
                 }
                 .pickerStyle(.segmented)
 
                 if interfaceMode == "ios" {
-                    Label("واجهة مضغوطة بتخطيط قريب من الأيفون.", systemImage: "iphone")
+                    Label("واجهة مضغوطة مناسبة للآيفون.", systemImage: "iphone")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if interfaceMode == "ipados" {
+                    Label("واجهة واسعة تستفيد من مساحة شاشة الآيباد.", systemImage: "ipad")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
-                    Label("واجهة واسعة تستفيد من مساحة شاشة الآيباد.", systemImage: "ipad")
+                    Label("يختار INRPF التخطيط تلقائياً حسب نوع الجهاز.", systemImage: "arrow.left.arrow.right")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

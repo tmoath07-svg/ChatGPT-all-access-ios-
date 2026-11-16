@@ -126,19 +126,47 @@ final class GeminiLicenseClient: ObservableObject {
         return data
     }
 
+    private func geminiErrorMessage(from data: Data, statusCode: Int) -> String {
+        let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        let errorValue = payload?["error"]
+        let errorObject = errorValue as? [String: Any]
+        let upstreamMessage = (errorObject?["message"] as? String) ?? (errorValue as? String)
+        switch statusCode {
+        case 400: return upstreamMessage ?? "Gemini رفض صيغة الطلب أو الموديل المحدد."
+        case 401, 403: return upstreamMessage ?? "تعذر التحقق من صلاحية Gemini. أعد التحقق من كود التفعيل."
+        case 404: return upstreamMessage ?? "الموديل المطلوب غير موجود أو لا يدعم واجهة المحادثة."
+        case 429: return upstreamMessage.map { "تم بلوغ حد استخدام Gemini: " + $0 } ?? "تم بلوغ حصة Gemini أو حد الطلبات المؤقت. انتظر قليلاً ثم أعد المحاولة."
+        case 500...599: return upstreamMessage ?? "خدمة Gemini تواجه مشكلة مؤقتة (HTTP \\(statusCode))."
+        default: return upstreamMessage ?? "تعذر إكمال طلب Gemini (HTTP \\(statusCode))."
+        }
+    }
+
+    private func responseText(from content: Any?) -> String? {
+        if let text = content as? String {
+            let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return value.isEmpty ? nil : value
+        }
+        if let parts = content as? [[String: Any]] {
+            let value = parts.compactMap { $0["text"] as? String }.joined(separator: "\\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            return value.isEmpty ? nil : value
+        }
+        return nil
+    }
+
     func send(messages: [[String: String]], model: String) async throws -> String {
         guard hasAccess, !activation.isEmpty else { throw URLError(.userAuthenticationRequired) }
         let body: [String: Any] = ["model": model, "messages": messages, "temperature": 0.3]
         let (data, statusCode) = try await post("api/gemini/v1/chat/completions", body: body, token: activation)
-        guard (200...299).contains(statusCode),
-              let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+        guard (200...299).contains(statusCode) else {
+            throw NSError(domain: "GeminiAPI", code: statusCode, userInfo: [NSLocalizedDescriptionKey: geminiErrorMessage(from: data, statusCode: statusCode)])
+        }
+        guard let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let choices = payload["choices"] as? [[String: Any]],
               let message = choices.first?["message"] as? [String: Any],
-              let text = message["content"] as? String else {
+              let text = responseText(from: message["content"]) else {
             let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-            let error = payload?["error"] as? [String: Any]
-            throw NSError(domain: "GeminiAPI", code: statusCode,
-                          userInfo: [NSLocalizedDescriptionKey: error?["message"] as? String ?? "لم يصل رد صالح من Gemini."])
+            let keys = payload.map { $0.keys.sorted().joined(separator: ", ") } ?? "رد غير JSON"
+            throw NSError(domain: "GeminiAPI", code: statusCode, userInfo: [NSLocalizedDescriptionKey: "وصل رد من Gemini لكن تنسيقه غير متوافق. الحقول المستلمة: \\(keys)"])
         }
         return text
     }
@@ -266,9 +294,15 @@ struct GeminiToolView: View {
             let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             let items = (payload?["data"] as? [[String: Any]] ?? [])
                 .compactMap { $0["id"] as? String }
+                .map { $0.hasPrefix("models/") ? String($0.dropFirst("models/".count)) : $0 }
+                .filter { $0.lowercased().contains("gemini") }
             if !items.isEmpty {
-                models = items.sorted()
+                models = Array(Set(items)).sorted()
                 if !models.contains(model) { model = models.first ?? "gemini-2.5-flash" }
+            } else {
+                models = ["gemini-2.5-flash"]
+                model = models[0]
+                errorText = "لم تُرجع Google نماذج Gemini متوافقة. تحقق من تفعيل Gemini API في Google Cloud."
             }
         } catch {
             errorText = "تعذر جلب النماذج: \(error.localizedDescription)"
