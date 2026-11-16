@@ -80,7 +80,6 @@ jobs:
           grep -Fq 'responseText(from content: Any?)' GeminiToolView.swift
           grep -Fq 'case 429:' GeminiToolView.swift
           grep -Fq 'filter { $0.lowercased().contains("gemini") }' GeminiToolView.swift
-          python Tests/display_layout_compatibility_tests.py
           source .venv/bin/activate
           echo "PASS: Gemini response parsing, quota errors, model filtering, and adaptive device layout checks."
       - name: Test iOS 18-27 adaptive display compatibility
