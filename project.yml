@@ -51,7 +51,9 @@ targets:
       - PremiumLicenseClient.swift
       - VehicleModelInspectorView.swift
       - YTDTextureLabView.swift
-    resources:
+      # XcodeGen auto-classifies storyboard, asset catalog, and localized resources
+      # when listed under sources. Keep them here to avoid the resources: omission
+      # affecting targets with multiple explicit source entries.
       - Assets.xcassets
       - en.lproj
       - LaunchScreen.storyboard
