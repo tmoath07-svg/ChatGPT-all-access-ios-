@@ -31,9 +31,10 @@ jobs:
       - name: Test premium license API
         run: |
           set -euo pipefail
-          python3 -m pip install -r server/requirements.txt
-          (cd server && python3 -m unittest -v test_license_api.py)
-          python3 -m py_compile server/app.py server/test_license_api.py
+          source .venv/bin/activate
+          python -m pip install -r server/requirements.txt
+          (cd server && python -m unittest -v test_license_api.py)
+          python -m py_compile server/app.py server/test_license_api.py
           grep -Fq 'INRPFPremiumLicenseGateView(client: premiumLicense)' GTAConverter/GitHubIntegrationView.swift
           grep -Fq 'api/license/redeem' GTAConverter/PremiumLicenseClient.swift
           grep -Fq 'api/license/validate' GTAConverter/PremiumLicenseClient.swift
