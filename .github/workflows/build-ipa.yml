@@ -9,6 +9,7 @@ on:
       - "Tests/**"
       - "scripts/**"
       - "project.yml"
+      - ".github/workflows/build-ipa.yml"
       - "Package.swift"
       - "Cargo.toml"
   workflow_dispatch:
