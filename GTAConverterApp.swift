@@ -89,7 +89,7 @@ struct GTAConverterApp: App {
     var body: some Scene {
         WindowGroup {
             GeometryReader { scene in
-                if scene.size.width < 600 {
+                if UIDevice.current.userInterfaceIdiom == .phone || scene.size.width < 600 {
                     INRPFPhoneRootView()
                 } else {
                     appTabs
