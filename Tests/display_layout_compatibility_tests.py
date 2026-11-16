@@ -1,10 +1,10 @@
 from pathlib import Path
 
-app = Path("GTAConverter/GTAConverterApp.swift").read_text()
-survey = Path("GTAConverter/INRPFDisplaySurveyView.swift").read_text()
-github = Path("GTAConverter/GitHubIntegrationView.swift").read_text()
-ftp = Path("GTAConverter/FTPBrowserView.swift").read_text()
-agent = Path("GTAConverter/AutonomousAgentView.swift").read_text()
+app = Path("GTAConverterApp.swift").read_text()
+survey = Path("INRPFDisplaySurveyView.swift").read_text()
+github = Path("GitHubIntegrationView.swift").read_text()
+ftp = Path("FTPBrowserView.swift").read_text()
+agent = Path("AutonomousAgentView.swift").read_text()
 project = Path("project.yml").read_text()
 
 assert 'iOS: "17.0"' in project, "Minimum deployment target must continue to cover iOS 18+."
