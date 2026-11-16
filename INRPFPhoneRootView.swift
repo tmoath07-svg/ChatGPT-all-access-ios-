@@ -13,11 +13,24 @@ struct INRPFPhoneRootView: View {
     ]
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            selectedContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        TabView(selection: $selectedTab) {
+            NavigationStack { GitHubIntegrationView() }
+                .tabItem { Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right") }
+                .tag(0)
+
+            ContentView()
+                .tabItem { Label("الأدوات", systemImage: "square.grid.2x2.fill") }
+                .tag(1)
+
+            GeminiToolView()
+                .tabItem { Label("Gemini", systemImage: "sparkles") }
+                .tag(2)
+
+            NavigationStack { AutonomousAgentView() }
+                .tabItem { Label("AI Agent", systemImage: "brain.head.profile") }
+                .tag(3)
         }
+        .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             phoneTabBar
         }
@@ -25,20 +38,7 @@ struct INRPFPhoneRootView: View {
             selectedTab = 1
         }
         .preferredColorScheme(.dark)
-    }
-
-    @ViewBuilder
-    private var selectedContent: some View {
-        switch selectedTab {
-        case 0:
-            NavigationStack { GitHubIntegrationView() }
-        case 1:
-            ContentView()
-        case 2:
-            GeminiToolView()
-        default:
-            NavigationStack { AutonomousAgentView() }
-        }
+        .tint(.purple)
     }
 
     private var phoneTabBar: some View {
