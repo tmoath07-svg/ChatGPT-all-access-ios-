@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, fix/import-drop-redesign, feature/local-engine-ios, feature/import-ftp-folder-fix, feature/inrpf-github-device-flow, feature/autonomous-ai-agent, feature/premium-license-manager, feature/gemini-premium-tool, fix/gemini-ios-layout-6.10, feature/display-layout-survey]
     paths:
-      - "GTAConverter/**"
+      - "**"
       - "LocalEngine/**"
       - "Tests/**"
       - "scripts/**"
@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           source .venv/bin/activate
-          grep -Fq 'INRPFPremiumLicenseGateView(client: premiumLicense)' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'INRPFPremiumLicenseGateView(client: premiumLicense)' GitHubIntegrationView.swift
           grep -Fq 'api/license/redeem' PremiumLicenseClient.swift
           grep -Fq 'api/license/validate' PremiumLicenseClient.swift
           echo "PASS: one-time license API and GitHub premium gate checks."
@@ -63,23 +63,23 @@ jobs:
           set -euo pipefail
           swiftc Tests/agent_task_policy_tests.swift -o /tmp/agent-task-policy-tests
           /tmp/agent-task-policy-tests
-          grep -Fq 'AutonomousAgentView()' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'AIProviderAPI.fetchModels' GTAConverter/AutonomousAgentView.swift
-          grep -Fq 'AISecretStore.save' GTAConverter/AIProviderCore.swift
-          grep -Fq 'ps4_search_files' GTAConverter/AutonomousAgentCore.swift
-          ! grep -R -i -E 'BeamNG|BeamNG.drive' GTAConverter/AIProviderCore.swift GTAConverter/AutonomousAgentCore.swift GTAConverter/AutonomousAgentView.swift
+          grep -Fq 'AutonomousAgentView()' GTAConverterApp.swift
+          grep -Fq 'AIProviderAPI.fetchModels' AutonomousAgentView.swift
+          grep -Fq 'AISecretStore.save' AIProviderCore.swift
+          grep -Fq 'ps4_search_files' AutonomousAgentCore.swift
+          ! grep -R -i -E 'BeamNG|BeamNG.drive' AIProviderCore.swift AutonomousAgentCore.swift AutonomousAgentView.swift
           echo "PASS: autonomous agent foundation and BeamNG exclusion checks."
 
       - name: Test Gemini premium tool and managed key proxy
         run: |
           set -euo pipefail
-          grep -Fq 'GeminiToolView()' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'Label("Gemini"' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'api/gemini/v1/chat/completions' GTAConverter/GeminiToolView.swift
-          ! grep -Fq 'AIza' GTAConverter/GeminiToolView.swift
-          grep -Fq 'responseText(from content: Any?)' GTAConverter/GeminiToolView.swift
-          grep -Fq 'case 429:' GTAConverter/GeminiToolView.swift
-          grep -Fq 'filter { $0.lowercased().contains("gemini") }' GTAConverter/GeminiToolView.swift
+          grep -Fq 'GeminiToolView()' GTAConverterApp.swift
+          grep -Fq 'Label("Gemini"' GTAConverterApp.swift
+          grep -Fq 'api/gemini/v1/chat/completions' GeminiToolView.swift
+          ! grep -Fq 'AIza' GeminiToolView.swift
+          grep -Fq 'responseText(from content: Any?)' GeminiToolView.swift
+          grep -Fq 'case 429:' GeminiToolView.swift
+          grep -Fq 'filter { $0.lowercased().contains("gemini") }' GeminiToolView.swift
           python Tests/display_layout_compatibility_tests.py
           source .venv/bin/activate
           echo "PASS: Gemini response parsing, quota errors, model filtering, and adaptive device layout checks."
@@ -92,14 +92,14 @@ jobs:
       - name: Test display layout survey and admin reporting
         run: |
           set -euo pipefail
-          grep -Fq 'INRPFDisplaySurveyView()' GTAConverter/ContentView.swift
-          grep -Fq 'api/display-surveys' GTAConverter/INRPFDisplaySurveyView.swift
+          grep -Fq 'INRPFDisplaySurveyView()' ContentView.swift
+          grep -Fq 'api/display-surveys' INRPFDisplaySurveyView.swift
           source .venv/bin/activate
           echo "PASS: in-app display survey and protected admin reporting checks."
       - name: Test FiveM resource analyzer
         run: |
           set -euo pipefail
-          swiftc GTAConverter/ModAnalyzer.swift Tests/fivem_mod_analyzer_tests.swift -o /tmp/fivem-mod-analyzer-tests
+          swiftc ModAnalyzer.swift Tests/fivem_mod_analyzer_tests.swift -o /tmp/fivem-mod-analyzer-tests
           /tmp/fivem-mod-analyzer-tests
           python3 - <<'PY'
           from pathlib import Path
@@ -116,144 +116,144 @@ jobs:
           PY
           grep -q 'MARKETING_VERSION: "6.10"' project.yml
           grep -q 'CURRENT_PROJECT_VERSION: "80"' project.yml
-          ! grep -Fq '.fileImporter(' GTAConverter/ContentView.swift GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'activeImportPicker = .archive' GTAConverter/ContentView.swift
-          grep -Fq 'activeImportPicker = .folder' GTAConverter/ContentView.swift
-          grep -Fq '.inrpfDocumentPicker(' GTAConverter/ContentView.swift
-          grep -Fq '.inrpfDocumentPicker(' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'UIDocumentPickerViewController' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'forOpeningContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'allowsMultipleSelection: allowsMultipleSelection' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'asCopy: true' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'onCancellation()' GTAConverter/INRPFDocumentPicker.swift
+          ! grep -Fq '.fileImporter(' ContentView.swift GitHubIntegrationView.swift
+          grep -Fq 'activeImportPicker = .archive' ContentView.swift
+          grep -Fq 'activeImportPicker = .folder' ContentView.swift
+          grep -Fq '.inrpfDocumentPicker(' ContentView.swift
+          grep -Fq '.inrpfDocumentPicker(' GitHubIntegrationView.swift
+          grep -Fq 'UIDocumentPickerViewController' INRPFDocumentPicker.swift
+          grep -Fq 'forOpeningContentTypes: contentTypes' INRPFDocumentPicker.swift
+          grep -Fq 'allowsMultipleSelection: allowsMultipleSelection' INRPFDocumentPicker.swift
+          grep -Fq 'asCopy: true' INRPFDocumentPicker.swift
+          grep -Fq 'onCancellation()' INRPFDocumentPicker.swift
 
       - name: Test GitHub start tab and preserved legacy workspace
         run: |
           set -euo pipefail
-          grep -Fq 'TabView(selection: $selectedTab)' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'GitHubIntegrationView()' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'ContentView()' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'Label("GitHub"' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'Label("الأدوات"' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'selectedTab = 1' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'struct ContentView' GTAConverter/ContentView.swift
-          test -s GTAConverter/ContentView.swift
-          grep -Fq 'NavigationLink(destination: AppFilesView())' GTAConverter/ContentView.swift
-          grep -Fq 'NavigationLink(destination: AppSettingsView())' GTAConverter/ContentView.swift
-          grep -Fq 'NavigationLink(destination: AppDiagnosticsView' GTAConverter/ContentView.swift
-          grep -Fq 'NavigationLink(destination: INRPFDeviceTestLabView())' GTAConverter/ContentView.swift
-          grep -Fq 'NavigationLink(destination: INRPFDeviceTestLabView())' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'NavigationLink(destination: AppFilesView())' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'NavigationLink(destination: AppSettingsView())' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'NavigationLink(destination: OrbxPS4TransferView())' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'NavigationLink(destination: AppDiagnosticsView(sourceURL: nil' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'Button("رفع ملفات تشغيل المستودع")' GTAConverter/GitHubIntegrationView.swift
-          ! grep -Fq 'Button("رفع جميع الملفات إلى Release")' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'https://github.com/signup' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'https://github.com/login/device/code' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'GHKeychain.save(token)' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'didConfirmGitHubSession' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'resolvedConversionMode' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'defaultBranch = "default_branch"' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'createInputRelease' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'uploadReleaseAsset' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq '"release_tag": tag' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'loadReleaseAssets' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'downloadReleaseAsset' GTAConverter/GitHubIntegrationView.swift
+          grep -Fq 'TabView(selection: $selectedTab)' GTAConverterApp.swift
+          grep -Fq 'GitHubIntegrationView()' GTAConverterApp.swift
+          grep -Fq 'ContentView()' GTAConverterApp.swift
+          grep -Fq 'Label("GitHub"' GTAConverterApp.swift
+          grep -Fq 'Label("الأدوات"' GTAConverterApp.swift
+          grep -Fq 'selectedTab = 1' GTAConverterApp.swift
+          grep -Fq 'struct ContentView' ContentView.swift
+          test -s ContentView.swift
+          grep -Fq 'NavigationLink(destination: AppFilesView())' ContentView.swift
+          grep -Fq 'NavigationLink(destination: AppSettingsView())' ContentView.swift
+          grep -Fq 'NavigationLink(destination: AppDiagnosticsView' ContentView.swift
+          grep -Fq 'NavigationLink(destination: INRPFDeviceTestLabView())' ContentView.swift
+          grep -Fq 'NavigationLink(destination: INRPFDeviceTestLabView())' GitHubIntegrationView.swift
+          grep -Fq 'NavigationLink(destination: AppFilesView())' GitHubIntegrationView.swift
+          grep -Fq 'NavigationLink(destination: AppSettingsView())' GitHubIntegrationView.swift
+          grep -Fq 'NavigationLink(destination: OrbxPS4TransferView())' GitHubIntegrationView.swift
+          grep -Fq 'NavigationLink(destination: AppDiagnosticsView(sourceURL: nil' GitHubIntegrationView.swift
+          grep -Fq 'Button("رفع ملفات تشغيل المستودع")' GitHubIntegrationView.swift
+          ! grep -Fq 'Button("رفع جميع الملفات إلى Release")' GitHubIntegrationView.swift
+          grep -Fq 'https://github.com/signup' GitHubIntegrationView.swift
+          grep -Fq 'https://github.com/login/device/code' GitHubIntegrationView.swift
+          grep -Fq 'GHKeychain.save(token)' GitHubIntegrationView.swift
+          grep -Fq 'didConfirmGitHubSession' GitHubIntegrationView.swift
+          grep -Fq 'resolvedConversionMode' GitHubIntegrationView.swift
+          grep -Fq 'defaultBranch = "default_branch"' GitHubIntegrationView.swift
+          grep -Fq 'createInputRelease' GitHubIntegrationView.swift
+          grep -Fq 'uploadReleaseAsset' GitHubIntegrationView.swift
+          grep -Fq '"release_tag": tag' GitHubIntegrationView.swift
+          grep -Fq 'loadReleaseAssets' GitHubIntegrationView.swift
+          grep -Fq 'downloadReleaseAsset' GitHubIntegrationView.swift
           grep -Fq 'Publish converted files to the input Release' .github/workflows/convert-pc-to-ps4.yml
-          grep -Fq 'normalizePreparedDLC(at: root)' GTAConverter/ContentView.swift
-          grep -Fq 'appendingPathComponent("data/orbx/gta/rpf/dlc_addon"' GTAConverter/DLCPS4PreparationView.swift
-          grep -Fq 'gtaFolder.appendingPathComponent("dlclist.xml")' GTAConverter/DLCPS4PreparationView.swift
-          grep -Fq 'copyItem(at: sourceFile, to: destination.appendingPathComponent("dlc.rpf"))' GTAConverter/DLCPS4PreparationView.swift
-          grep -Fq '<Item>/data/orbx/gta/rpf/dlc_addon/' GTAConverter/DLCPS4PreparationView.swift
-          grep -Fq 'dlc_addon/\(name)/' GTAConverter/OrbxAutoInstallPlanner.swift
-          grep -Fq '<Item>/data/orbx/gta/rpf/dlc_addon/' GTAConverter/OrbxAutoInstallPlanner.swift
-          grep -Fq 'private let remoteRoot = "/data/orbx/gta/rpf"' GTAConverter/OrbxPS4TransferView.swift
-          grep -Fq 'private let remoteDLClistDirectory = "/data/orbx/gta"' GTAConverter/OrbxPS4TransferView.swift
-          grep -Fq 'appendingPathComponent("DLCLIST", isDirectory: true)' GTAConverter/ContentView.swift
-          ! grep -Fq 'GTA-Prepared-' GTAConverter/ContentView.swift
+          grep -Fq 'normalizePreparedDLC(at: root)' ContentView.swift
+          grep -Fq 'appendingPathComponent("data/orbx/gta/rpf/dlc_addon"' DLCPS4PreparationView.swift
+          grep -Fq 'gtaFolder.appendingPathComponent("dlclist.xml")' DLCPS4PreparationView.swift
+          grep -Fq 'copyItem(at: sourceFile, to: destination.appendingPathComponent("dlc.rpf"))' DLCPS4PreparationView.swift
+          grep -Fq '<Item>/data/orbx/gta/rpf/dlc_addon/' DLCPS4PreparationView.swift
+          grep -Fq 'dlc_addon/\(name)/' OrbxAutoInstallPlanner.swift
+          grep -Fq '<Item>/data/orbx/gta/rpf/dlc_addon/' OrbxAutoInstallPlanner.swift
+          grep -Fq 'private let remoteRoot = "/data/orbx/gta/rpf"' OrbxPS4TransferView.swift
+          grep -Fq 'private let remoteDLClistDirectory = "/data/orbx/gta"' OrbxPS4TransferView.swift
+          grep -Fq 'appendingPathComponent("DLCLIST", isDirectory: true)' ContentView.swift
+          ! grep -Fq 'GTA-Prepared-' ContentView.swift
           grep -Fq 'result/DLCLIST' .github/workflows/convert-pc-to-ps4.yml
           ! grep -Fq 'result/FiveM-PS4-DLC' .github/workflows/convert-pc-to-ps4.yml
           grep -Fq 'gh release download' .github/workflows/convert-pc-to-ps4.yml
           grep -Fq 'gh release upload' .github/workflows/convert-pc-to-ps4.yml
           grep -Fq 'contents: write' .github/workflows/convert-pc-to-ps4.yml
-          grep -Fq 'conversionMode == "أوتو"' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'UNUserNotificationCenter' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'UNNotificationRequest' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'INRPFCompletionNotification.requestPermission' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'اكتمل تحويل INRPF بنجاح' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'تعذر إكمال تحويل INRPF' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'GHWorkflowRun' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'loadRuns(for repository: GHRepository)' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'client.loadRuns(for: repository)' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'PhotosPicker' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'activeSheet == .files' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'activeSheet == .folder' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq '.inrpfDocumentPicker(' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq '"/repos/tmoath07-svg/ChatGPT-all-access-ios-/contents/' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'for sourceRef in ["feature/inrpf-github-device-flow", "main"]' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'source.encoding == "base64"' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'GET /contents/{path} returns Base64 text' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'writeResult?.resolvedSHA' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'for attempt in 0..<5' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'await loadWorkflowSteps(for: repository, runID: latest.id)' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'مراحل التحويل' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'verified.content?.encoding == "base64"' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'actual != data' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'لم يتم العثور على Workflow في فرعي feature/inrpf-github-device-flow أو main' GTAConverter/GitHubIntegrationView.swift
-          grep -Fq 'فشل رفع Workflow إلى' GTAConverter/GitHubIntegrationView.swift
-          ! grep -Fq 'GTAOnboardingView' GTAConverter/ContentView.swift
+          grep -Fq 'conversionMode == "أوتو"' GitHubIntegrationView.swift
+          grep -Fq 'UNUserNotificationCenter' GTAConverterApp.swift
+          grep -Fq 'UNNotificationRequest' GitHubIntegrationView.swift
+          grep -Fq 'INRPFCompletionNotification.requestPermission' GitHubIntegrationView.swift
+          grep -Fq 'اكتمل تحويل INRPF بنجاح' GitHubIntegrationView.swift
+          grep -Fq 'تعذر إكمال تحويل INRPF' GitHubIntegrationView.swift
+          grep -Fq 'GHWorkflowRun' GitHubIntegrationView.swift
+          grep -Fq 'loadRuns(for repository: GHRepository)' GitHubIntegrationView.swift
+          grep -Fq 'client.loadRuns(for: repository)' GitHubIntegrationView.swift
+          grep -Fq 'PhotosPicker' GitHubIntegrationView.swift
+          grep -Fq 'activeSheet == .files' GitHubIntegrationView.swift
+          grep -Fq 'activeSheet == .folder' GitHubIntegrationView.swift
+          grep -Fq '.inrpfDocumentPicker(' GitHubIntegrationView.swift
+          grep -Fq '"/repos/tmoath07-svg/ChatGPT-all-access-ios-/contents/' GitHubIntegrationView.swift
+          grep -Fq 'for sourceRef in ["feature/inrpf-github-device-flow", "main"]' GitHubIntegrationView.swift
+          grep -Fq 'source.encoding == "base64"' GitHubIntegrationView.swift
+          grep -Fq 'GET /contents/{path} returns Base64 text' GitHubIntegrationView.swift
+          grep -Fq 'writeResult?.resolvedSHA' GitHubIntegrationView.swift
+          grep -Fq 'for attempt in 0..<5' GitHubIntegrationView.swift
+          grep -Fq 'await loadWorkflowSteps(for: repository, runID: latest.id)' GitHubIntegrationView.swift
+          grep -Fq 'مراحل التحويل' GitHubIntegrationView.swift
+          grep -Fq 'verified.content?.encoding == "base64"' GitHubIntegrationView.swift
+          grep -Fq 'actual != data' GitHubIntegrationView.swift
+          grep -Fq 'لم يتم العثور على Workflow في فرعي feature/inrpf-github-device-flow أو main' GitHubIntegrationView.swift
+          grep -Fq 'فشل رفع Workflow إلى' GitHubIntegrationView.swift
+          ! grep -Fq 'GTAOnboardingView' ContentView.swift
           echo "PASS: GitHub is the start tab; all legacy toolbar destinations and native importers remain available."
       - name: Test shared file import service
         run: |
           set -euo pipefail
-          swiftc GTAConverter/FileImportService.swift Tests/file_import_service_tests.swift -o /tmp/file-import-service-tests
+          swiftc FileImportService.swift Tests/file_import_service_tests.swift -o /tmp/file-import-service-tests
           /tmp/file-import-service-tests
 
       - name: Test restored UIKit document picker coverage
         run: |
           set -euo pipefail
-          test -s GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'UIDocumentPickerDelegate' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'UIDocumentPickerViewController' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'forOpeningContentTypes: contentTypes' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'asCopy: true' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'didPickDocumentsAt urls:' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'onCompletion(.success(urls))' GTAConverter/INRPFDocumentPicker.swift
-          grep -Fq 'onCancellation()' GTAConverter/INRPFDocumentPicker.swift
+          test -s INRPFDocumentPicker.swift
+          grep -Fq 'UIDocumentPickerDelegate' INRPFDocumentPicker.swift
+          grep -Fq 'UIDocumentPickerViewController' INRPFDocumentPicker.swift
+          grep -Fq 'forOpeningContentTypes: contentTypes' INRPFDocumentPicker.swift
+          grep -Fq 'asCopy: true' INRPFDocumentPicker.swift
+          grep -Fq 'didPickDocumentsAt urls:' INRPFDocumentPicker.swift
+          grep -Fq 'onCompletion(.success(urls))' INRPFDocumentPicker.swift
+          grep -Fq 'onCancellation()' INRPFDocumentPicker.swift
           for file in ContentView.swift GitHubIntegrationView.swift DLClistEditorView.swift FeatureAnalysisViews.swift FiveMStudioView.swift LocalUtilityFeatureView.swift YTDTextureLabView.swift VehicleModelInspectorView.swift ExtraViews.swift FTPBrowserView.swift; do
-            grep -Fq '.inrpfDocumentPicker(' "GTAConverter/$file"
+            grep -Fq '.inrpfDocumentPicker(' "$file"
           done
           echo "PASS: every file-import surface uses the restored UIKit document picker with provider copy."
 
       - name: Test feature analysis core
         run: |
           set -euo pipefail
-          swiftc GTAConverter/FeatureAnalysisCore.swift Tests/feature_analysis_tests.swift -o /tmp/feature-analysis-tests
+          swiftc FeatureAnalysisCore.swift Tests/feature_analysis_tests.swift -o /tmp/feature-analysis-tests
           /tmp/feature-analysis-tests
 
       - name: Test INRPF device test core
         run: |
           set -euo pipefail
-          swiftc GTAConverter/DeviceTestCore.swift Tests/device_test_core_tests.swift -o /tmp/inrpf-device-test-core
+          swiftc DeviceTestCore.swift Tests/device_test_core_tests.swift -o /tmp/inrpf-device-test-core
           /tmp/inrpf-device-test-core
 
       - name: Test local utility core
         run: |
           set -euo pipefail
-          swiftc GTAConverter/ModAnalyzer.swift GTAConverter/LocalUtilityCore.swift Tests/local_utility_tests.swift -o /tmp/local-utility-tests
+          swiftc ModAnalyzer.swift LocalUtilityCore.swift Tests/local_utility_tests.swift -o /tmp/local-utility-tests
           /tmp/local-utility-tests
 
       - name: Test FTP directory upload planner
         run: |
           set -euo pipefail
-          swiftc GTAConverter/FTPDirectoryUploadPlanner.swift Tests/ftp_directory_upload_tests.swift -o /tmp/ftp-directory-tests
+          swiftc FTPDirectoryUploadPlanner.swift Tests/ftp_directory_upload_tests.swift -o /tmp/ftp-directory-tests
           /tmp/ftp-directory-tests
 
       - name: Test Orbx auto installer with local DLC fixture
         run: |
           set -euo pipefail
-          swiftc GTAConverter/OrbxAutoInstallPlanner.swift Tests/orbx_auto_install_tests.swift -o /tmp/orbx-auto-install-tests
+          swiftc OrbxAutoInstallPlanner.swift Tests/orbx_auto_install_tests.swift -o /tmp/orbx-auto-install-tests
           /tmp/orbx-auto-install-tests
 
 
