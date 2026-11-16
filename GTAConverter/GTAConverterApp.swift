@@ -35,6 +35,7 @@ final class INRPFAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
 struct GTAConverterApp: App {
     @UIApplicationDelegateAdaptor(INRPFAppDelegate.self) private var appDelegate
     @State private var selectedTab = 0
+    @AppStorage("inrpf_interface_mode") private var interfaceMode = "ios"
 
     var body: some Scene {
         WindowGroup {
@@ -73,6 +74,42 @@ struct GTAConverterApp: App {
             .onOpenURL { _ in
                 selectedTab = 1
             }
+            .environment(\\.horizontalSizeClass, interfaceMode == "ios" ? .compact : .regular)
         }
+    }
+}
+
+
+struct InterfaceModeSettingsView: View {
+    @AppStorage("inrpf_interface_mode") private var interfaceMode = "ios"
+
+    var body: some View {
+        Form {
+            Section("نمط الواجهة") {
+                Picker("طريقة العرض", selection: $interfaceMode) {
+                    Text("iOS").tag("ios")
+                    Text("iPadOS").tag("ipados")
+                }
+                .pickerStyle(.segmented)
+
+                if interfaceMode == "ios" {
+                    Label("واجهة مضغوطة بتخطيط قريب من الأيفون.", systemImage: "iphone")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Label("واجهة واسعة تستفيد من مساحة شاشة الآيباد.", systemImage: "ipad")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
+                Text("يتغير نمط العرض داخل INRPF فقط، ولا يغيّر نظام الجهاز أو طريقة عمل الأدوات.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("نمط الواجهة")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
