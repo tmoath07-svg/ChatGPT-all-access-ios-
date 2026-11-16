@@ -87,8 +87,13 @@ jobs:
           grep -Fq 'responseText(from content: Any?)' GTAConverter/GeminiToolView.swift
           grep -Fq 'case 429:' GTAConverter/GeminiToolView.swift
           grep -Fq 'filter { $0.lowercased().contains("gemini") }' GTAConverter/GeminiToolView.swift
-          grep -Fq 'resolvedHorizontalSizeClass' GTAConverter/GTAConverterApp.swift
-          grep -Fq 'if UIDevice.current.userInterfaceIdiom == .phone { return .compact }' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'switch interfaceMode' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'case "ios":' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'case "ipados":' GTAConverter/GTAConverterApp.swift
+          grep -Fq 'default:' GTAConverter/GTAConverterApp.swift
+          ! grep -Fq 'resolvedHorizontalSizeClass' GTAConverter/GTAConverterApp.swift
+          ! grep -Fq '.frame(maxWidth: 560)' GTAConverter/ContentView.swift
+          grep -Fq '.frame(maxWidth: .infinity)' GTAConverter/ContentView.swift
           grep -Fq 'Text("تلقائي").tag("auto")' GTAConverter/GTAConverterApp.swift
           source .venv/bin/activate
           (cd server && python -m unittest -v test_license_api.py test_gemini_proxy.py)
