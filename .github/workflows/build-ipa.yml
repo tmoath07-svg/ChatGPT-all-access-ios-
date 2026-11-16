@@ -81,6 +81,7 @@ jobs:
           grep -Fq 'resolvedHorizontalSizeClass' GTAConverter/GTAConverterApp.swift
           grep -Fq 'if UIDevice.current.userInterfaceIdiom == .phone { return .compact }' GTAConverter/GTAConverterApp.swift
           grep -Fq 'Text("تلقائي").tag("auto")' GTAConverter/GTAConverterApp.swift
+          source .venv/bin/activate
           (cd server && python -m unittest -v test_license_api.py test_gemini_proxy.py)
           echo "PASS: Gemini response parsing, quota errors, model filtering, and adaptive device layout checks."
       - name: Test FiveM resource analyzer
