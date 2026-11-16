@@ -19,6 +19,7 @@ REPORT_TOKEN = os.environ.get("INRPF_REPORT_TOKEN", "")
 LICENSE_DB = os.environ.get("INRPF_LICENSE_DB", "/var/data/inrpf-licenses.sqlite3")
 LICENSE_PEPPER = os.environ.get("INRPF_LICENSE_PEPPER", "")
 LICENSE_ADMIN_TOKEN = os.environ.get("INRPF_LICENSE_ADMIN_TOKEN", "")
+ADMIN_PASSWORD = os.environ.get("INRPF_ADMIN_PASSWORD", "")
 CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 ALLOWED_FEATURES = {"github_tools", "ai_repair_pro", "advanced_ftp", "advanced_ai_providers"}
 
@@ -66,8 +67,9 @@ def authorized():
 
 def admin_authorized():
     supplied = request.headers.get("Authorization", "")
-    return bool(LICENSE_ADMIN_TOKEN) and hmac.compare_digest(
-        supplied, f"Bearer {LICENSE_ADMIN_TOKEN}"
+    return (
+        (bool(LICENSE_ADMIN_TOKEN) and hmac.compare_digest(supplied, f"Bearer {LICENSE_ADMIN_TOKEN}"))
+        or (bool(ADMIN_PASSWORD) and hmac.compare_digest(supplied, f"Bearer {ADMIN_PASSWORD}"))
     )
 
 
@@ -83,6 +85,17 @@ def make_code():
 @app.get("/")
 def index():
     return jsonify({"service": "INRPF Server", "status": "online", "health": "/health", "admin": "/admin"})
+
+
+@app.post("/api/admin/auth")
+def admin_auth():
+    if not ADMIN_PASSWORD:
+        return jsonify({"ok": False, "error": "admin_password_not_configured"}), 503
+    payload = request.get_json(silent=True) or {}
+    supplied = payload.get("password", "")
+    if not isinstance(supplied, str) or not hmac.compare_digest(supplied, ADMIN_PASSWORD):
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    return jsonify({"ok": True})
 
 
 @app.get("/admin")
