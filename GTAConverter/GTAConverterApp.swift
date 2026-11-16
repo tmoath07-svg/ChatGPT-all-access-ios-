@@ -74,7 +74,7 @@ struct GTAConverterApp: App {
             .onOpenURL { _ in
                 selectedTab = 1
             }
-            .environment(\\.horizontalSizeClass, interfaceMode == "ios" ? .compact : .regular)
+            .environment(\.horizontalSizeClass, interfaceMode == "ios" ? .compact : .regular)
         }
     }
 }
