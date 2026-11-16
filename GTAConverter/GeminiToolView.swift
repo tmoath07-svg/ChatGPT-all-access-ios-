@@ -131,7 +131,7 @@ final class GeminiLicenseClient: ObservableObject {
         let body: [String: Any] = ["model": model, "messages": messages, "temperature": 0.3]
         let (data, statusCode) = try await post("api/gemini/v1/chat/completions", body: body, token: activation)
         guard (200...299).contains(statusCode),
-              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let choices = payload["choices"] as? [[String: Any]],
               let message = choices.first?["message"] as? [String: Any],
               let text = message["content"] as? String else {
