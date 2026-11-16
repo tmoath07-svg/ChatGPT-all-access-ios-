@@ -36,6 +36,7 @@ targets:
       - GitHubIntegrationView.swift
       - INRPFBackgroundTransferManager.swift
       - INRPFDisplaySurveyView.swift
+      - INRPFPhoneRootView.swift
       - INRPFDocumentPicker.swift
       - INRPFReportClient.swift
       - LocalEngineBridge.swift
