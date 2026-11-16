@@ -47,6 +47,14 @@ struct GTAConverterApp: App {
                 }
                 .tag(0)
 
+                NavigationStack {
+                    GeminiToolView()
+                }
+                .tabItem {
+                    Label("Gemini", systemImage: "sparkles")
+                }
+                .tag(2)
+
                 ContentView()
                     .tabItem {
                         Label("الأدوات", systemImage: "square.grid.2x2.fill")
@@ -59,7 +67,7 @@ struct GTAConverterApp: App {
                 .tabItem {
                     Label("AI Agent", systemImage: "brain.head.profile")
                 }
-                .tag(2)
+                .tag(3)
             }
             .preferredColorScheme(.dark)
             .onOpenURL { _ in
