@@ -47,8 +47,11 @@ class PremiumLicenseTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 201)
                 payload = response.get_json()
                 self.assertEqual(payload["duration_hours"], hours)
-                expected = (datetime(2026, 1, 1, tzinfo=timezone.utc) + server.timedelta(hours=hours)).isoformat()
-                self.assertEqual(payload["expires_at"], expected)
+                self.assertIsNone(payload["expires_at"])
+                self.assertEqual(payload["duration_seconds"], hours * 3600)
+                inventory = self.client.get("/api/admin/codes", headers=self.headers).get_json()["codes"][0]
+                self.assertIsNone(inventory["expires_at"])
+                self.assertEqual(inventory["duration_seconds"], hours * 3600)
 
     def test_hour_based_expiry_is_enforced_after_redemption(self):
         from unittest.mock import patch
@@ -59,12 +62,23 @@ class PremiumLicenseTests(unittest.TestCase):
                 json={"count": 1, "features": ["github_tools"], "duration_hours": 3}
             )
         self.assertEqual(generated.status_code, 201)
-        code = generated.get_json()["codes"][0]
-        with patch.object(server, "utc_now", return_value="2026-01-01T02:00:00+00:00"):
+        payload = generated.get_json()
+        code = payload["codes"][0]
+        self.assertIsNone(payload["expires_at"])
+        # Waiting before redemption must not consume any of the validity period.
+        with patch.object(server, "utc_now", return_value="2026-01-05T02:00:00+00:00"):
             redeemed = self.client.post("/api/license/redeem", json={"code": code})
         self.assertEqual(redeemed.status_code, 200)
         activation = redeemed.get_json()["activation_id"]
-        with patch.object(server, "utc_now", return_value="2026-01-01T03:00:01+00:00"):
+        self.assertEqual(
+            redeemed.get_json()["expires_at"], "2026-01-05T05:00:00+00:00"
+        )
+        with patch.object(server, "utc_now", return_value="2026-01-05T04:59:59+00:00"):
+            still_active = self.client.post(
+                "/api/license/validate", headers={"Authorization": "Bearer " + activation}
+            )
+        self.assertEqual(still_active.status_code, 200)
+        with patch.object(server, "utc_now", return_value="2026-01-05T05:00:01+00:00"):
             expired = self.client.post(
                 "/api/license/validate", headers={"Authorization": "Bearer " + activation}
             )
@@ -109,8 +123,16 @@ class PremiumLicenseTests(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(payload["duration_days"], 1)
         code = payload["codes"][0]
+        self.assertIsNone(payload["expires_at"])
         with patch.object(server, "utc_now", return_value="2026-01-03T00:00:00+00:00"):
-            expired = self.client.post("/api/license/redeem", json={"code": code})
+            redeemed = self.client.post("/api/license/redeem", json={"code": code})
+        self.assertEqual(redeemed.status_code, 200)
+        activation = redeemed.get_json()["activation_id"]
+        self.assertEqual(redeemed.get_json()["expires_at"], "2026-01-04T00:00:00+00:00")
+        with patch.object(server, "utc_now", return_value="2026-01-04T00:00:01+00:00"):
+            expired = self.client.post(
+                "/api/license/validate", headers={"Authorization": "Bearer " + activation}
+            )
         self.assertEqual(expired.status_code, 403)
         self.assertEqual(expired.get_json()["error"], "license_expired")
 
