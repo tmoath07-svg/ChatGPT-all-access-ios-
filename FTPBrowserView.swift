@@ -272,8 +272,7 @@ private final class FTPBrowserModel: ObservableObject {
 
 struct FTPBrowserView: View {
     @StateObject private var model = FTPBrowserModel()
-    @AppStorage("inrpf_interface_mode") private var interfaceMode = "auto"
-    @State private var showingUpload = false
+        @State private var showingUpload = false
     @State private var showingNewFolder = false
     @State private var folderName = ""
 
@@ -296,7 +295,7 @@ struct FTPBrowserView: View {
                     if model.isBusy { ProgressView().tint(.white).frame(maxWidth: .infinity) }
                 }
                 .padding(16)
-                .frame(maxWidth: interfaceMode == "ios" ? 560 : interfaceMode == "ipados" ? 900 : 760)
+                .frame(maxWidth: 560)
                 .frame(maxWidth: .infinity)
             }
         }
