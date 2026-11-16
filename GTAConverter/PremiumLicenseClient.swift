@@ -46,7 +46,8 @@ final class INRPFPremiumLicenseClient: ObservableObject {
     }
 
     private func request(path: String, body: [String: String]? = nil, activation: String? = nil) async throws -> (Data, Int) {
-        var request = URLRequest(url: Self.endpoint.appendingPathComponent(path))
+        let url = path.split(separator: "/").reduce(Self.endpoint) { $0.appendingPathComponent(String($1)) }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 25
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
