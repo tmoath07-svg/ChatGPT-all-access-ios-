@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 import SwiftArchive
 import UIKit
 
+// Display diagnostics are reachable from the main toolbar on every supported device family.
 struct ContentView: View {
     let initialSourceURL: URL?
     @State private var didApplyInitialSource = false
@@ -93,7 +94,7 @@ struct ContentView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
                     .padding(.bottom, 28)
-                    .frame(maxWidth: 560)
+                    // Fill the available window instead of rendering as a narrow centered panel.
                     .frame(maxWidth: .infinity)
                 }
                 .scrollIndicators(.hidden)
@@ -112,8 +113,8 @@ struct ContentView: View {
                     .accessibilityLabel("مختبر الجهاز")
                     NavigationLink(destination: AppFilesView()) { Image(systemName: "folder.fill").foregroundStyle(purple) }
                     NavigationLink(destination: AppSettingsView()) { Image(systemName: "gearshape.fill").foregroundStyle(purple) }
-                    NavigationLink(destination: InterfaceModeSettingsView()) { Image(systemName: "iphone.gen3").foregroundStyle(purple) }
-                        .accessibilityLabel("نمط الواجهة")
+                    NavigationLink(destination: INRPFDisplaySurveyView()) { Image(systemName: "rectangle.inset.filled.and.person.filled").foregroundStyle(purple) }
+                        .accessibilityLabel("استبيان مشكلة الشاشة")
                     NavigationLink(destination: AppDiagnosticsView(sourceURL: sourceURL, outputFolder: outputFolder, latestError: lastErrorDetails)) {
                         Image(systemName: "waveform.path.ecg").foregroundStyle(purple)
                     }
