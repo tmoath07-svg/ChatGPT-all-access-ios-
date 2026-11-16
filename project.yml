@@ -54,6 +54,7 @@ targets:
     resources:
       - Assets.xcassets
       - en.lproj
+      - LaunchScreen.storyboard
     dependencies:
       - package: libarchive-for-swift
         product: SwiftArchive
