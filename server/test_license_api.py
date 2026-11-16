@@ -49,7 +49,8 @@ class PremiumLicenseTests(unittest.TestCase):
                 self.assertEqual(payload["duration_hours"], hours)
                 self.assertIsNone(payload["expires_at"])
                 self.assertEqual(payload["duration_seconds"], hours * 3600)
-                inventory = self.client.get("/api/admin/codes", headers=self.headers).get_json()["codes"][0]
+                inventory_rows = self.client.get("/api/admin/codes", headers=self.headers).get_json()["codes"]
+                inventory = next(item for item in inventory_rows if item["last4"] == payload["codes"][0][-4:])
                 self.assertIsNone(inventory["expires_at"])
                 self.assertEqual(inventory["duration_seconds"], hours * 3600)
 
