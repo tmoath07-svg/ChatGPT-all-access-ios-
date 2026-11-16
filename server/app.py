@@ -6,10 +6,13 @@ import re
 import secrets
 import sqlite3
 import string
+import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, Response
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
@@ -21,7 +24,10 @@ LICENSE_PEPPER = os.environ.get("INRPF_LICENSE_PEPPER", "")
 LICENSE_ADMIN_TOKEN = os.environ.get("INRPF_LICENSE_ADMIN_TOKEN", "")
 ADMIN_PASSWORD = os.environ.get("INRPF_ADMIN_PASSWORD", "")
 CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
-ALLOWED_FEATURES = {"github_tools", "ai_repair_pro", "advanced_ftp", "advanced_ai_providers"}
+ALLOWED_FEATURES = {"github_tools", "ai_repair_pro", "advanced_ftp", "advanced_ai_providers", "gemini_tool"}
+GEMINI_PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT_ID", "")
+GEMINI_SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+GEMINI_ENCRYPTION_KEY = os.environ.get("INRPF_GEMINI_ENCRYPTION_KEY", "")
 
 
 def utc_now():
@@ -35,6 +41,12 @@ def db():
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA busy_timeout=15000")
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS gemini_keys (
+            id INTEGER PRIMARY KEY CHECK(id = 1), resource_name TEXT NOT NULL,
+            encrypted_key TEXT NOT NULL, key_hint TEXT NOT NULL, created_at TEXT NOT NULL
+        )
+    """)
     connection.execute("""
         CREATE TABLE IF NOT EXISTS premium_codes (
             code_hash TEXT PRIMARY KEY,
@@ -80,6 +92,111 @@ def licensing_ready():
 def make_code():
     groups = ["".join(secrets.choice(CODE_ALPHABET) for _ in range(4)) for _ in range(4)]
     return "INRPF-" + "-".join(groups)
+
+def gemini_crypto():
+    if not GEMINI_ENCRYPTION_KEY:
+        raise RuntimeError("INRPF_GEMINI_ENCRYPTION_KEY is not configured")
+    from cryptography.fernet import Fernet
+    return Fernet(GEMINI_ENCRYPTION_KEY.encode())
+
+
+def gemini_credentials():
+    if not GEMINI_PROJECT_ID or not GEMINI_SERVICE_ACCOUNT_JSON:
+        raise RuntimeError("Google Cloud project and service account are not configured")
+    from google.oauth2 import service_account
+    return service_account.Credentials.from_service_account_info(
+        json.loads(GEMINI_SERVICE_ACCOUNT_JSON),
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+
+
+def create_google_gemini_key():
+    from google.auth.transport.requests import AuthorizedSession
+    session = AuthorizedSession(gemini_credentials())
+    url = f"https://apikeys.googleapis.com/v2/projects/{GEMINI_PROJECT_ID}/locations/global/keys"
+    response = session.post(url, json={"displayName": "INRPF Gemini API"})
+    response.raise_for_status()
+    operation_name = response.json().get("name")
+    if not operation_name:
+        raise RuntimeError("Google API did not return an operation")
+    for _ in range(30):
+        operation = session.get("https://apikeys.googleapis.com/v2/" + operation_name)
+        operation.raise_for_status()
+        state = operation.json()
+        if state.get("done"):
+            if state.get("error"):
+                raise RuntimeError("Google API key creation failed")
+            resource = state.get("response", {})
+            key_value, resource_name = resource.get("keyString"), resource.get("name")
+            if not key_value or not resource_name:
+                raise RuntimeError("Google did not return the API key")
+            encrypted = gemini_crypto().encrypt(key_value.encode()).decode()
+            connection = db()
+            try:
+                connection.execute(
+                    "INSERT INTO gemini_keys(id,resource_name,encrypted_key,key_hint,created_at) VALUES(1,?,?,?,?) "
+                    "ON CONFLICT(id) DO UPDATE SET resource_name=excluded.resource_name,encrypted_key=excluded.encrypted_key,key_hint=excluded.key_hint,created_at=excluded.created_at",
+                    (resource_name, encrypted, key_value[-4:], utc_now())
+                )
+            finally:
+                connection.close()
+            return {"key_hint": key_value[-4:], "resource_name": resource_name}
+        time.sleep(1)
+    raise RuntimeError("Google API key creation timed out")
+
+
+def load_gemini_key():
+    connection = db()
+    try:
+        row = connection.execute("SELECT encrypted_key FROM gemini_keys WHERE id=1").fetchone()
+        return gemini_crypto().decrypt(row["encrypted_key"].encode()).decode() if row else None
+    finally:
+        connection.close()
+
+
+def activation_features(activation_id):
+    if not activation_id or len(activation_id) > 128 or not LICENSE_PEPPER:
+        return None
+    digest = hmac.new(LICENSE_PEPPER.encode(), ("activation:" + activation_id).encode(), hashlib.sha256).hexdigest()
+    connection = db()
+    try:
+        row = connection.execute(
+            "SELECT features_json,expires_at FROM premium_codes WHERE activation_id=? AND status='redeemed'",
+            (digest,)
+        ).fetchone()
+        if row is None or (row["expires_at"] and row["expires_at"] <= utc_now()):
+            return None
+        return json.loads(row["features_json"])
+    finally:
+        connection.close()
+
+
+def proxy_gemini(path):
+    supplied = request.headers.get("Authorization", "")
+    features = activation_features(supplied[7:].strip()) if supplied.startswith("Bearer ") else None
+    if not features or "gemini_tool" not in features:
+        return jsonify({"error": {"message": "Gemini tool license required"}}), 403
+    api_key = load_gemini_key()
+    if not api_key:
+        return jsonify({"error": {"message": "Gemini service is not configured"}}), 503
+    headers = {"Authorization": "Bearer " + api_key, "Accept": "application/json"}
+    body = request.get_data() if request.method == "POST" else None
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    upstream = urllib.request.Request(
+        "https://generativelanguage.googleapis.com/v1beta/openai/" + path,
+        data=body, headers=headers, method=request.method
+    )
+    try:
+        with urllib.request.urlopen(upstream, timeout=90) as result:
+            return Response(result.read(), status=result.status,
+                            content_type=result.headers.get("Content-Type", "application/json"))
+    except urllib.error.HTTPError as error:
+        return Response(error.read(), status=error.code,
+                        content_type=error.headers.get("Content-Type", "application/json"))
+    except Exception:
+        app.logger.exception("Gemini upstream request failed")
+        return jsonify({"error": {"message": "Gemini upstream request failed"}}), 502
 
 
 @app.get("/")
@@ -278,6 +395,43 @@ def redeem_code():
         return jsonify({"ok": False, "error": "redemption_failed"}), 500
     finally:
         connection.close()
+
+
+
+@app.post("/api/admin/gemini/create")
+def admin_create_gemini_key():
+    if not admin_authorized():
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    try:
+        return jsonify({"ok": True, **create_google_gemini_key()}), 201
+    except Exception as error:
+        app.logger.exception("Gemini API key creation failed")
+        return jsonify({"ok": False, "error": "gemini_key_creation_failed", "message": str(error)[:240]}), 503
+
+
+@app.get("/api/admin/gemini/status")
+def admin_gemini_status():
+    if not admin_authorized():
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    connection = db()
+    try:
+        row = connection.execute("SELECT resource_name,key_hint,created_at FROM gemini_keys WHERE id=1").fetchone()
+        return jsonify({"ok": True, "configured": row is not None,
+                        "key_hint": row["key_hint"] if row else None,
+                        "created_at": row["created_at"] if row else None,
+                        "google_cloud_ready": bool(GEMINI_PROJECT_ID and GEMINI_SERVICE_ACCOUNT_JSON and GEMINI_ENCRYPTION_KEY)})
+    finally:
+        connection.close()
+
+
+@app.get("/api/gemini/v1/models")
+def gemini_models():
+    return proxy_gemini("models")
+
+
+@app.post("/api/gemini/v1/chat/completions")
+def gemini_chat_completions():
+    return proxy_gemini("chat/completions")
 
 
 @app.post("/api/reports")
