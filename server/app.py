@@ -128,6 +128,8 @@ def _migrate_legacy_sqlite(connection):
 
 def db():
     database_url = os.environ.get("DATABASE_URL", "").strip()
+    if not database_url and os.environ.get("RENDER_SERVICE_ID"):
+        raise RuntimeError("DATABASE_URL is required for the Render production service")
     if database_url:
         try:
             import psycopg
@@ -365,7 +367,28 @@ def admin_page():
 
 @app.get("/health")
 def health():
-    return jsonify({"ok": True, "service": "inrpf-server", "licensing_configured": licensing_ready()})
+    connection = None
+    try:
+        connection = db()
+        connection.execute("SELECT 1").fetchone()
+        return jsonify({
+            "ok": True,
+            "service": "inrpf-server",
+            "database_ready": True,
+            "database_backend": "postgresql" if os.environ.get("DATABASE_URL") else "sqlite-local",
+            "licensing_configured": licensing_ready()
+        })
+    except Exception:
+        app.logger.exception("Health check failed because the database is unavailable")
+        return jsonify({
+            "ok": False,
+            "service": "inrpf-server",
+            "database_ready": False,
+            "error": "database_unavailable"
+        }), 503
+    finally:
+        if connection is not None:
+            connection.close()
 
 
 @app.post("/api/admin/codes/generate")
