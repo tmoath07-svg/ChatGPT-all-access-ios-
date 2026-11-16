@@ -95,6 +95,46 @@ class PremiumLicenseTests(unittest.TestCase):
                 )
                 self.assertEqual(response.status_code, 400)
 
+    def test_all_legacy_duration_options_are_supported_and_start_on_activation(self):
+        from unittest.mock import patch
+
+        for days in (7, 30, 90, 180, 365, 730):
+            with self.subTest(days=days):
+                with patch.object(server, "utc_now", return_value="2026-01-01T00:00:00+00:00"):
+                    generated = self.client.post(
+                        "/api/admin/codes/generate", headers=self.headers,
+                        json={"count": 1, "features": ["github_tools"], "duration_days": days}
+                    )
+                self.assertEqual(generated.status_code, 201)
+                payload = generated.get_json()
+                self.assertEqual(payload["duration_days"], days)
+                self.assertEqual(payload["duration_seconds"], days * 86400)
+                self.assertIsNone(payload["expires_at"])
+                code = payload["codes"][0]
+                with patch.object(server, "utc_now", return_value="2026-02-01T00:00:00+00:00"):
+                    redeemed = self.client.post("/api/license/redeem", json={"code": code})
+                self.assertEqual(redeemed.status_code, 200)
+                expected = (datetime.fromisoformat("2026-02-01T00:00:00+00:00") + timedelta(days=days)).isoformat()
+                self.assertEqual(redeemed.get_json()["expires_at"], expected)
+
+    def test_permanent_code_has_no_expiry(self):
+        from unittest.mock import patch
+
+        with patch.object(server, "utc_now", return_value="2026-01-01T00:00:00+00:00"):
+            generated = self.client.post(
+                "/api/admin/codes/generate", headers=self.headers,
+                json={"count": 1, "features": ["github_tools"], "duration_days": None}
+            )
+        self.assertEqual(generated.status_code, 201)
+        payload = generated.get_json()
+        self.assertIsNone(payload["duration_days"])
+        self.assertIsNone(payload["duration_seconds"])
+        self.assertIsNone(payload["expires_at"])
+        with patch.object(server, "utc_now", return_value="2027-01-01T00:00:00+00:00"):
+            redeemed = self.client.post("/api/license/redeem", json={"code": payload["codes"][0]})
+        self.assertEqual(redeemed.status_code, 200)
+        self.assertIsNone(redeemed.get_json()["expires_at"])
+
     def test_code_is_single_use_and_activation_is_validated(self):
         code = self.client.post(
             "/api/admin/codes/generate", headers=self.headers,
