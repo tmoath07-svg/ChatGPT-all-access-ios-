@@ -25,6 +25,7 @@ enum AIProviderError: LocalizedError {
     case http(Int, String)
     case noModel
     case malformedPayload
+    case geminiDailyLimitReached
 
     var errorDescription: String? {
         switch self {
@@ -34,6 +35,7 @@ enum AIProviderError: LocalizedError {
         case .http(let code, let message): return "خطأ API (HTTP \(code)): \(message)"
         case .noModel: return "اختر Model ID قبل إرسال الرسالة."
         case .malformedPayload: return "استجابة النموذج لا تحتوي على بيانات قابلة للقراءة."
+        case .geminiDailyLimitReached: return "وصلت إلى الحد المحلي لـ Gemini: 30 طلباً في اليوم. جرّب بعد تجدد الحد اليومي."
         }
     }
 }
@@ -165,6 +167,29 @@ final class AIProviderStore: ObservableObject {
 }
 
 enum AIProviderAPI {
+    private static let geminiDailyLimit = 30
+    private static let geminiMaxOutputTokens = 1024
+    private static let geminiUsageLock = NSLock()
+
+    private static func isGemini(baseURL: String) -> Bool {
+        baseURL.lowercased().contains("generativelanguage.googleapis.com")
+    }
+
+    private static func reserveGeminiDailyRequest() throws {
+        geminiUsageLock.lock()
+        defer { geminiUsageLock.unlock() }
+
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        let day = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+        let key = "inrpf.gemini.daily.requests.\(day)"
+        let defaults = UserDefaults.standard
+        let current = defaults.integer(forKey: key)
+        guard current < geminiDailyLimit else {
+            throw AIProviderError.geminiDailyLimitReached
+        }
+        defaults.set(current + 1, forKey: key)
+    }
+
     static func fetchModels(baseURL: String, apiKey: String) async throws -> [String] {
         let request = try makeRequest(baseURL: baseURL, suffix: "models", apiKey: apiKey, method: "GET")
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -183,9 +208,12 @@ enum AIProviderAPI {
         guard !modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AIProviderError.noModel
         }
+        let usesGemini = isGemini(baseURL: baseURL)
+        if usesGemini { try reserveGeminiDailyRequest() }
         var request = try makeRequest(baseURL: baseURL, suffix: "chat/completions", apiKey: apiKey, method: "POST")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         var payload: [String: Any] = ["model": modelID, "messages": messages, "temperature": 0.2]
+        if usesGemini { payload["max_tokens"] = geminiMaxOutputTokens }
         if !tools.isEmpty {
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
