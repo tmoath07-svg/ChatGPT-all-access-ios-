@@ -50,6 +50,14 @@ def db():
     columns = {row[1] for row in connection.execute("PRAGMA table_info(premium_codes)").fetchall()}
     if "expires_at" not in columns:
         connection.execute("ALTER TABLE premium_codes ADD COLUMN expires_at TEXT")
+    if "code_id" not in columns:
+        connection.execute("ALTER TABLE premium_codes ADD COLUMN code_id TEXT")
+    if "enabled" not in columns:
+        connection.execute("ALTER TABLE premium_codes ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1")
+    missing_ids = connection.execute("SELECT code_hash FROM premium_codes WHERE code_id IS NULL").fetchall()
+    for item in missing_ids:
+        connection.execute("UPDATE premium_codes SET code_id=? WHERE code_hash=?",
+                           (secrets.token_urlsafe(12), item["code_hash"]))
     return connection
 
 
@@ -143,8 +151,8 @@ def generate_codes():
                 digest = code_digest(code)
                 try:
                     connection.execute(
-                        "INSERT INTO premium_codes(code_hash,code_hint,status,features_json,created_at,expires_at) VALUES(?,?,?,?,?,?)",
-                        (digest, code[-4:], "unused", json.dumps(features), utc_now(), expires_at)
+                        "INSERT INTO premium_codes(code_hash,code_hint,status,features_json,created_at,expires_at,code_id,enabled) VALUES(?,?,?,?,?,?,?,1)",
+                        (digest, code[-4:], "unused", json.dumps(features), utc_now(), expires_at, secrets.token_urlsafe(12))
                     )
                     generated.append(code)
                     break
@@ -172,13 +180,46 @@ def list_codes():
     connection = db()
     try:
         rows = connection.execute(
-            "SELECT code_hint,status,features_json,created_at,redeemed_at,expires_at FROM premium_codes ORDER BY created_at DESC LIMIT 500"
+            "SELECT code_id,code_hint,status,enabled,features_json,created_at,redeemed_at,expires_at FROM premium_codes ORDER BY created_at DESC LIMIT 500"
         ).fetchall()
         return jsonify({"ok": True, "codes": [
-            {"last4": row["code_hint"], "status": row["status"],
-             "features": json.loads(row["features_json"]), "created_at": row["created_at"],
-             "redeemed_at": row["redeemed_at"], "expires_at": row["expires_at"]} for row in rows
+            {"code_id": row["code_id"], "last4": row["code_hint"], "status": row["status"],
+             "enabled": bool(row["enabled"]), "features": json.loads(row["features_json"]),
+             "created_at": row["created_at"], "redeemed_at": row["redeemed_at"],
+             "expires_at": row["expires_at"]} for row in rows
         ]})
+    finally:
+        connection.close()
+
+
+@app.post("/api/admin/codes/toggle")
+def toggle_code():
+    if not licensing_ready():
+        return jsonify({"ok": False, "error": "licensing_not_configured"}), 503
+    if not admin_authorized():
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    payload = request.get_json(silent=True) or {}
+    code_id = payload.get("code_id", "")
+    enabled = payload.get("enabled")
+    if not isinstance(code_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", code_id):
+        return jsonify({"ok": False, "error": "invalid_code_id"}), 400
+    if not isinstance(enabled, bool):
+        return jsonify({"ok": False, "error": "enabled_must_be_boolean"}), 400
+    connection = db()
+    try:
+        cursor = connection.execute(
+            "UPDATE premium_codes SET enabled=? WHERE code_id=? AND status='unused'",
+            (1 if enabled else 0, code_id)
+        )
+        if cursor.rowcount == 0:
+            row = connection.execute(
+                "SELECT status FROM premium_codes WHERE code_id=?", (code_id,)
+            ).fetchone()
+            if row is None:
+                return jsonify({"ok": False, "error": "code_not_found"}), 404
+            return jsonify({"ok": False, "error": "only_unused_codes_can_be_toggled",
+                            "status": row["status"]}), 409
+        return jsonify({"ok": True, "code_id": code_id, "enabled": enabled})
     finally:
         connection.close()
 
@@ -250,7 +291,7 @@ def redeem_code():
     try:
         connection.execute("BEGIN IMMEDIATE")
         row = connection.execute(
-            "SELECT status,features_json,expires_at FROM premium_codes WHERE code_hash=?", (digest,)
+            "SELECT status,enabled,features_json,expires_at FROM premium_codes WHERE code_hash=?", (digest,)
         ).fetchone()
         if row is None:
             connection.execute("ROLLBACK")
@@ -258,6 +299,9 @@ def redeem_code():
         if row["status"] != "unused":
             connection.execute("ROLLBACK")
             return jsonify({"ok": False, "error": "code_already_used"}), 409
+        if not row["enabled"]:
+            connection.execute("ROLLBACK")
+            return jsonify({"ok": False, "error": "code_disabled"}), 403
         if row["expires_at"] and row["expires_at"] <= utc_now():
             connection.execute("ROLLBACK")
             return jsonify({"ok": False, "error": "license_expired"}), 403
