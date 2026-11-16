@@ -187,11 +187,14 @@ def validate_activation():
     activation_id = supplied[7:].strip()
     if not activation_id or len(activation_id) > 128:
         return jsonify({"ok": False, "error": "unauthorized"}), 401
+    activation_hash = hmac.new(
+        LICENSE_PEPPER.encode(), ("activation:" + activation_id).encode(), hashlib.sha256
+    ).hexdigest()
     connection = db()
     try:
         row = connection.execute(
             "SELECT features_json FROM premium_codes WHERE activation_id=? AND status='redeemed'",
-            (activation_id,)
+            (activation_hash,)
         ).fetchone()
         if row is None:
             return jsonify({"ok": False, "active": False, "error": "activation_not_found"}), 401
@@ -225,9 +228,12 @@ def redeem_code():
         if row["status"] != "unused":
             connection.execute("ROLLBACK")
             return jsonify({"ok": False, "error": "code_already_used"}), 409
+        activation_hash = hmac.new(
+            LICENSE_PEPPER.encode(), ("activation:" + activation_id).encode(), hashlib.sha256
+        ).hexdigest()
         connection.execute(
             "UPDATE premium_codes SET status='redeemed',redeemed_at=?,activation_id=? WHERE code_hash=? AND status='unused'",
-            (utc_now(), activation_id, digest)
+            (utc_now(), activation_hash, digest)
         )
         features = json.loads(row["features_json"])
         connection.execute("COMMIT")
