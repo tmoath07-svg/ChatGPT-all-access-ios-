@@ -10,9 +10,12 @@ project = Path("project.yml").read_text()
 
 assert 'iOS: "17.0"' in project, "Minimum deployment target must continue to cover iOS 18+."
 assert 'TARGETED_DEVICE_FAMILY: "1"' in project, "The app must be iPhone-only."
-assert 'MARKETING_VERSION: "6.11"' in project and 'CURRENT_PROJECT_VERSION: "81"' in project
+assert 'MARKETING_VERSION: "6.12"' in project and 'CURRENT_PROJECT_VERSION: "82"' in project
 assert "INRPFPhoneRootView.swift" in project, "The iPhone shell must be compiled into the app target."
 assert "WindowGroup" in app and "INRPFPhoneRootView()" in app, "The app must launch directly into the iPhone interface."
+assert "GeometryReader { viewport in" in app, "Root layout must measure the actual app scene viewport."
+assert "width: max(1, viewport.size.width)" in app and "height: max(1, viewport.size.height)" in app, "Root must size the iPhone shell to the measured scene dimensions."
+assert ".clipped()" in app, "Root must not render beyond the measured viewport."
 assert "appTabs" not in app and "iPadOS" not in app and "ipados" not in app.lower(), "The old universal/iPad shell must not remain in the app entry point."
 assert "TabView(selection: $selectedTab)" in phone, "The iPhone shell must retain its dedicated navigation."
 assert "GitHubIntegrationView()" in phone and "ContentView()" in phone
@@ -31,4 +34,4 @@ for name, source in (("GitHub", github), ("FTP", ftp), ("AI Agent", agent)):
     assert "ipados" not in source.lower(), f"{name} must not contain iPad-specific layout mode."
 assert 'TARGETED_DEVICE_FAMILY: "1,2"' not in project
 assert "UIRequiresFullScreen" not in project
-print("PASS: iPhone-only target, dedicated phone root, shared feature screens, and version 6.11 (81).")
+print("PASS: iPhone-only target, measured scene-sized phone root, shared feature screens, and version 6.12 (82).")
