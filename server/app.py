@@ -234,15 +234,26 @@ def generate_codes():
     payload = request.get_json(silent=True) or {}
     count = payload.get("count", 60)
     features = payload.get("features", ["github_tools"])
-    duration_days = payload.get("duration_days", 30)
-    if duration_days is not None and (
-        not isinstance(duration_days, int) or isinstance(duration_days, bool)
-        or duration_days < 1 or duration_days > 3650
-    ):
-        return jsonify({"ok": False, "error": "duration_days_must_be_1_to_3650_or_null"}), 400
-    expires_at = None if duration_days is None else (
-        datetime.fromisoformat(utc_now()) + timedelta(days=duration_days)
-    ).isoformat()
+    if "duration_hours" in payload:
+        duration_hours = payload.get("duration_hours")
+        if not isinstance(duration_hours, int) or isinstance(duration_hours, bool) or duration_hours not in {3, 12, 24}:
+            return jsonify({"ok": False, "error": "duration_hours_must_be_3_12_or_24"}), 400
+        duration_days = None
+        expires_at = (
+            datetime.fromisoformat(utc_now()) + timedelta(hours=duration_hours)
+        ).isoformat()
+    else:
+        # Backward compatibility for older admin clients that still send duration_days.
+        duration_days = payload.get("duration_days", 30)
+        if duration_days is not None and (
+            not isinstance(duration_days, int) or isinstance(duration_days, bool)
+            or duration_days < 1 or duration_days > 3650
+        ):
+            return jsonify({"ok": False, "error": "duration_days_must_be_1_to_3650_or_null"}), 400
+        duration_hours = None
+        expires_at = None if duration_days is None else (
+            datetime.fromisoformat(utc_now()) + timedelta(days=duration_days)
+        ).isoformat()
     if not isinstance(count, int) or isinstance(count, bool) or count < 1 or count > 100:
         return jsonify({"ok": False, "error": "count_must_be_1_to_100"}), 400
     if not isinstance(features, list) or not features or any(
@@ -277,7 +288,8 @@ def generate_codes():
         connection.close()
     # Plaintext codes are returned once and are never stored in the database or logs.
     return jsonify({"ok": True, "count": len(generated), "features": features,
-                    "duration_days": duration_days, "expires_at": expires_at, "codes": generated}), 201
+                    "duration_hours": duration_hours, "duration_days": duration_days,
+                    "expires_at": expires_at, "codes": generated}), 201
 
 
 @app.get("/api/admin/codes")

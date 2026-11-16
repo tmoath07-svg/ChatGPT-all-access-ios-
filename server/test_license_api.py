@@ -33,6 +33,53 @@ class PremiumLicenseTests(unittest.TestCase):
         self.assertEqual(len(inventory.get_json()["codes"]), 60)
         self.assertNotIn("INRPF-", inventory.get_data(as_text=True))
 
+    def test_hour_based_code_expiry_options(self):
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+
+        for hours in (3, 12, 24):
+            with self.subTest(hours=hours):
+                with patch.object(server, "utc_now", return_value="2026-01-01T00:00:00+00:00"):
+                    response = self.client.post(
+                        "/api/admin/codes/generate", headers=self.headers,
+                        json={"count": 1, "features": ["github_tools"], "duration_hours": hours}
+                    )
+                self.assertEqual(response.status_code, 201)
+                payload = response.get_json()
+                self.assertEqual(payload["duration_hours"], hours)
+                expected = (datetime(2026, 1, 1, tzinfo=timezone.utc) + server.timedelta(hours=hours)).isoformat()
+                self.assertEqual(payload["expires_at"], expected)
+
+    def test_hour_based_expiry_is_enforced_after_redemption(self):
+        from unittest.mock import patch
+
+        with patch.object(server, "utc_now", return_value="2026-01-01T00:00:00+00:00"):
+            generated = self.client.post(
+                "/api/admin/codes/generate", headers=self.headers,
+                json={"count": 1, "features": ["github_tools"], "duration_hours": 3}
+            )
+        self.assertEqual(generated.status_code, 201)
+        code = generated.get_json()["codes"][0]
+        with patch.object(server, "utc_now", return_value="2026-01-01T02:00:00+00:00"):
+            redeemed = self.client.post("/api/license/redeem", json={"code": code})
+        self.assertEqual(redeemed.status_code, 200)
+        activation = redeemed.get_json()["activation_id"]
+        with patch.object(server, "utc_now", return_value="2026-01-01T03:00:01+00:00"):
+            expired = self.client.post(
+                "/api/license/validate", headers={"Authorization": "Bearer " + activation}
+            )
+        self.assertEqual(expired.status_code, 403)
+        self.assertEqual(expired.get_json()["error"], "license_expired")
+
+    def test_hour_based_duration_rejects_unsupported_values(self):
+        for hours in (0, 1, 6, 48, "3", True):
+            with self.subTest(hours=hours):
+                response = self.client.post(
+                    "/api/admin/codes/generate", headers=self.headers,
+                    json={"count": 1, "features": ["github_tools"], "duration_hours": hours}
+                )
+                self.assertEqual(response.status_code, 400)
+
     def test_code_is_single_use_and_activation_is_validated(self):
         code = self.client.post(
             "/api/admin/codes/generate", headers=self.headers,
