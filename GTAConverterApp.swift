@@ -88,8 +88,14 @@ struct GTAConverterApp: App {
 
     var body: some Scene {
         WindowGroup {
-            appTabs
-                .preferredColorScheme(.dark)
+            GeometryReader { scene in
+                if scene.size.width < 600 {
+                    INRPFPhoneRootView()
+                } else {
+                    appTabs
+                        .preferredColorScheme(.dark)
+                }
+            }
         }
     }
 }
