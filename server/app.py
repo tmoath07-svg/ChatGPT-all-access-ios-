@@ -114,7 +114,7 @@ def create_google_gemini_key():
     from google.auth.transport.requests import AuthorizedSession
     session = AuthorizedSession(gemini_credentials())
     url = f"https://apikeys.googleapis.com/v2/projects/{GEMINI_PROJECT_ID}/locations/global/keys"
-    response = session.post(url, json={"displayName": "INRPF Gemini API"})
+    response = session.post(url, json={"displayName": "INRPF Gemini API", "restrictions": {"apiTargets": [{"service": "generativelanguage.googleapis.com"}]}})
     response.raise_for_status()
     operation_name = response.json().get("name")
     if not operation_name:
@@ -420,6 +420,29 @@ def admin_gemini_status():
                         "key_hint": row["key_hint"] if row else None,
                         "created_at": row["created_at"] if row else None,
                         "google_cloud_ready": bool(GEMINI_PROJECT_ID and GEMINI_SERVICE_ACCOUNT_JSON and GEMINI_ENCRYPTION_KEY)})
+    finally:
+        connection.close()
+
+
+
+@app.delete("/api/admin/gemini")
+def admin_delete_gemini_key():
+    if not admin_authorized():
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    connection = db()
+    try:
+        row = connection.execute("SELECT resource_name FROM gemini_keys WHERE id=1").fetchone()
+        if row is None:
+            return jsonify({"ok": True, "deleted": False})
+        from google.auth.transport.requests import AuthorizedSession
+        session = AuthorizedSession(gemini_credentials())
+        response = session.delete("https://apikeys.googleapis.com/v2/" + row["resource_name"])
+        response.raise_for_status()
+        connection.execute("DELETE FROM gemini_keys WHERE id=1")
+        return jsonify({"ok": True, "deleted": True})
+    except Exception:
+        app.logger.exception("Gemini API key deletion failed")
+        return jsonify({"ok": False, "error": "gemini_key_delete_failed"}), 503
     finally:
         connection.close()
 
