@@ -222,6 +222,37 @@ class PremiumLicenseTests(unittest.TestCase):
         )
         self.assertEqual(invalid.status_code, 400)
 
+    def test_bulk_delete_removes_only_selected_codes_and_requires_admin(self):
+        self.client.post("/api/admin/codes/generate", headers=self.headers,
+                         json={"count": 2, "features": ["gemini_tool"]})
+        self.client.post("/api/admin/codes/generate", headers=self.headers,
+                         json={"count": 1, "features": ["github_tools"]})
+        inventory = self.client.get("/api/admin/codes", headers=self.headers).get_json()["codes"]
+        gemini_ids = [item["id"] for item in inventory if "gemini_tool" in item["features"]]
+        self.assertEqual(len(gemini_ids), 2)
+        self.assertTrue(all(len(item) == 64 for item in gemini_ids))
+        denied = self.client.delete("/api/admin/codes/bulk", json={"ids": gemini_ids})
+        self.assertEqual(denied.status_code, 401)
+        deleted = self.client.delete("/api/admin/codes/bulk", headers=self.headers, json={"ids": gemini_ids})
+        self.assertEqual(deleted.status_code, 200)
+        self.assertEqual(deleted.get_json()["deleted"], 2)
+        remaining = self.client.get("/api/admin/codes", headers=self.headers).get_json()["codes"]
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0]["features"], ["github_tools"])
+        invalid = self.client.delete("/api/admin/codes/bulk", headers=self.headers, json={"ids": ["bad"]})
+        self.assertEqual(invalid.status_code, 400)
+
+    def test_bulk_delete_of_redeemed_code_invalidates_its_activation(self):
+        code = self.client.post("/api/admin/codes/generate", headers=self.headers,
+                                json={"count": 1, "features": ["gemini_tool"]}).get_json()["codes"][0]
+        activation = self.client.post("/api/license/redeem", json={"code": code}).get_json()["activation_id"]
+        code_id = self.client.get("/api/admin/codes", headers=self.headers).get_json()["codes"][0]["id"]
+        deleted = self.client.delete("/api/admin/codes/bulk", headers=self.headers, json={"ids": [code_id]})
+        self.assertEqual(deleted.status_code, 200)
+        checked = self.client.post("/api/license/validate", headers={"Authorization": "Bearer " + activation})
+        self.assertEqual(checked.status_code, 401)
+
+
 
 if __name__ == "__main__":
     unittest.main()

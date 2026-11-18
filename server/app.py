@@ -468,10 +468,10 @@ def list_codes():
     connection = db()
     try:
         rows = connection.execute(
-            "SELECT code_hint,status,features_json,created_at,redeemed_at,expires_at,duration_seconds FROM premium_codes ORDER BY created_at DESC LIMIT 500"
+            "SELECT code_hash,code_hint,status,features_json,created_at,redeemed_at,expires_at,duration_seconds FROM premium_codes ORDER BY created_at DESC LIMIT 500"
         ).fetchall()
         return jsonify({"ok": True, "codes": [
-            {"last4": row["code_hint"], "status": row["status"],
+            {"id": row["code_hash"], "last4": row["code_hint"], "status": row["status"],
              "features": json.loads(row["features_json"]), "created_at": row["created_at"],
              "redeemed_at": row["redeemed_at"], "expires_at": row["expires_at"],
              "duration_seconds": row["duration_seconds"]} for row in rows
@@ -497,6 +497,38 @@ def revoke_code():
             (last4.upper(),)
         )
         return jsonify({"ok": True, "updated": cursor.rowcount})
+    finally:
+        connection.close()
+
+
+@app.delete("/api/admin/codes/bulk")
+def delete_codes_bulk():
+    if not licensing_ready():
+        return jsonify({"ok": False, "error": "licensing_not_configured"}), 503
+    if not admin_authorized():
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    payload = request.get_json(silent=True) or {}
+    code_hashes = payload.get("ids")
+    if not isinstance(code_hashes, list) or not code_hashes or len(code_hashes) > 500:
+        return jsonify({"ok": False, "error": "ids_must_be_a_list_of_1_to_500_hashes"}), 400
+    if any(not isinstance(item, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", item) for item in code_hashes):
+        return jsonify({"ok": False, "error": "invalid_code_id"}), 400
+    code_hashes = list(dict.fromkeys(item.lower() for item in code_hashes))
+    placeholders = ",".join("?" for _ in code_hashes)
+    connection = db()
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        cursor = connection.execute(
+            "DELETE FROM premium_codes WHERE code_hash IN (" + placeholders + ")",
+            tuple(code_hashes)
+        )
+        deleted = cursor.rowcount
+        connection.execute("COMMIT")
+        return jsonify({"ok": True, "deleted": deleted})
+    except Exception:
+        connection.execute("ROLLBACK")
+        app.logger.exception("Bulk premium-code deletion failed")
+        return jsonify({"ok": False, "error": "bulk_delete_failed"}), 500
     finally:
         connection.close()
 
